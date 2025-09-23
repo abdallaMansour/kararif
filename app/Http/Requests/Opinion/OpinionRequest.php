@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Requests\AboutUs;
+namespace App\Http\Requests\Opinion;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Astrotomic\Translatable\Validation\RuleFactory;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
-class AboutUsRequest extends FormRequest
+class OpinionRequest extends FormRequest
 {
     /**
      * Get the validation rules that apply to the request.
@@ -17,9 +17,11 @@ class AboutUsRequest extends FormRequest
     public function rules()
     {
         return [
-            'title' => ['required', 'string'],
-            'description' => ['required', 'string'],
-            'image' => ['nullable', 'image'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'opinion' => ['required', 'string'],
+            'rate' => ['required', 'integer', 'min:1', 'max:5'],
         ];
     }
 

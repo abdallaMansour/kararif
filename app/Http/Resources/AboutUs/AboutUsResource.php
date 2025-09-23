@@ -11,11 +11,12 @@ class AboutUsResource extends JsonResource
      */
     public function toArray($request): array
     {
-        $description = 'description_' . app()->getLocale();
 
         return [
             'id' => $this->id,
-            'description' => $this->$description,
+            'title' => $this->title,
+            'description' => $this->description,
+            'image' => $this->getFirstMediaUrl(),
         ];
     }
 }

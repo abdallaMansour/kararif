@@ -24,6 +24,10 @@ class DatabaseSeeder extends Seeder
         $this->call(ContactUsSeeder::class);
         $this->call(UserDatabaseSeeder::class);
         $this->call(AboutUsSeeder::class);
+        $this->call(StorySeeder::class);
+        $this->call(ToySeeder::class);
+        $this->call(BookAvailabilitySeeder::class);
+        $this->call(OpinionSeeder::class);
     }
 
 

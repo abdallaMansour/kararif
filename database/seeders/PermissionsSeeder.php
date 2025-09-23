@@ -69,6 +69,33 @@ class PermissionsSeeder extends Seeder
                 ],
             ],
             [
+                'name' => 'author',
+                'display_name_ar' => 'المؤلف',
+                'display_name_en' => 'Author',
+                'translations' => [
+                    ['locale' => 'ar', 'display_name' => 'المؤلف'],
+                    ['locale' => 'en', 'display_name' => 'Author'],
+                ],
+            ],
+            [
+                'name' => 'story',
+                'display_name_ar' => 'القصة',
+                'display_name_en' => 'Story',
+                'translations' => [
+                    ['locale' => 'ar', 'display_name' => 'القصة'],
+                    ['locale' => 'en', 'display_name' => 'Story'],
+                ],
+            ],
+            [
+                'name' => 'toy',
+                'display_name_ar' => 'اللعبة',
+                'display_name_en' => 'Toy',
+                'translations' => [
+                    ['locale' => 'ar', 'display_name' => 'اللعبة'],
+                    ['locale' => 'en', 'display_name' => 'Toy'],
+                ],
+            ],
+            [
                 'name' => 'admin',
                 'display_name_ar' => 'الإدارة',
                 'display_name_en' => 'admin',

@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Requests\AboutUs;
+namespace App\Http\Requests\BookAvailability;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Astrotomic\Translatable\Validation\RuleFactory;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
-class AboutUsRequest extends FormRequest
+class BookAvailabilityRequest extends FormRequest
 {
     /**
      * Get the validation rules that apply to the request.
@@ -17,9 +17,11 @@ class AboutUsRequest extends FormRequest
     public function rules()
     {
         return [
-            'title' => ['required', 'string'],
+            'title' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
-            'image' => ['nullable', 'image'],
+            'link' => ['required', 'string', 'url'],
+            'country' => ['required', 'string', 'max:100'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'],
         ];
     }
 

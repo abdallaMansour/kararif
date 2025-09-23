@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Resources\AboutUs;
+namespace App\Http\Resources\Story;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class DashboardAboutUsResource extends JsonResource
+class DashboardStoryResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -14,7 +14,6 @@ class DashboardAboutUsResource extends JsonResource
         return [
             'id' => $this->id,
             'title' => $this->title,
-            'description' => $this->description,
             'image' => $this->getFirstMediaUrl(),
         ];
     }

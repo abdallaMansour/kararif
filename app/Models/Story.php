@@ -3,19 +3,15 @@
 namespace App\Models;
 
 use Spatie\MediaLibrary\HasMedia;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
-class AboutUs extends Model implements HasMedia
+class Story extends Model implements HasMedia
 {
     use InteractsWithMedia;
+
     protected $fillable = [
         'title',
-        'description',
-
-        // author
-        'author_title',
-        'author_description',
-        'author_name'
     ];
 }

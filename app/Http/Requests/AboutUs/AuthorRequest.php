@@ -7,7 +7,7 @@ use Illuminate\Contracts\Validation\Validator;
 use Astrotomic\Translatable\Validation\RuleFactory;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
-class AboutUsRequest extends FormRequest
+class AuthorRequest extends FormRequest
 {
     /**
      * Get the validation rules that apply to the request.
@@ -19,6 +19,7 @@ class AboutUsRequest extends FormRequest
         return [
             'title' => ['required', 'string'],
             'description' => ['required', 'string'],
+            'name' => ['required', 'string'],
             'image' => ['nullable', 'image'],
         ];
     }

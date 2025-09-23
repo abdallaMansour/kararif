@@ -9,3 +9,10 @@ Route::prefix('dashboard/about_us')->middleware('hasPermission:about_us')->group
     Route::get('/', [DashboardAboutUsController::class, 'index']);
     Route::post('/', [DashboardAboutUsController::class, 'update']);
 });
+
+Route::get('author', [DashboardAboutUsController::class, 'web_indexAuthor']);
+
+Route::prefix('dashboard/author')->middleware('hasPermission:author')->group(function () {
+    Route::get('/', [DashboardAboutUsController::class, 'indexAuthor']);
+    Route::post('/', [DashboardAboutUsController::class, 'updateAuthor']);
+});

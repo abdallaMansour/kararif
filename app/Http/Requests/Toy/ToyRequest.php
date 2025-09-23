@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Requests\AboutUs;
+namespace App\Http\Requests\Toy;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Astrotomic\Translatable\Validation\RuleFactory;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
-class AboutUsRequest extends FormRequest
+class ToyRequest extends FormRequest
 {
     /**
      * Get the validation rules that apply to the request.
@@ -17,9 +17,14 @@ class AboutUsRequest extends FormRequest
     public function rules()
     {
         return [
-            'title' => ['required', 'string'],
+            'title' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
-            'image' => ['nullable', 'image'],
+            'type' => ['required', 'integer', 'in:1,2,3'],
+            'link' => ['nullable', 'required_if:type,3', 'string', 'url'],
+            'audios' => ['nullable', 'required_if:type,1', 'array', 'max:5'],
+            'audios.*' => ['file'],
+            'videos' => ['nullable', 'required_if:type,2', 'array', 'max:10'],
+            'videos.*' => ['file'],
         ];
     }
 

@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Requests\AboutUs;
+namespace App\Http\Requests\Story;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Astrotomic\Translatable\Validation\RuleFactory;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
-class AboutUsRequest extends FormRequest
+class StoryRequest extends FormRequest
 {
     /**
      * Get the validation rules that apply to the request.
@@ -18,7 +18,6 @@ class AboutUsRequest extends FormRequest
     {
         return [
             'title' => ['required', 'string'],
-            'description' => ['required', 'string'],
             'image' => ['nullable', 'image'],
         ];
     }

@@ -6,9 +6,12 @@ use App\Models\AboutUs;
 use App\Traits\ApiTrait;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AboutUs\AuthorRequest;
 use App\Http\Requests\AboutUs\AboutUsRequest;
+use App\Http\Resources\Author\AuthorResource;
 use App\Http\Resources\AboutUs\AboutUsResource;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use App\Http\Resources\Author\DashboardAuthorResource;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use App\Http\Resources\AboutUs\DashboardAboutUsResource;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -39,6 +42,7 @@ class DashboardAboutUsController extends Controller
 
     /**
      * Update the specified resource in storage.
+     * @param Request $request
      */
     public function update(AboutUsRequest $request)
     {
@@ -47,9 +51,52 @@ class DashboardAboutUsController extends Controller
             $about_us = AboutUs::first();
 
             $about_us->update([
-                'description_ar' => $request->description_ar,
-                'description_en' => $request->description_en,
+                'title' => $request->title,
+                'description' => $request->description,
             ]);
+
+            if ($request->hasFile('image')) {
+                $about_us->clearMediaCollection();
+                $about_us->addMedia($request->file('image'))->toMediaCollection();
+            }
+
+            DB::commit();
+            return $this->sendSuccess(__('response.updated'));
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            throw new HttpResponseException(response()->json(['status' => false,  'message' => $th->getMessage()], 500));
+        }
+    }
+
+    // web index author
+    public function web_indexAuthor()
+    {
+        return new AuthorResource(AboutUs::first());
+    }
+
+    // index author
+    public function indexAuthor()
+    {
+        return new DashboardAuthorResource(AboutUs::first());
+    }
+
+    // update author
+    public function updateAuthor(AuthorRequest $request)
+    {
+        try {
+            DB::beginTransaction();
+            $about_us = AboutUs::first();
+
+            $about_us->update([
+                'author_title' => $request->title,
+                'author_description' => $request->description,
+                'author_name' => $request->name,
+            ]);
+
+            if ($request->hasFile('image')) {
+                $about_us->clearMediaCollection('author_image');
+                $about_us->addMedia($request->file('image'))->toMediaCollection('author_image');
+            }
 
             DB::commit();
             return $this->sendSuccess(__('response.updated'));
