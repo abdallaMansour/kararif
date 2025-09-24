@@ -15,7 +15,7 @@ class ContactUsRepository
 
     public function all()
     {
-        $contact_us = ContactUs::orderBy('is_read', 'DESC')->paginate();
+        $contact_us = ContactUs::orderBy('is_read', 'ASC')->paginate();
 
         return ContactUsResource::collection($contact_us);
     }
