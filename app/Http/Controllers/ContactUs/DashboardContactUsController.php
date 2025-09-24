@@ -38,6 +38,11 @@ class DashboardContactUsController extends Controller
         return $this->repository->all();
     }
 
+    public function readAllContactUs()
+    {
+        return $this->repository->readAllContactUs();
+    }
+
     /**
      * Show the specified resource.
      * 

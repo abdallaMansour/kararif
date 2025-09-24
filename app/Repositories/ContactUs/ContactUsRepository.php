@@ -17,9 +17,13 @@ class ContactUsRepository
     {
         $contact_us = ContactUs::orderBy('is_read', 'DESC')->paginate();
 
+        return ContactUsResource::collection($contact_us);
+    }
+    public function readAllContactUs()
+    {
         ContactUs::where('is_read', false)->update(['is_read' => true]);
 
-        return ContactUsResource::collection($contact_us);
+        return response()->json(['status' => true, 'message' => 'contact us read all successfully']);
     }
 
     public function create(array $data)
