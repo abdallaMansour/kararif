@@ -20,6 +20,7 @@ class ContactUsFactory extends Factory
             'name' => fake()->name(),
             'email' => fake()->email(),
             'message' => fake()->text(),
+            'is_read' => fake()->boolean(),
         ];
     }
 }

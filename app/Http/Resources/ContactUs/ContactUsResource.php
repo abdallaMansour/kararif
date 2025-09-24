@@ -19,6 +19,7 @@ class ContactUsResource extends JsonResource
             'name' => $this->name ?? null,
             'email' => $this->email ?? null,
             'message' => $this->message ?? null,
+            'is_read' => $this->is_read ?? false,
         ];
     }
 }

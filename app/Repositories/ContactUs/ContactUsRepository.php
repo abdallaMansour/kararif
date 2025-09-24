@@ -5,7 +5,6 @@ namespace App\Repositories\ContactUs;
 use Exception;
 use App\Models\ContactUs;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Database\Eloquent\Model;
 use App\Http\Resources\ContactUs\ContactUsResource;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -14,18 +13,15 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 class ContactUsRepository
 {
 
-    /**
-     * @return LengthAwarePaginator
-     */
     public function all()
     {
-        return ContactUsResource::collection(ContactUs::orderBy('id', 'DESC')->paginate());
+        $contact_us = ContactUs::orderBy('is_read', 'DESC')->paginate();
+
+        ContactUs::where('is_read', false)->update(['is_read' => true]);
+
+        return ContactUsResource::collection($contact_us);
     }
 
-    /**
-     * @param array $data
-     * @return Model
-     */
     public function create(array $data)
     {
         try {
