@@ -29,6 +29,10 @@ class DashboardFullStoryController extends Controller
             DB::beginTransaction();
             $full_story = FullStory::create($request->all());
 
+            if ($request->hasFile('image')) {
+                $full_story->addMediaFromRequest('image')->toMediaCollection('image');
+            }
+
             if ($request->hasFile('audios')) {
                 foreach ($request->file('audios') as $audio) {
                     $full_story->addMedia($audio)->toMediaCollection('audios');
@@ -58,6 +62,11 @@ class DashboardFullStoryController extends Controller
 
             $full_story->update($request->all());
 
+            if ($request->hasFile('image')) {
+                $full_story->clearMediaCollection('image');
+                $full_story->addMediaFromRequest('image')->toMediaCollection('image');
+            }
+
             if ($request->hasFile('audios')) {
                 $full_story->clearMediaCollection('audios');
                 foreach ($request->file('audios') as $audio) {
@@ -86,6 +95,7 @@ class DashboardFullStoryController extends Controller
     {
         try {
             $full_story->delete();
+            $full_story->clearMediaCollection('image');
             $full_story->clearMediaCollection('audios');
             $full_story->clearMediaCollection('videos');
             return $this->sendSuccess(__('response.deleted'));
