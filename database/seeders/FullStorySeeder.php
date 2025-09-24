@@ -2,59 +2,59 @@
 
 namespace Database\Seeders;
 
-use App\Models\Toy;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\FullStory;
 use Illuminate\Database\Seeder;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 
-class ToySeeder extends Seeder
+class FullStorySeeder extends Seeder
 {
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
-        $toys = [
+        $fullStories = [
             [
                 'title' => 'Educational Building Blocks',
                 'description' => 'Colorful building blocks that help children develop motor skills and creativity.',
-                'type' => rand(1, 2) == 1 ? 'color' : 'toy',
+                'type' => 3,
                 'link' => 'https://example.com/building-blocks',
             ],
             [
                 'title' => 'Interactive Learning Tablet',
                 'description' => 'A child-friendly tablet with educational games and activities.',
-                'type' => rand(1, 2) == 1 ? 'color' : 'toy',
-                'link' => 'https://example.com/building-blocks',
+                'type' => 3,
+                'link' => 'https://example.com/learning-tablet',
             ],
             [
                 'title' => 'Musical Instruments Set',
                 'description' => 'A complete set of musical instruments for kids to explore music.',
-                'type' => rand(1, 2) == 1 ? 'color' : 'toy',
-                'link' => 'https://example.com/building-blocks',
+                'type' => 3,
+                'link' => 'https://example.com/musical-instruments',
             ],
             [
                 'title' => 'Puzzle Games Collection',
                 'description' => 'Various puzzle games that enhance problem-solving skills.',
-                'type' => rand(1, 2) == 1 ? 'color' : 'toy',
-                'link' => 'https://example.com/building-blocks',
+                'type' => 3,
+                'link' => 'https://example.com/puzzle-games',
             ],
             [
                 'title' => 'Science Experiment Kit',
                 'description' => 'Safe science experiments for curious young minds.',
-                'type' => rand(1, 2) == 1 ? 'color' : 'toy',
-                'link' => 'https://example.com/building-blocks',
+                'type' => 3,
+                'link' => 'https://example.com/science-kit',
             ],
         ];
 
-        Toy::insert($toys);
+        FullStory::insert($fullStories);
 
-        // foreach ($toys as $toyData) {
-        //     $toy = Toy::create($toyData);
+        // foreach ($fullStories as $fullStoryData) {
+        //     $toy = FullStory::create($fullStoryData);
 
         //     // Add sample image if it exists
-        //     $imagePath = base_path('database/seeders/toy/' . strtolower(str_replace(' ', '_', $toyData['title'])) . '.jpg');
+        //     $imagePath = base_path('database/seeders/toy/' . strtolower(str_replace(' ', '_', $fullStoryData['title'])) . '.jpg');
         //     if (file_exists($imagePath)) {
-        //         $toy->addMedia($imagePath)->toMediaCollection();
+        //         $fullStory->addMedia($imagePath)->toMediaCollection();
         //     }
         // }
     }

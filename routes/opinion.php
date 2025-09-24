@@ -5,6 +5,7 @@ use App\Http\Controllers\Opinion\DashboardOpinionController;
 
 Route::get('opinion', [DashboardOpinionController::class, 'index']);
 Route::get('opinion/{opinion}', [DashboardOpinionController::class, 'show']);
+Route::post('opinion', [DashboardOpinionController::class, 'create']);
 
 Route::prefix('dashboard/opinion')->group(function () {
     Route::get('/', [DashboardOpinionController::class, 'index']);

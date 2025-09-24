@@ -27,21 +27,7 @@ class DashboardToyController extends Controller
     {
         try {
             DB::beginTransaction();
-            $toy = Toy::create($request->all());
-
-            if ($request->hasFile('audios')) {
-                foreach ($request->file('audios') as $audio) {
-                    $toy->addMedia($audio)->toMediaCollection('audios');
-                }
-            }
-
-            if ($request->hasFile('videos')) {
-                foreach ($request->file('videos') as $video) {
-                    $toy->addMedia($video)->toMediaCollection('videos');
-                }
-            }
-
-            $toy->save();
+            Toy::create($request->all());
 
             DB::commit();
             return $this->sendSuccess(__('response.created'));
@@ -58,22 +44,6 @@ class DashboardToyController extends Controller
 
             $toy->update($request->all());
 
-            if ($request->hasFile('audios')) {
-                $toy->clearMediaCollection('audios');
-                foreach ($request->file('audios') as $audio) {
-                    $toy->addMedia($audio)->toMediaCollection('audios');
-                }
-            }
-
-            if ($request->hasFile('videos')) {
-                $toy->clearMediaCollection('videos');
-                foreach ($request->file('videos') as $video) {
-                    $toy->addMedia($video)->toMediaCollection('videos');
-                }
-            }
-
-            $toy->save();
-
             DB::commit();
             return $this->sendSuccess(__('response.updated'));
         } catch (\Throwable $th) {
@@ -86,8 +56,6 @@ class DashboardToyController extends Controller
     {
         try {
             $toy->delete();
-            $toy->clearMediaCollection('audios');
-            $toy->clearMediaCollection('videos');
             return $this->sendSuccess(__('response.deleted'));
         } catch (\Throwable $th) {
             return $this->sendError($th->getMessage(), [], 500);

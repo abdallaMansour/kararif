@@ -17,12 +17,6 @@ class DashboardToyResource extends JsonResource
             'description' => $this->description,
             'type' => $this->type,
             'link' => $this->link,
-            'audios' => $this->getMedia('audios')->map(function ($audio) {
-                return $audio->getUrl();
-            }),
-            'videos' => $this->getMedia('videos')->map(function ($video) {
-                return $video->getUrl();
-            }),
         ];
     }
 }

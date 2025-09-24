@@ -11,13 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('toys', function (Blueprint $table) {
+        Schema::create('full_stories', function (Blueprint $table) {
             $table->id();
 
             $table->string('title');
             $table->text('description');
-            $table->string('type'); // toy or color
-            $table->text('link');
+            $table->tinyInteger('type'); // 1 or 2 or 3
+            $table->text('link')->nullable();
 
             $table->timestamps();
         });
@@ -28,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('toys');
+        Schema::dropIfExists('full_stories');
     }
 };

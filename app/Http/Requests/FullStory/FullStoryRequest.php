@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Requests\Toy;
+namespace App\Http\Requests\FullStory;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Astrotomic\Translatable\Validation\RuleFactory;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
-class ToyRequest extends FormRequest
+class FullStoryRequest extends FormRequest
 {
     /**
      * Get the validation rules that apply to the request.
@@ -19,8 +19,12 @@ class ToyRequest extends FormRequest
         return [
             'title' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
-            'type' => ['required'],
+            'type' => ['required', 'integer', 'in:1,2,3'],
             'link' => ['nullable', 'required_if:type,3', 'string', 'url'],
+            'audios' => ['nullable', 'required_if:type,1', 'array', 'max:5'],
+            'audios.*' => ['file'],
+            'videos' => ['nullable', 'required_if:type,2', 'array', 'max:10'],
+            'videos.*' => ['file'],
         ];
     }
 

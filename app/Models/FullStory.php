@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Spatie\MediaLibrary\HasMedia;
+use Illuminate\Database\Eloquent\Model;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
-class Toy extends Model implements HasMedia
+class FullStory extends Model implements HasMedia
 {
     use InteractsWithMedia;
 
@@ -16,5 +15,9 @@ class Toy extends Model implements HasMedia
         'description',
         'type',
         'link',
+    ];
+
+    protected $casts = [
+        'type' => 'integer',
     ];
 }
