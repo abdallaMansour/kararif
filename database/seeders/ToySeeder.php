@@ -46,16 +46,12 @@ class ToySeeder extends Seeder
             ],
         ];
 
-        Toy::insert($toys);
+        // Toy::insert($toys);
 
-        // foreach ($toys as $toyData) {
-        //     $toy = Toy::create($toyData);
+        foreach ($toys as $toyData) {
+            $toy = Toy::create($toyData);
 
-        //     // Add sample image if it exists
-        //     $imagePath = base_path('database/seeders/toy/' . strtolower(str_replace(' ', '_', $toyData['title'])) . '.jpg');
-        //     if (file_exists($imagePath)) {
-        //         $toy->addMedia($imagePath)->toMediaCollection();
-        //     }
-        // }
+            $toy->addMedia(__DIR__ . '/setting_img/logo.svg')->preservingOriginal()->toMediaCollection();
+        }
     }
 }
