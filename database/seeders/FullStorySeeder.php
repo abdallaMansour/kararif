@@ -27,6 +27,7 @@ class FullStorySeeder extends Seeder
                 'description' => 'A child-friendly tablet with educational games and activities.',
                 'type' => 3,
                 'link' => 'https://example.com/learning-tablet',
+                'is_free' => false,
                 // 'image' => 'https://example.com/learning-tablet.jpg',
             ],
             [
@@ -34,6 +35,7 @@ class FullStorySeeder extends Seeder
                 'description' => 'A complete set of musical instruments for kids to explore music.',
                 'type' => 3,
                 'link' => 'https://example.com/musical-instruments',
+                'is_free' => false,
                 // 'image' => 'https://example.com/musical-instruments.jpg',
             ],
             [
@@ -41,6 +43,7 @@ class FullStorySeeder extends Seeder
                 'description' => 'Various puzzle games that enhance problem-solving skills.',
                 'type' => 3,
                 'link' => 'https://example.com/puzzle-games',
+                'is_free' => false,
                 // 'image' => 'https://example.com/puzzle-games.jpg',
             ],
             [
@@ -48,6 +51,7 @@ class FullStorySeeder extends Seeder
                 'description' => 'Safe science experiments for curious young minds.',
                 'type' => 3,
                 'link' => 'https://example.com/science-kit',
+                'is_free' => false,
                 // 'image' => 'https://example.com/science-kit.jpg',
             ],
         ];
