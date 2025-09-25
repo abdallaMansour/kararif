@@ -15,6 +15,11 @@ class DashboardToyController extends Controller
 
     public function index()
     {
+        $type = request()->get('type');
+        if ($type) {
+            return DashboardToyResource::collection(Toy::where('type', $type)->get());
+        }
+
         return DashboardToyResource::collection(Toy::all());
     }
 
