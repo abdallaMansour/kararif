@@ -17,6 +17,7 @@ class FullStoryResource extends JsonResource
             'description' => $this->description,
             'type' => $this->type,
             'link' => $this->link,
+            'is_free' => $this->is_free,
             'image' => $this->getFirstMediaUrl('image'),
             'audios' => $this->getMedia('audios')->map(function ($audio) {
                 return $audio->getUrl();

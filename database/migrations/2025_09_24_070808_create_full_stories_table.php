@@ -18,6 +18,7 @@ return new class extends Migration
             $table->text('description');
             $table->tinyInteger('type'); // 1 or 2 or 3
             $table->text('link')->nullable();
+            $table->boolean('is_free')->default(false);
 
             $table->timestamps();
         });

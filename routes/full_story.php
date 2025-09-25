@@ -12,4 +12,5 @@ Route::prefix('dashboard/full-story')->group(function () {
     Route::get('/{full_story}', [DashboardFullStoryController::class, 'show']);
     Route::post('/{full_story}', [DashboardFullStoryController::class, 'update']);
     Route::delete('/{full_story}', [DashboardFullStoryController::class, 'destroy']);
+    Route::post('/{full_story}/toggle-free', [DashboardFullStoryController::class, 'toggleFree']);
 });

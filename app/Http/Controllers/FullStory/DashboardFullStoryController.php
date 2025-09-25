@@ -15,6 +15,12 @@ class DashboardFullStoryController extends Controller
 
     public function index()
     {
+        $type = request()->get('type');
+
+        if ($type) {
+            return DashboardFullStoryResource::collection(FullStory::where('type', $type)->get());
+        }
+
         return DashboardFullStoryResource::collection(FullStory::all());
     }
 
@@ -102,5 +108,12 @@ class DashboardFullStoryController extends Controller
         } catch (\Throwable $th) {
             return $this->sendError($th->getMessage(), [], 500);
         }
+    }
+
+    public function toggleFree(FullStory $full_story)
+    {
+        $full_story->is_free = !$full_story->is_free;
+        $full_story->save();
+        return $this->sendSuccess(__('response.updated'));
     }
 }

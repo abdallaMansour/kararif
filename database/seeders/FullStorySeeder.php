@@ -19,6 +19,7 @@ class FullStorySeeder extends Seeder
                 'description' => 'Colorful building blocks that help children develop motor skills and creativity.',
                 'type' => 3,
                 'link' => 'https://example.com/building-blocks',
+                'is_free' => true,
                 // 'image' => 'https://example.com/building-blocks.jpg',
             ],
             [

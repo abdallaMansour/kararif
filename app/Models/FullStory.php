@@ -15,6 +15,7 @@ class FullStory extends Model implements HasMedia
         'description',
         'type',
         'link',
+        'is_free',
     ];
 
     protected $casts = [
