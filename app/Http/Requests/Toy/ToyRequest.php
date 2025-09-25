@@ -21,6 +21,7 @@ class ToyRequest extends FormRequest
             'description' => ['required', 'string'],
             'type' => ['required'],
             'link' => ['nullable', 'required_if:type,3', 'string', 'url'],
+            'image' => ['nullable', 'image'],
         ];
     }
 

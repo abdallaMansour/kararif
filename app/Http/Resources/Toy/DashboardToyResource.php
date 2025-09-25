@@ -17,6 +17,7 @@ class DashboardToyResource extends JsonResource
             'description' => $this->description,
             'type' => $this->type,
             'link' => $this->link,
+            'image' => $this->getFirstMediaUrl(),
         ];
     }
 }

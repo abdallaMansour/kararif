@@ -17,6 +17,7 @@ class ToyResource extends JsonResource
             'description' => $this->description,
             'type' => $this->type,
             'link' => $this->link,
+            'image' => $this->getFirstMediaUrl(),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

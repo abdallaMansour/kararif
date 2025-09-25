@@ -27,7 +27,11 @@ class DashboardToyController extends Controller
     {
         try {
             DB::beginTransaction();
-            Toy::create($request->all());
+            $toy = Toy::create($request->validated());
+
+            if ($request->hasFile('image')) {
+                $toy->addMediaFromRequest('image')->toMediaCollection();
+            }
 
             DB::commit();
             return $this->sendSuccess(__('response.created'));
@@ -42,7 +46,12 @@ class DashboardToyController extends Controller
         try {
             DB::beginTransaction();
 
-            $toy->update($request->all());
+            $toy->update($request->validated());
+
+            if ($request->hasFile('image')) {
+                $toy->clearMediaCollection();
+                $toy->addMediaFromRequest('image')->toMediaCollection();
+            }
 
             DB::commit();
             return $this->sendSuccess(__('response.updated'));
@@ -55,6 +64,7 @@ class DashboardToyController extends Controller
     public function destroy(Toy $toy)
     {
         try {
+            $toy->clearMediaCollection();
             $toy->delete();
             return $this->sendSuccess(__('response.deleted'));
         } catch (\Throwable $th) {
