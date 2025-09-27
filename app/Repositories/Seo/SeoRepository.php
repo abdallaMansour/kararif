@@ -11,18 +11,20 @@ class SeoRepository
         $seo = Seo::where('name_id', $seo_id)->first();
 
         $dataToUpdate = [
-            'title:ar' => $data['title_ar'],
-            'title:en' => $data['title_en'],
-            'description:ar' => $data['description_ar'],
-            'description:en' => $data['description_en'],
-            'keyword:ar' => $data['keyword_ar'],
-            'keyword:en' => $data['keyword_en'],
+            // 'title:ar' => $data['title_ar'],
+            // 'title:en' => $data['title_en'],
+            // 'description:ar' => $data['description_ar'],
+            // 'description:en' => $data['description_en'],
+            // 'keyword:ar' => $data['keyword_ar'],
+            // 'keyword:en' => $data['keyword_en'],
+            'title' => $data['title'],
+            'description' => $data['description'],
+            'keyword' => $data['keyword'],
         ];
 
         // Add additional fields for 'home' type if necessary
         if ($seo_id == 'home') {
-            $dataToUpdate['site_name:ar'] = $data['site_name_ar'];
-            $dataToUpdate['site_name:en'] = $data['site_name_en'];
+            $dataToUpdate['site_name'] = $data['site_name'];
         }
 
         if ($seo)

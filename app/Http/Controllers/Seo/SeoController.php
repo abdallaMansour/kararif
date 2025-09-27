@@ -28,13 +28,6 @@ class SeoController extends Controller
         $this->repository = $repository;
     }
 
-    /**
-     * Show the specified resource.
-     * 
-     * @param Seo $seo
-     * @return Factory|View
-     * @throws AuthorizationException
-     */
     public function show(string $page)
     {
         $seo = $this->getSeoPage($page);

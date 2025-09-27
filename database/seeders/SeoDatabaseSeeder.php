@@ -61,15 +61,20 @@ class SeoDatabaseSeeder extends Seeder
         */
         return [
             [
-                'title:ar' => 'الصفحه الرئيسيه',
-                'description:ar' => 'وصف الصفحه',
-                'site_name:ar' => 'إسم الموقع',
-                'keyword:ar' => 'الكلمات المفتاحيه',
+                // 'title:ar' => 'الصفحه الرئيسيه',
+                // 'description:ar' => 'وصف الصفحه',
+                // 'site_name:ar' => 'إسم الموقع',
+                // 'keyword:ar' => 'الكلمات المفتاحيه',
 
-                'title:en' => 'home page',
-                'description:en' => 'description',
-                'site_name:en' => 'site name',
-                'keyword:en' => 'keyword',
+                // 'title:en' => 'home page',
+                // 'description:en' => 'description',
+                // 'site_name:en' => 'site name',
+                // 'keyword:en' => 'keyword',
+
+                'title' => 'home page',
+                'description' => 'description',
+                'site_name' => 'site name',
+                'keyword' => 'keyword',
 
                 'name_id' => 'home',
                 'images' => [
@@ -78,15 +83,20 @@ class SeoDatabaseSeeder extends Seeder
                 ]
             ],
             [
-                'title:ar' => 'الصفحه المؤلف',
-                'description:ar' => 'وصف الصفحه',
-                'site_name:ar' => 'إسم الموقع',
-                'keyword:ar' => 'الكلمات المفتاحيه',
+                // 'title:ar' => 'الصفحه المؤلف',
+                // 'description:ar' => 'وصف الصفحه',
+                // 'site_name:ar' => 'إسم الموقع',
+                // 'keyword:ar' => 'الكلمات المفتاحيه',
 
-                'title:en' => 'author page',
-                'description:en' => 'description',
-                'site_name:en' => 'site name',
-                'keyword:en' => 'keyword',
+                // 'title:en' => 'author page',
+                // 'description:en' => 'description',
+                // 'site_name:en' => 'site name',
+                // 'keyword:en' => 'keyword',
+
+                'title' => 'author page',
+                'description' => 'description',
+                'site_name' => 'site name',
+                'keyword' => 'keyword',
 
                 'name_id' => 'author',
                 'images' => [
@@ -95,15 +105,20 @@ class SeoDatabaseSeeder extends Seeder
                 ]
             ],
             [
-                'title:ar' => 'الصفحه رأيك بخراريف (اراء العملاء)',
-                'description:ar' => 'وصف الصفحه',
-                'site_name:ar' => 'إسم الموقع',
-                'keyword:ar' => 'الكلمات المفتاحيه',
+                // 'title:ar' => 'الصفحه رأيك بخراريف (اراء العملاء)',
+                // 'description:ar' => 'وصف الصفحه',
+                // 'site_name:ar' => 'إسم الموقع',
+                // 'keyword:ar' => 'الكلمات المفتاحيه',
 
-                'title:en' => 'opinion page',
-                'description:en' => 'description',
-                'site_name:en' => 'site name',
-                'keyword:en' => 'keyword',
+                // 'title:en' => 'opinion page',
+                // 'description:en' => 'description',
+                // 'site_name:en' => 'site name',
+                // 'keyword:en' => 'keyword',
+
+                'title' => 'opinion page',
+                'description' => 'description',
+                'site_name' => 'site name',
+                'keyword' => 'keyword',
 
                 'name_id' => 'opinion',
                 'images' => [
@@ -112,15 +127,20 @@ class SeoDatabaseSeeder extends Seeder
                 ]
             ],
             [
-                'title:ar' => 'الصفحه اقرأ خراريف (قصص القراءة)',
-                'description:ar' => 'وصف الصفحه',
-                'site_name:ar' => 'إسم الموقع',
-                'keyword:ar' => 'الكلمات المفتاحيه',
+                // 'title:ar' => 'الصفحه اقرأ خراريف (قصص القراءة)',
+                // 'description:ar' => 'وصف الصفحه',
+                // 'site_name:ar' => 'إسم الموقع',
+                // 'keyword:ar' => 'الكلمات المفتاحيه',
 
-                'title:en' => 'story page',
-                'description:en' => 'description',
-                'site_name:en' => 'site name',
-                'keyword:en' => 'keyword',
+                // 'title:en' => 'story page',
+                // 'description:en' => 'description',
+                // 'site_name:en' => 'site name',
+                // 'keyword:en' => 'keyword',
+
+                'title' => 'story page',
+                'description' => 'description',
+                'site_name' => 'site name',
+                'keyword' => 'keyword',
 
                 'name_id' => 'story',
                 'images' => [
@@ -129,15 +149,20 @@ class SeoDatabaseSeeder extends Seeder
                 ]
             ],
             [
-                'title:ar' => 'الصفحه اماكن توفرها',
-                'description:ar' => 'وصف الصفحه',
-                'site_name:ar' => 'إسم الموقع',
-                'keyword:ar' => 'الكلمات المفتاحيه',
+                // 'title:ar' => 'الصفحه اماكن توفرها',
+                // 'description:ar' => 'وصف الصفحه',
+                // 'site_name:ar' => 'إسم الموقع',
+                // 'keyword:ar' => 'الكلمات المفتاحيه',
 
-                'title:en' => 'availability page',
-                'description:en' => 'description',
-                'site_name:en' => 'site name',
-                'keyword:en' => 'keyword',
+                // 'title:en' => 'availability page',
+                // 'description:en' => 'description',
+                // 'site_name:en' => 'site name',
+                // 'keyword:en' => 'keyword',
+
+                'title' => 'availability page',
+                'description' => 'description',
+                'site_name' => 'site name',
+                'keyword' => 'keyword',
 
                 'name_id' => 'availability',
                 'images' => [
@@ -146,15 +171,20 @@ class SeoDatabaseSeeder extends Seeder
                 ]
             ],
             [
-                'title:ar' => 'الصفحه ماهي خراريف (من نحن)',
-                'description:ar' => 'وصف الصفحه',
-                'site_name:ar' => 'إسم الموقع',
-                'keyword:ar' => 'الكلمات المفتاحيه',
+                // 'title:ar' => 'الصفحه ماهي خراريف (من نحن)',
+                // 'description:ar' => 'وصف الصفحه',
+                // 'site_name:ar' => 'إسم الموقع',
+                // 'keyword:ar' => 'الكلمات المفتاحيه',
 
-                'title:en' => 'about us page',
-                'description:en' => 'description',
-                'site_name:en' => 'site name',
-                'keyword:en' => 'keyword',
+                // 'title:en' => 'about us page',
+                // 'description:en' => 'description',
+                // 'site_name:en' => 'site name',
+                // 'keyword:en' => 'keyword',
+
+                'title' => 'about us page',
+                'description' => 'description',
+                'site_name' => 'site name',
+                'keyword' => 'keyword',
 
                 'name_id' => 'about_us',
                 'images' => [
@@ -179,33 +209,43 @@ class SeoDatabaseSeeder extends Seeder
             //         'icon' => '/seo_imgs/user_icon.png',
             //     ]
             // ],
-            // [
-            //     'title:ar' => 'الصفحه إتصل بنا',
-            //     'description:ar' => 'وصف الصفحه',
-            //     'site_name:ar' => 'إسم الموقع',
-            //     'keyword:ar' => 'الكلمات المفتاحيه',
-
-            //     'title:en' => 'contact us page',
-            //     'description:en' => 'description',
-            //     'site_name:en' => 'site name',
-            //     'keyword:en' => 'keyword',
-
-            //     'name_id' => 'contact_us',
-            //     'images' => [
-            //         'image' => '/seo_imgs/project.png',
-            //         'icon' => '/seo_imgs/user_icon.png',
-            //     ]
-            // ],
             [
-                'title:ar' => 'الصفحه العاب الكترونيه',
-                'description:ar' => 'وصف الصفحه',
-                'site_name:ar' => 'إسم الموقع',
-                'keyword:ar' => 'الكلمات المفتاحيه',
+                // 'title:ar' => 'الصفحه إتصل بنا',
+                // 'description:ar' => 'وصف الصفحه',
+                // 'site_name:ar' => 'إسم الموقع',
+                // 'keyword:ar' => 'الكلمات المفتاحيه',
 
-                'title:en' => 'electronic games page',
-                'description:en' => 'description',
-                'site_name:en' => 'site name',
-                'keyword:en' => 'keyword',
+                // 'title:en' => 'contact us page',
+                // 'description:en' => 'description',
+                // 'site_name:en' => 'site name',
+                // 'keyword:en' => 'keyword',
+
+                'title' => 'contact us page',
+                'description' => 'description',
+                'site_name' => 'site name',
+                'keyword' => 'keyword',
+
+                'name_id' => 'contact_us',
+                'images' => [
+                    'image' => '/seo_imgs/project.png',
+                    'icon' => '/seo_imgs/user_icon.png',
+                ]
+            ],
+            [
+                // 'title:ar' => 'الصفحه العاب الكترونيه',
+                // 'description:ar' => 'وصف الصفحه',
+                // 'site_name:ar' => 'إسم الموقع',
+                // 'keyword:ar' => 'الكلمات المفتاحيه',
+
+                // 'title:en' => 'electronic games page',
+                // 'description:en' => 'description',
+                // 'site_name:en' => 'site name',
+                // 'keyword:en' => 'keyword',
+
+                'title' => 'electronic games page',
+                'description' => 'description',
+                'site_name' => 'site name',
+                'keyword' => 'keyword',
 
                 'name_id' => 'electronic_games',
                 'images' => [
@@ -214,15 +254,20 @@ class SeoDatabaseSeeder extends Seeder
                 ]
             ],
             [
-                'title:ar' => 'الصفحه تلوين',
-                'description:ar' => 'وصف الصفحه',
-                'site_name:ar' => 'إسم الموقع',
-                'keyword:ar' => 'الكلمات المفتاحيه',
+                // 'title:ar' => 'الصفحه تلوين',
+                // 'description:ar' => 'وصف الصفحه',
+                // 'site_name:ar' => 'إسم الموقع',
+                // 'keyword:ar' => 'الكلمات المفتاحيه',
 
-                'title:en' => 'coloring page',
-                'description:en' => 'description',
-                'site_name:en' => 'site name',
-                'keyword:en' => 'keyword',
+                // 'title:en' => 'coloring page',
+                // 'description:en' => 'description',
+                // 'site_name:en' => 'site name',
+                // 'keyword:en' => 'keyword',
+
+                'title' => 'coloring page',
+                'description' => 'description',
+                'site_name' => 'site name',
+                'keyword' => 'keyword',
 
                 'name_id' => 'coloring',
                 'images' => [

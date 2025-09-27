@@ -15,6 +15,10 @@ return new class extends Migration
             $table->bigIncrements('id');
 
             $table->string('name_id');
+            $table->string('title');
+            $table->string('description');
+            $table->string('site_name')->nullable();
+            $table->string('keyword');
 
             $table->timestamps();
         });

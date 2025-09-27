@@ -10,10 +10,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Astrotomic\Translatable\Contracts\Translatable as TranslatableContract;
 
 
-class Seo extends Model implements HasMedia, TranslatableContract
+class Seo extends Model implements HasMedia
 {
-    use Translatable,
-        InteractsWithMedia,
+    use InteractsWithMedia,
         HasFactory;
 
     protected $table = 'seo';
@@ -21,19 +20,26 @@ class Seo extends Model implements HasMedia, TranslatableContract
     /**
      * The attributes that are mass assignable.
      */
-    protected $translatedAttributes = [
+    // protected $translatedAttributes = [
+    //     'title',
+    //     'description',
+    //     'site_name',
+    //     'keyword',
+    // ];
+    protected $fillable = [
         'title',
         'description',
         'site_name',
         'keyword',
+        'name_id',
     ];
 
     /**
      * @var array
      */
-    protected $fillable = ['name_id'];
+    // protected $fillable = ['name_id'];
 
-    protected $with = ['translations', 'media'];
+    protected $with = ['media'];
 
     // protected static function newFactory(): SeoFactory
     // {

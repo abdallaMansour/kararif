@@ -55,13 +55,6 @@ class DashboardSeoController extends Controller
         return $this->sendResponse($seo, 'success');
     }
 
-    /**
-     * Show the specified resource.
-     * 
-     * @param Seo $seo
-     * @return Factory|View
-     * @throws AuthorizationException
-     */
     public function show(string $page)
     {
         $seo = $this->getSeoPageDashboard($page);
