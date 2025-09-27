@@ -19,6 +19,7 @@ class FullStoryRequest extends FormRequest
         return [
             'title' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
+            'is_free' => ['required', 'boolean'],
             'type' => ['required', 'integer', 'in:1,2,3'],
             'link' => ['nullable', 'required_if:type,3', 'string', 'url'],
             'image' => ['nullable', 'image'],
