@@ -15,7 +15,7 @@ class DashboardOpinionController extends Controller
 
     public function index()
     {
-        return DashboardOpinionResource::collection(Opinion::all());
+        return DashboardOpinionResource::collection(Opinion::paginate());
     }
 
     public function show(Opinion $opinion)
@@ -27,7 +27,7 @@ class DashboardOpinionController extends Controller
     {
         try {
             DB::beginTransaction();
-            $opinion = Opinion::create($request->all());
+            $opinion = Opinion::create($request->validated());
 
             DB::commit();
             return $this->sendSuccess(__('response.created'));
@@ -42,7 +42,7 @@ class DashboardOpinionController extends Controller
         try {
             DB::beginTransaction();
 
-            $opinion->update($request->all());
+            $opinion->update($request->validated());
 
             DB::commit();
             return $this->sendSuccess(__('response.updated'));
