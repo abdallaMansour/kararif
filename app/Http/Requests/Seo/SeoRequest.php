@@ -86,8 +86,8 @@ class SeoRequest extends FormRequest
             'description' => ['required', 'string'],
             'keyword' => ['required', 'string'],
 
-            'image'         => ['nullable', 'image'],
-            'icon'          => ['nullable', 'image'],
+            'image'         => ['nullable', 'file'],
+            'icon'          => ['nullable', 'file'],
         ];
     }
 
