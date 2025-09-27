@@ -56,13 +56,13 @@ class SeoRequest extends FormRequest
             // 'site_name_en'   => ['required', 'string'],
             // 'keyword_en'     => ['required', 'string'],
 
-            'title' => ['required', 'string'],
-            'description' => ['required', 'string'],
-            'site_name' => ['required', 'string'],
-            'keyword' => ['required', 'string'],
+            'title'             => ['required', 'string'],
+            'description'       => ['required', 'string'],
+            'site_name'         => ['required', 'string'],
+            'keyword'           => ['required', 'string'],
 
-            'image'         => ['nullable', 'image'],
-            'icon'          => ['nullable', 'image'],
+            'image'             => ['nullable', 'file'],
+            'icon'              => ['nullable', 'file'],
         ];
     }
 
@@ -82,12 +82,12 @@ class SeoRequest extends FormRequest
             // 'description_en' => ['required', 'string'],
             // 'keyword_en'     => ['required', 'string'],
 
-            'title' => ['required', 'string'],
-            'description' => ['required', 'string'],
-            'keyword' => ['required', 'string'],
+            'title'             => ['required', 'string'],
+            'description'       => ['required', 'string'],
+            'keyword'           => ['required', 'string'],
 
-            'image'         => ['nullable', 'file'],
-            'icon'          => ['nullable', 'file'],
+            'image'             => ['nullable', 'file'],
+            'icon'              => ['nullable', 'file'],
         ];
     }
 
