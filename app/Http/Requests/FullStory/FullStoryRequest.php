@@ -21,7 +21,7 @@ class FullStoryRequest extends FormRequest
             'description' => ['required', 'string'],
             'is_free' => ['required', 'boolean'],
             'type' => ['required', 'integer', 'in:1,2,3'],
-            'link' => ['nullable', 'required_if:type,3', 'string', 'url'],
+            'link' => ['nullable', 'string', 'url'],
             'image' => ['nullable', 'image'],
             'audios' => ['nullable', 'required_if:type,1', 'array', 'max:5'],
             'audios.*' => ['file'],
