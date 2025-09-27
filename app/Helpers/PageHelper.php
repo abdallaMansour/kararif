@@ -16,14 +16,14 @@ trait PageHelper
      */
     private $pages = [
         'home',
+        'author',
+        'opinion',
+        'story',
+        'availability',
         'about_us',
-        'services',
-        'shutter',
-        'windows',
-        'curtains',
-        'images',
-        'articles',
         'contact_us',
+        'electronic_games',
+        'coloring',
     ];
 
     /**
@@ -62,7 +62,7 @@ trait PageHelper
      * Get seo page from database
      * 
      * @param string $page
-     * @return Seo
+     * @return SeoResource
      */
     public function getSeoPage(string $page)
     {
@@ -81,7 +81,7 @@ trait PageHelper
      * Get seo page from database
      * 
      * @param string $page
-     * @return Seo
+     * @return DashboardSeoResource
      */
     public function getSeoPageDashboard(string $page)
     {

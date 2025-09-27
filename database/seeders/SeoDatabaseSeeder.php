@@ -45,6 +45,20 @@ class SeoDatabaseSeeder extends Seeder
 
     public function articles(): array
     {
+
+        // ids home, author, opinion, story, availability, about_us, contact_us, electronic_games, coloring
+
+        /*
+            الرئيسية 
+            المؤلف 
+            رأيك بخراريف (اراء العملاء)
+            اقرأ خراريف (قصص القراءة)
+            اماكن توفرها
+            ماهي خراريف (من نحن)
+            تواصل معنا 
+            العاب الكترونيه
+            تلوين
+        */
         return [
             [
                 'title:ar' => 'الصفحه الرئيسيه',
@@ -64,7 +78,75 @@ class SeoDatabaseSeeder extends Seeder
                 ]
             ],
             [
-                'title:ar' => 'الصفحه عنا',
+                'title:ar' => 'الصفحه المؤلف',
+                'description:ar' => 'وصف الصفحه',
+                'site_name:ar' => 'إسم الموقع',
+                'keyword:ar' => 'الكلمات المفتاحيه',
+
+                'title:en' => 'author page',
+                'description:en' => 'description',
+                'site_name:en' => 'site name',
+                'keyword:en' => 'keyword',
+
+                'name_id' => 'author',
+                'images' => [
+                    'image' => '/seo_imgs/project.png',
+                    'icon' => '/seo_imgs/user_icon.png',
+                ]
+            ],
+            [
+                'title:ar' => 'الصفحه رأيك بخراريف (اراء العملاء)',
+                'description:ar' => 'وصف الصفحه',
+                'site_name:ar' => 'إسم الموقع',
+                'keyword:ar' => 'الكلمات المفتاحيه',
+
+                'title:en' => 'opinion page',
+                'description:en' => 'description',
+                'site_name:en' => 'site name',
+                'keyword:en' => 'keyword',
+
+                'name_id' => 'opinion',
+                'images' => [
+                    'image' => '/seo_imgs/project.png',
+                    'icon' => '/seo_imgs/user_icon.png',
+                ]
+            ],
+            [
+                'title:ar' => 'الصفحه اقرأ خراريف (قصص القراءة)',
+                'description:ar' => 'وصف الصفحه',
+                'site_name:ar' => 'إسم الموقع',
+                'keyword:ar' => 'الكلمات المفتاحيه',
+
+                'title:en' => 'story page',
+                'description:en' => 'description',
+                'site_name:en' => 'site name',
+                'keyword:en' => 'keyword',
+
+                'name_id' => 'story',
+                'images' => [
+                    'image' => '/seo_imgs/project.png',
+                    'icon' => '/seo_imgs/user_icon.png',
+                ]
+            ],
+            [
+                'title:ar' => 'الصفحه اماكن توفرها',
+                'description:ar' => 'وصف الصفحه',
+                'site_name:ar' => 'إسم الموقع',
+                'keyword:ar' => 'الكلمات المفتاحيه',
+
+                'title:en' => 'availability page',
+                'description:en' => 'description',
+                'site_name:en' => 'site name',
+                'keyword:en' => 'keyword',
+
+                'name_id' => 'availability',
+                'images' => [
+                    'image' => '/seo_imgs/project.png',
+                    'icon' => '/seo_imgs/user_icon.png',
+                ]
+            ],
+            [
+                'title:ar' => 'الصفحه ماهي خراريف (من نحن)',
                 'description:ar' => 'وصف الصفحه',
                 'site_name:ar' => 'إسم الموقع',
                 'keyword:ar' => 'الكلمات المفتاحيه',
@@ -80,18 +162,69 @@ class SeoDatabaseSeeder extends Seeder
                     'icon' => '/seo_imgs/user_icon.png',
                 ]
             ],
+            // [
+            //     'title:ar' => 'الصفحه عنا',
+            //     'description:ar' => 'وصف الصفحه',
+            //     'site_name:ar' => 'إسم الموقع',
+            //     'keyword:ar' => 'الكلمات المفتاحيه',
+
+            //     'title:en' => 'about us page',
+            //     'description:en' => 'description',
+            //     'site_name:en' => 'site name',
+            //     'keyword:en' => 'keyword',
+
+            //     'name_id' => 'about_us',
+            //     'images' => [
+            //         'image' => '/seo_imgs/project.png',
+            //         'icon' => '/seo_imgs/user_icon.png',
+            //     ]
+            // ],
+            // [
+            //     'title:ar' => 'الصفحه إتصل بنا',
+            //     'description:ar' => 'وصف الصفحه',
+            //     'site_name:ar' => 'إسم الموقع',
+            //     'keyword:ar' => 'الكلمات المفتاحيه',
+
+            //     'title:en' => 'contact us page',
+            //     'description:en' => 'description',
+            //     'site_name:en' => 'site name',
+            //     'keyword:en' => 'keyword',
+
+            //     'name_id' => 'contact_us',
+            //     'images' => [
+            //         'image' => '/seo_imgs/project.png',
+            //         'icon' => '/seo_imgs/user_icon.png',
+            //     ]
+            // ],
             [
-                'title:ar' => 'الصفحه إتصل بنا',
+                'title:ar' => 'الصفحه العاب الكترونيه',
                 'description:ar' => 'وصف الصفحه',
                 'site_name:ar' => 'إسم الموقع',
                 'keyword:ar' => 'الكلمات المفتاحيه',
 
-                'title:en' => 'contact us page',
+                'title:en' => 'electronic games page',
                 'description:en' => 'description',
                 'site_name:en' => 'site name',
                 'keyword:en' => 'keyword',
 
-                'name_id' => 'contact_us',
+                'name_id' => 'electronic_games',
+                'images' => [
+                    'image' => '/seo_imgs/project.png',
+                    'icon' => '/seo_imgs/user_icon.png',
+                ]
+            ],
+            [
+                'title:ar' => 'الصفحه تلوين',
+                'description:ar' => 'وصف الصفحه',
+                'site_name:ar' => 'إسم الموقع',
+                'keyword:ar' => 'الكلمات المفتاحيه',
+
+                'title:en' => 'coloring page',
+                'description:en' => 'description',
+                'site_name:en' => 'site name',
+                'keyword:en' => 'keyword',
+
+                'name_id' => 'coloring',
                 'images' => [
                     'image' => '/seo_imgs/project.png',
                     'icon' => '/seo_imgs/user_icon.png',
