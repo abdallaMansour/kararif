@@ -46,15 +46,20 @@ class SeoRequest extends FormRequest
     public function homeUpdateRules()
     {
         return [
-            'title_ar'       => ['required', 'string'],
-            'description_ar' => ['required', 'string'],
-            'site_name_ar'   => ['required', 'string'],
-            'keyword_ar'     => ['required', 'string'],
+            // 'title_ar'       => ['required', 'string'],
+            // 'description_ar' => ['required', 'string'],
+            // 'site_name_ar'   => ['required', 'string'],
+            // 'keyword_ar'     => ['required', 'string'],
 
-            'title_en'       => ['required', 'string'],
-            'description_en' => ['required', 'string'],
-            'site_name_en'   => ['required', 'string'],
-            'keyword_en'     => ['required', 'string'],
+            // 'title_en'       => ['required', 'string'],
+            // 'description_en' => ['required', 'string'],
+            // 'site_name_en'   => ['required', 'string'],
+            // 'keyword_en'     => ['required', 'string'],
+
+            'title' => ['required', 'string'],
+            'description' => ['required', 'string'],
+            'site_name' => ['required', 'string'],
+            'keyword' => ['required', 'string'],
 
             'image'         => ['nullable', 'image'],
             'icon'          => ['nullable', 'image'],
@@ -69,13 +74,17 @@ class SeoRequest extends FormRequest
     public function updateRules()
     {
         return [
-            'title_ar'       => ['required', 'string'],
-            'description_ar' => ['required', 'string'],
-            'keyword_ar'     => ['required', 'string'],
+            // 'title_ar'       => ['required', 'string'],
+            // 'description_ar' => ['required', 'string'],
+            // 'keyword_ar'     => ['required', 'string'],
 
-            'title_en'       => ['required', 'string'],
-            'description_en' => ['required', 'string'],
-            'keyword_en'     => ['required', 'string'],
+            // 'title_en'       => ['required', 'string'],
+            // 'description_en' => ['required', 'string'],
+            // 'keyword_en'     => ['required', 'string'],
+
+            'title' => ['required', 'string'],
+            'description' => ['required', 'string'],
+            'keyword' => ['required', 'string'],
 
             'image'         => ['nullable', 'image'],
             'icon'          => ['nullable', 'image'],

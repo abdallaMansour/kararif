@@ -15,35 +15,40 @@ class DashboardSeoResource extends JsonResource
         $image = $this->getFirstMediaUrl('image');
         $icon = $this->getFirstMediaUrl('icon');
 
-        $langs = $this->translations;
+        // $langs = $this->translations;
 
-        $data = [];
-        if ($this->name_id == 'home') {
-            foreach ($langs as $lang) {
-                $data[$lang->locale] = [
-                    'id' => $lang->id,
-                    'title' => $lang->title,
-                    'description' => $lang->description,
-                    'site_name' => $lang->site_name,
-                    'keyword' => $lang->keyword,
-                ];
-            }
-        } else {
-            foreach ($langs as $lang) {
-                $data[$lang->locale] = [
-                    'id' => $lang->id,
-                    'title' => $lang->title,
-                    'description' => $lang->description,
-                    'keyword' => $lang->keyword,
-                ];
-            }
-        }
+        // $data = [];
+        // if ($this->name_id == 'home') {
+        //     foreach ($langs as $lang) {
+        //         $data[$lang->locale] = [
+        //             'id' => $lang->id,
+        //             'title' => $lang->title,
+        //             'description' => $lang->description,
+        //             'site_name' => $lang->site_name,
+        //             'keyword' => $lang->keyword,
+        //         ];
+        //     }
+        // } else {
+        //     foreach ($langs as $lang) {
+        //         $data[$lang->locale] = [
+        //             'id' => $lang->id,
+        //             'title' => $lang->title,
+        //             'description' => $lang->description,
+        //             'keyword' => $lang->keyword,
+        //         ];
+        //     }
+        // }
 
         return [
             'name_id' => $this->name_id,
             'image' => $this->when($image, $image, 'https://placehold.co/65x65'),
             'icon' => $this->when($icon, $icon, 'https://placehold.co/65x65'),
-            'data' => $data
+            // 'data' => [
+            'title' => $this->title,
+            'description' => $this->description,
+            'keyword' => $this->keyword,
+            'site_name' => $this->site_name,
+            // ]
         ];
     }
 }

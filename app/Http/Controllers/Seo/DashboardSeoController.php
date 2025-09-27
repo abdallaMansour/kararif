@@ -69,7 +69,7 @@ class DashboardSeoController extends Controller
     {
         try {
             DB::beginTransaction();
-            $this->repository->update($page, $request->all());
+            $this->repository->update($page, $request->validated());
 
             DB::commit();
             return $this->sendSuccess(__('response.updated'));
