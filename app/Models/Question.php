@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Spatie\MediaLibrary\HasMedia;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
-class Question extends Model
+class Question extends Model implements HasMedia
 {
+    use InteractsWithMedia;
     protected $fillable = [
         'stage_id',
         'category_id',

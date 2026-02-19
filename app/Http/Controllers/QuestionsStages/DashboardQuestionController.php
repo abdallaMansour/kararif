@@ -6,6 +6,7 @@ use App\Models\Question;
 use App\Traits\ApiTrait;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\QuestionsStages\QuestionRequest;
+use App\Http\Requests\QuestionsStages\QuestionVideosRequest;
 use App\Http\Resources\QuestionsStages\DashboardQuestionResource;
 
 class DashboardQuestionController extends Controller
@@ -58,8 +59,46 @@ class DashboardQuestionController extends Controller
     public function destroy(Question $question)
     {
         try {
+            $question->clearMediaCollection('start_video');
+            $question->clearMediaCollection('lunch_video');
+            $question->clearMediaCollection('question_video');
+            $question->clearMediaCollection('correct_answer_video');
+            $question->clearMediaCollection('wrong_answer_video');
             $question->delete();
             return $this->sendSuccess(__('response.deleted'));
+        } catch (\Throwable $th) {
+            return $this->sendError($th->getMessage(), [], 500);
+        }
+    }
+
+    /**
+     * Show question with video URLs (for assign-videos page).
+     */
+    public function showVideos(Question $question)
+    {
+        return new DashboardQuestionResource($question);
+    }
+
+    /**
+     * Update the 5 videos for a question.
+     */
+    public function updateVideos(QuestionVideosRequest $request, Question $question)
+    {
+        try {
+            $collections = [
+                'start_video',
+                'lunch_video',
+                'question_video',
+                'correct_answer_video',
+                'wrong_answer_video',
+            ];
+            foreach ($collections as $collection) {
+                if ($request->hasFile($collection)) {
+                    $question->clearMediaCollection($collection);
+                    $question->addMediaFromRequest($collection)->toMediaCollection($collection);
+                }
+            }
+            return $this->sendSuccess(__('response.updated'));
         } catch (\Throwable $th) {
             return $this->sendError($th->getMessage(), [], 500);
         }

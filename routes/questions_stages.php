@@ -55,4 +55,7 @@ Route::prefix('dashboard')->middleware('hasPermission:questions')->group(functio
     Route::get('questions/{question}', [DashboardQuestionController::class, 'show']);
     Route::post('questions/{question}', [DashboardQuestionController::class, 'update']);
     Route::delete('questions/{question}', [DashboardQuestionController::class, 'destroy']);
+    // Assign videos to a question (same permission: questions)
+    Route::get('questions/{question}/videos', [DashboardQuestionController::class, 'showVideos']);
+    Route::post('questions/{question}/videos', [DashboardQuestionController::class, 'updateVideos']);
 });

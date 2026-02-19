@@ -24,6 +24,11 @@ class DashboardQuestionResource extends JsonResource
             'answer_4' => $this->answer_4,
             'is_correct_4' => $this->is_correct_4,
             'status' => $this->status,
+            'start_video' => $this->getFirstMediaUrl('start_video'),
+            'lunch_video' => $this->getFirstMediaUrl('lunch_video'),
+            'question_video' => $this->getFirstMediaUrl('question_video'),
+            'correct_answer_video' => $this->getFirstMediaUrl('correct_answer_video'),
+            'wrong_answer_video' => $this->getFirstMediaUrl('wrong_answer_video'),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
