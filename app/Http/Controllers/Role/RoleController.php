@@ -19,6 +19,25 @@ class RoleController extends Controller
         return response()->json(RoleResource::collection($roles));
     }
 
+    /**
+     * List roles for select/dropdown (id, name, display_name).
+     */
+    public function select()
+    {
+        $roles = Role::with('translations')->get();
+        $data = $roles->map(function ($role) {
+            $en = $role->translations->where('locale', 'en')->first();
+            $ar = $role->translations->where('locale', 'ar')->first();
+            return [
+                'id' => $role->id,
+                'name' => $role->name,
+                'display_name_en' => $en?->display_name ?? $role->name,
+                'display_name_ar' => $ar?->display_name ?? $role->name,
+            ];
+        });
+        return response()->json(['data' => $data]);
+    }
+
     public function show($roleId)
     {
         try {

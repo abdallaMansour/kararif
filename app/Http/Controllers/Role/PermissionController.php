@@ -20,6 +20,26 @@ class PermissionController extends Controller
         return PermissionResource::collection($permissions);
     }
 
+    /**
+     * List permissions for select/dropdown (id, name, display_name).
+     */
+    public function select()
+    {
+        $permissions = Permission::with('translations')->get();
+        $data = $permissions->map(function ($permission) {
+            $translations = $permission->translations;
+            $en = $translations->where('locale', 'en')->first();
+            $ar = $translations->where('locale', 'ar')->first();
+            return [
+                'id' => $permission->id,
+                'name' => $permission->name,
+                'display_name_en' => $en?->display_name ?? $permission->name,
+                'display_name_ar' => $ar?->display_name ?? $permission->name,
+            ];
+        });
+        return response()->json(['data' => $data]);
+    }
+
     // public function assign($roleId, AssignPermissionsRequest $request)
     // {
     //     try {

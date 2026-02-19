@@ -17,6 +17,7 @@ use App\Http\Controllers\Role\PermissionController;
 
 Route::prefix('dashboard')->group(function () {
     Route::prefix('roles')->middleware('hasPermission:role')->group(function () {
+        Route::get('select', [RoleController::class, 'select']);
         Route::get('/', [RoleController::class, 'index']);
         Route::get('/{role_id}', [RoleController::class, 'show']);
         Route::post('/', [RoleController::class, 'store']);
@@ -26,6 +27,7 @@ Route::prefix('dashboard')->group(function () {
     });
 
     Route::prefix('permissions')->group(function () {
+        Route::get('select', [PermissionController::class, 'select']);
         Route::get('/', [PermissionController::class, 'index']);
         Route::post('/assign/{roleId}', [PermissionController::class, 'assign']);
     });
