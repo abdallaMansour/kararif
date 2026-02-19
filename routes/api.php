@@ -16,4 +16,5 @@ Route::group(['prefix' => LaravelLocalization::setLocale()], function () {
     require __DIR__ . '/book_availability.php';
     require __DIR__ . '/opinion.php';
     require __DIR__ . '/full_story.php';
+    require __DIR__ . '/questions_stages.php';
 });

@@ -29,6 +29,10 @@ class SettingController extends Controller
 
             if ($setting->key === 'logo') {
                 $data[$key] = $setting->getFirstMediaUrl();
+            } elseif (in_array($setting->key, ['faqs', 'privacy_policy', 'terms_conditions'])) {
+                $data[$key] = $setting->value ? json_decode($setting->value, true) : ['title' => null, 'content' => null];
+            } elseif (in_array($setting->key, ['faqs_image', 'privacy_policy_image', 'terms_conditions_image'])) {
+                $data[$key] = $setting->getFirstMediaUrl();
             } else {
                 $data[$key] = $setting->value;
             }

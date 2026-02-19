@@ -25,8 +25,11 @@ class DashboardSettingController extends Controller
             // لو فيه لغة نحطها ضمن المفتاح
             $key = $setting->lang ? "{$setting->key}_{$setting->lang}" : $setting->key;
 
-            // لو المفتاح هو logo و value هو path نحوله لرابط كامل
             if ($setting->key === 'logo') {
+                $data[$key] = $setting->getFirstMediaUrl();
+            } elseif (in_array($setting->key, ['faqs', 'privacy_policy', 'terms_conditions'])) {
+                $data[$key] = $setting->value ? json_decode($setting->value, true) : ['title' => null, 'content' => null];
+            } elseif (in_array($setting->key, ['faqs_image', 'privacy_policy_image', 'terms_conditions_image'])) {
                 $data[$key] = $setting->getFirstMediaUrl();
             } else {
                 $data[$key] = $setting->value;
@@ -54,17 +57,22 @@ class DashboardSettingController extends Controller
             DB::beginTransaction();
 
             foreach (Setting::all() as $setting) {
-
-
-                if ($setting->lang != null) {
-                    foreach (Languages::LANGS as $lang) {
-                        $setting->value = $request->{$setting->key . '_' . $lang};
-                    }
+                if ($setting->lang != null && in_array($setting->key, ['faqs', 'privacy_policy', 'terms_conditions'])) {
+                    $setting->value = json_encode([
+                        'title' => $request->input($setting->key . '_title_' . $setting->lang),
+                        'content' => $request->input($setting->key . '_content_' . $setting->lang),
+                    ]);
+                } elseif ($setting->lang != null) {
+                    $setting->value = $request->{$setting->key . '_' . $setting->lang};
                 } elseif ($setting->key === 'logo') {
                     if ($request->hasFile('logo')) {
                         $setting->clearMediaCollection();
-
                         $setting->addMedia($request->file('logo'))->toMediaCollection();
+                    }
+                } elseif (in_array($setting->key, ['faqs_image', 'privacy_policy_image', 'terms_conditions_image'])) {
+                    if ($request->hasFile($setting->key)) {
+                        $setting->clearMediaCollection();
+                        $setting->addMedia($request->file($setting->key))->toMediaCollection();
                     }
                 } else {
                     $setting->value = $request->{$setting->key};

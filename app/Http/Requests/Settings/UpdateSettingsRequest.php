@@ -31,11 +31,20 @@ class UpdateSettingsRequest extends FormRequest
             'x' => 'nullable|url|max:20',
             'whatsapp' => 'nullable|string|max:20',
             'logo' => 'nullable|image|max:2048',
+            'faqs_image' => 'nullable|image|max:2048',
+            'privacy_policy_image' => 'nullable|image|max:2048',
+            'terms_conditions_image' => 'nullable|image|max:2048',
         ];
 
         foreach (Languages::LANGS as $lang) {
             $validation['address_' . $lang] = 'nullable|string';
             $validation['footer_description_' . $lang] = 'nullable|string';
+            $validation['faqs_title_' . $lang] = 'nullable|string|max:255';
+            $validation['faqs_content_' . $lang] = 'nullable|string';
+            $validation['privacy_policy_title_' . $lang] = 'nullable|string|max:255';
+            $validation['privacy_policy_content_' . $lang] = 'nullable|string';
+            $validation['terms_conditions_title_' . $lang] = 'nullable|string|max:255';
+            $validation['terms_conditions_content_' . $lang] = 'nullable|string';
         }
 
         return $validation;

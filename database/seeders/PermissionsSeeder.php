@@ -140,6 +140,24 @@ class PermissionsSeeder extends Seeder
                     ['locale' => 'en', 'display_name' => 'SEO'],
                 ],
             ],
+            [
+                'name' => 'questions_and_stages',
+                'display_name_ar' => 'الأسئلة والمراحل',
+                'display_name_en' => 'Questions and Stages',
+                'translations' => [
+                    ['locale' => 'ar', 'display_name' => 'الأسئلة والمراحل'],
+                    ['locale' => 'en', 'display_name' => 'Questions and Stages'],
+                ],
+            ],
+            [
+                'name' => 'questions',
+                'display_name_ar' => 'الأسئلة',
+                'display_name_en' => 'Questions',
+                'translations' => [
+                    ['locale' => 'ar', 'display_name' => 'الأسئلة'],
+                    ['locale' => 'en', 'display_name' => 'Questions'],
+                ],
+            ],
         ];
     }
 }
