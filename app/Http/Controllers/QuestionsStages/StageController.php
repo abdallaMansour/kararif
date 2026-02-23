@@ -10,11 +10,12 @@ class StageController extends Controller
 {
     public function index()
     {
-        return StageResource::collection(Stage::where('status', true)->get());
+        return StageResource::collection(Stage::with('questionGroups')->where('status', true)->get());
     }
 
     public function show(Stage $stage)
     {
+        $stage->load('questionGroups');
         return new StageResource($stage);
     }
 }

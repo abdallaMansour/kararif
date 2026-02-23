@@ -11,10 +11,9 @@ class QuestionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'stage_id' => ['required', 'exists:stages,id'],
+            'type_id' => ['required', 'exists:types,id'],
             'category_id' => ['required', 'exists:categories,id'],
             'subcategory_id' => ['required', 'exists:subcategories,id'],
-            'type_id' => ['required', 'exists:types,id'],
             'name' => ['required', 'string', 'max:255'],
             'answer_1' => ['required', 'string'],
             'is_correct_1' => ['nullable', 'boolean'],

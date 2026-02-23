@@ -10,10 +10,10 @@ class CategoryController extends Controller
 {
     public function index()
     {
-        $stageId = request()->get('stage_id');
+        $typeId = request()->get('type_id');
         $query = Category::where('status', true);
-        if ($stageId) {
-            $query->where('stage_id', $stageId);
+        if ($typeId) {
+            $query->where('type_id', $typeId);
         }
         return CategoryResource::collection($query->get());
     }

@@ -16,9 +16,6 @@ class DashboardSubcategoryController extends Controller
     public function index()
     {
         $query = Subcategory::query();
-        if (request()->has('stage_id')) {
-            $query->where('stage_id', request('stage_id'));
-        }
         if (request()->has('category_id')) {
             $query->where('category_id', request('category_id'));
         }

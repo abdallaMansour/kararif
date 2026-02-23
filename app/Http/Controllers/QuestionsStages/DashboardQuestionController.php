@@ -16,17 +16,14 @@ class DashboardQuestionController extends Controller
     public function index()
     {
         $query = Question::query();
-        if (request()->has('stage_id')) {
-            $query->where('stage_id', request('stage_id'));
+        if (request()->has('type_id')) {
+            $query->where('type_id', request('type_id'));
         }
         if (request()->has('category_id')) {
             $query->where('category_id', request('category_id'));
         }
         if (request()->has('subcategory_id')) {
             $query->where('subcategory_id', request('subcategory_id'));
-        }
-        if (request()->has('type_id')) {
-            $query->where('type_id', request('type_id'));
         }
         return DashboardQuestionResource::collection($query->get());
     }

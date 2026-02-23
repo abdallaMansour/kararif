@@ -15,10 +15,10 @@ class DashboardCategoryController extends Controller
 
     public function index()
     {
-        $stageId = request()->get('stage_id');
+        $typeId = request()->get('type_id');
         $query = Category::query();
-        if ($stageId) {
-            $query->where('stage_id', $stageId);
+        if ($typeId) {
+            $query->where('type_id', $typeId);
         }
         return DashboardCategoryResource::collection($query->get());
     }

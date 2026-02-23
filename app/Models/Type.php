@@ -11,12 +11,7 @@ class Type extends Model implements HasMedia
     use InteractsWithMedia;
 
     protected $fillable = [
-        'stage_id',
-        'category_id',
-        'subcategory_id',
         'name',
-        'monthly_price',
-        'yearly_price',
         'status',
     ];
 
@@ -24,19 +19,9 @@ class Type extends Model implements HasMedia
         'status' => 'boolean',
     ];
 
-    public function stage()
+    public function categories()
     {
-        return $this->belongsTo(Stage::class);
-    }
-
-    public function category()
-    {
-        return $this->belongsTo(Category::class);
-    }
-
-    public function subcategory()
-    {
-        return $this->belongsTo(Subcategory::class);
+        return $this->hasMany(Category::class);
     }
 
     public function questions()

@@ -31,6 +31,7 @@ Route::prefix('dashboard')->middleware('hasPermission:questions_and_stages')->gr
     Route::get('stages/{stage}', [DashboardStageController::class, 'show']);
     Route::post('stages/{stage}', [DashboardStageController::class, 'update']);
     Route::delete('stages/{stage}', [DashboardStageController::class, 'destroy']);
+    Route::post('stages/{stage}/groups/{group}/videos', [DashboardStageController::class, 'updateGroupVideos']);
     Route::get('categories', [DashboardCategoryController::class, 'index']);
     Route::post('categories', [DashboardCategoryController::class, 'create']);
     Route::get('categories/{category}', [DashboardCategoryController::class, 'show']);

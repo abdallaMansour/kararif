@@ -10,9 +10,15 @@ class Stage extends Model implements HasMedia
 {
     use InteractsWithMedia;
 
+    const TYPE_QUESTIONS_GROUP = 'questions_group';
+    const TYPE_LIFE_POINTS = 'life_points';
+
     protected $fillable = [
         'name',
+        'stage_type',
+        'question_groups_count',
         'number_of_questions',
+        'life_points_per_question',
         'status',
     ];
 
@@ -20,13 +26,8 @@ class Stage extends Model implements HasMedia
         'status' => 'boolean',
     ];
 
-    public function categories()
+    public function questionGroups()
     {
-        return $this->hasMany(Category::class);
-    }
-
-    public function questions()
-    {
-        return $this->hasMany(Question::class);
+        return $this->hasMany(StageQuestionGroup::class, 'stage_id');
     }
 }

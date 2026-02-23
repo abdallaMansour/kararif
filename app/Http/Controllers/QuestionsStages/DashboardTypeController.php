@@ -15,17 +15,7 @@ class DashboardTypeController extends Controller
 
     public function index()
     {
-        $query = Type::query();
-        if (request()->has('stage_id')) {
-            $query->where('stage_id', request('stage_id'));
-        }
-        if (request()->has('category_id')) {
-            $query->where('category_id', request('category_id'));
-        }
-        if (request()->has('subcategory_id')) {
-            $query->where('subcategory_id', request('subcategory_id'));
-        }
-        return DashboardTypeResource::collection($query->get());
+        return DashboardTypeResource::collection(Type::all());
     }
 
     public function show(Type $type)

@@ -11,10 +11,18 @@ class StageResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'stage_type' => $this->stage_type,
+            'question_groups_count' => $this->question_groups_count,
             'number_of_questions' => $this->number_of_questions,
+            'life_points_per_question' => $this->life_points_per_question,
             'back_icon' => $this->getFirstMediaUrl('back_icon'),
             'home_icon' => $this->getFirstMediaUrl('home_icon'),
             'exit_icon' => $this->getFirstMediaUrl('exit_icon'),
+            'start_video' => $this->getFirstMediaUrl('start_video'),
+            'end_video' => $this->getFirstMediaUrl('end_video'),
+            'correct_answer_video' => $this->getFirstMediaUrl('correct_answer_video'),
+            'wrong_answer_video' => $this->getFirstMediaUrl('wrong_answer_video'),
+            'question_groups' => DashboardStageQuestionGroupResource::collection($this->whenLoaded('questionGroups')),
             'status' => $this->status,
         ];
     }

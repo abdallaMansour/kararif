@@ -10,11 +10,9 @@ class CategoryResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'stage_id' => $this->stage_id,
+            'type_id' => $this->type_id,
             'name' => $this->name,
             'image' => $this->getFirstMediaUrl(),
-            'monthly_price' => $this->monthly_price,
-            'yearly_price' => $this->yearly_price,
             'status' => $this->status,
         ];
     }

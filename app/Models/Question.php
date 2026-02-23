@@ -10,10 +10,9 @@ class Question extends Model implements HasMedia
 {
     use InteractsWithMedia;
     protected $fillable = [
-        'stage_id',
+        'type_id',
         'category_id',
         'subcategory_id',
-        'type_id',
         'name',
         'answer_1',
         'is_correct_1',
@@ -34,9 +33,9 @@ class Question extends Model implements HasMedia
         'status' => 'boolean',
     ];
 
-    public function stage()
+    public function type()
     {
-        return $this->belongsTo(Stage::class);
+        return $this->belongsTo(Type::class);
     }
 
     public function category()
@@ -47,10 +46,5 @@ class Question extends Model implements HasMedia
     public function subcategory()
     {
         return $this->belongsTo(Subcategory::class);
-    }
-
-    public function type()
-    {
-        return $this->belongsTo(Type::class);
     }
 }
