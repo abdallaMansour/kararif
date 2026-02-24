@@ -30,21 +30,12 @@ class DashboardStageController extends Controller
         try {
             DB::beginTransaction();
             $data = $request->validated();
-            $files = ['back_icon', 'home_icon', 'exit_icon', 'start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'];
+            $files = ['start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'];
             foreach ($files as $f) {
                 unset($data[$f]);
             }
             $stage = Stage::create($data);
 
-            if ($request->hasFile('back_icon')) {
-                $stage->addMediaFromRequest('back_icon')->toMediaCollection('back_icon');
-            }
-            if ($request->hasFile('home_icon')) {
-                $stage->addMediaFromRequest('home_icon')->toMediaCollection('home_icon');
-            }
-            if ($request->hasFile('exit_icon')) {
-                $stage->addMediaFromRequest('exit_icon')->toMediaCollection('exit_icon');
-            }
             if ($stage->stage_type === Stage::TYPE_LIFE_POINTS) {
                 foreach (['start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'] as $col) {
                     if ($request->hasFile($col)) {
@@ -71,7 +62,7 @@ class DashboardStageController extends Controller
         try {
             DB::beginTransaction();
             $data = $request->validated();
-            $files = ['back_icon', 'home_icon', 'exit_icon', 'start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'];
+            $files = ['start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'];
             foreach ($files as $f) {
                 unset($data[$f]);
             }
@@ -92,18 +83,6 @@ class DashboardStageController extends Controller
                 }
             }
 
-            if ($request->hasFile('back_icon')) {
-                $stage->clearMediaCollection('back_icon');
-                $stage->addMediaFromRequest('back_icon')->toMediaCollection('back_icon');
-            }
-            if ($request->hasFile('home_icon')) {
-                $stage->clearMediaCollection('home_icon');
-                $stage->addMediaFromRequest('home_icon')->toMediaCollection('home_icon');
-            }
-            if ($request->hasFile('exit_icon')) {
-                $stage->clearMediaCollection('exit_icon');
-                $stage->addMediaFromRequest('exit_icon')->toMediaCollection('exit_icon');
-            }
             if ($stage->stage_type === Stage::TYPE_LIFE_POINTS) {
                 foreach (['start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'] as $col) {
                     if ($request->hasFile($col)) {
@@ -141,9 +120,6 @@ class DashboardStageController extends Controller
     public function destroy(Stage $stage)
     {
         try {
-            $stage->clearMediaCollection('back_icon');
-            $stage->clearMediaCollection('home_icon');
-            $stage->clearMediaCollection('exit_icon');
             foreach (['start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'] as $col) {
                 $stage->clearMediaCollection($col);
             }
