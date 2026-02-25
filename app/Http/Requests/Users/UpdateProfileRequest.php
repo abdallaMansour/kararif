@@ -19,7 +19,7 @@ class UpdateProfileRequest extends FormRequest
             'fullName' => 'sometimes|string|max:255',
             'phone' => 'sometimes|nullable|string|max:20|unique:users,phone,' . auth()->guard('sanctum')->id(),
             'avatar' => 'sometimes|nullable|string|max:500',
-            'newPassword' => 'sometimes|string|min:6|confirmed',
+            'newPassword' => 'sometimes|string|size:4|confirmed',
         ];
 
         return $rules;

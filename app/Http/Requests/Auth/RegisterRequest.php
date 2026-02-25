@@ -20,7 +20,7 @@ class RegisterRequest extends FormRequest
             'username' => 'nullable|string|max:255|unique:users,username',
             'email' => 'required|email|unique:users,email',
             'phone' => 'nullable|string|max:20|unique:users,phone',
-            'password' => 'required|string|min:6|confirmed',
+            'password' => 'required|string|size:4|confirmed',
             'countryCode' => 'nullable|string|max:10',
         ];
     }

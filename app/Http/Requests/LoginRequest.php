@@ -18,7 +18,7 @@ class LoginRequest extends FormRequest
         return [
             'identifier' => 'nullable|string',
             'email' => 'required_without:identifier|nullable|email',
-            'password' => 'required|string|min:6',
+            'password' => 'required|string|size:4',
         ];
     }
 
