@@ -21,6 +21,8 @@ class ContactUsRequest extends FormRequest
         return [
             'name' => ['required', 'string'],
             'email' => ['required', 'email'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'subject' => ['nullable', 'string', 'max:255'],
             'message' => ['required', 'string']
         ];
     }
@@ -38,8 +40,9 @@ class ContactUsRequest extends FormRequest
     protected function failedValidation(Validator $validator)
     {
         throw new HttpResponseException(response()->json([
-            'status' => false,
-            'error' => $validator->errors()->first()
+            'success' => false,
+            'message' => $validator->errors()->first() ?: 'رسالة الخطأ',
+            'errors' => $validator->errors(),
         ], 400));
     }
 

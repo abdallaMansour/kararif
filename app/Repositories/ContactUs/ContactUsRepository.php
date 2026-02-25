@@ -34,14 +34,16 @@ class ContactUsRepository
             ContactUs::create([
                 'name'    => $data['name'],
                 'email'   => $data['email'],
+                'category' => $data['category'] ?? null,
+                'subject' => $data['subject'] ?? null,
                 'message' => $data['message'],
             ]);
             DB::commit();
 
-            return response()->json(['status' => true, 'message' => 'contact us created successfully']);
+            return response()->json(['success' => true, 'message' => 'تم استلام رسالتك وسنتواصل معك قريباً']);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return response()->json(['error' => $th->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => $th->getMessage()], 500);
         }
     }
 

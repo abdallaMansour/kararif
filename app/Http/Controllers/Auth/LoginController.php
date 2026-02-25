@@ -2,15 +2,10 @@
 
 namespace App\Http\Controllers\Auth;
 
-use App\Models\User;
-use Illuminate\Http\Request;
+use App\Helpers\ApiResponse;
 use App\Services\AuthService;
-use App\Services\UserService;
 use App\Http\Requests\LoginRequest;
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Hash;
-use App\Http\Resources\Auth\AuthResource;
-use Illuminate\Http\Exceptions\HttpResponseException;
 
 class LoginController extends Controller
 {
@@ -23,9 +18,26 @@ class LoginController extends Controller
 
     public function login(LoginRequest $request)
     {
-        $user = $this->authService->loginUser($request->only('email', 'password', 'device_name'));
+        $user = $this->authService->loginUser($request->only('identifier', 'email', 'password', 'device_name'));
 
-        return new AuthResource($user);
+        $expiresIn = 3600;
+        $token = $user->createToken('Access Token', expiresAt: now()->addSeconds($expiresIn))->plainTextToken;
+
+        $userData = [
+            'id' => (string) $user->id,
+            'username' => $user->username ?? '',
+            'email' => $user->email,
+            'fullName' => $user->name,
+            'phone' => $user->phone,
+            'avatar' => $user->avatar ?? $user->getFirstMediaUrl() ?? null,
+            'badge' => null,
+        ];
+
+        return ApiResponse::success([
+            'token' => $token,
+            'expiresIn' => $expiresIn,
+            'user' => $userData,
+        ], 'تم تسجيل الدخول بنجاح', 200);
     }
 
     /**

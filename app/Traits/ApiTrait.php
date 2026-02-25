@@ -36,7 +36,7 @@ trait ApiTrait
             'message' => $error,
         ];
         if (!empty($errorMessage)) {
-            $response['data'] = $errorMessage;
+            $response['errors'] = $errorMessage;
         }
         return response()->json($response, $code);
     }

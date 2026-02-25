@@ -10,23 +10,29 @@ class AuthService
 {
     public function registerUser(array $data)
     {
+        $data['password'] = Hash::make($data['password']);
         $user = User::create($data);
-
-        $token = $user->createToken('Access Token')->plainTextToken;
-
-        return [
-            'user' => $user,
-            'token' => $token,
-        ];
+        return $user;
     }
 
     public function loginUser(array $data)
     {
-        $user = User::where('email', $data['email'])->first();
+        $identifier = $data['identifier'] ?? $data['email'] ?? null;
+        if (!$identifier) {
+            throw new HttpResponseException(response()->json([
+                'success' => false,
+                'message' => 'اسم المستخدم أو كلمة المرور غير صحيحة',
+            ], 401));
+        }
+
+        $user = User::where('email', $identifier)
+            ->orWhere('username', $identifier)
+            ->first();
 
         if (! $user || ! Hash::check($data['password'], $user->password)) {
             throw new HttpResponseException(response()->json([
-                'message' => 'The provided credentials are incorrect.',
+                'success' => false,
+                'message' => 'اسم المستخدم أو كلمة المرور غير صحيحة',
             ], 401));
         }
 
@@ -46,10 +52,12 @@ class AuthService
             auth()->guard('sanctum')->user()->tokens()->delete();
 
             return response()->json([
-                'message' => 'logged out'
+                'success' => true,
+                'message' => 'تم تسجيل الخروج',
             ]);
         } catch (\Throwable $th) {
             return response()->json([
+                'success' => false,
                 'message' => 'Error on logout : ' . $th->getMessage()
             ], 500);
         }

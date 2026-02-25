@@ -2,26 +2,31 @@
 
 namespace App\Helpers;
 
+use Illuminate\Http\JsonResponse;
+
 class ApiResponse
 {
-    static function success($message = '', $code = 200)
+    public static function success($data = null, string $message = null, int $code = 200): JsonResponse
     {
-        if ($message != '')
-            return response()->json(['message' => $message], $code);
-
-        // Like 201 created successfully
-        return response()->json(status: $code);
+        $payload = ['success' => true];
+        if ($message !== null) {
+            $payload['message'] = $message;
+        }
+        if ($data !== null) {
+            $payload['data'] = $data;
+        }
+        return response()->json($payload, $code);
     }
 
-    static function error($message, $code = 400)
+    public static function error(string $message, int $code = 400, array $errors = null): JsonResponse
     {
-        return response()->json([
-            'message' => $message
-        ], $code);
-    }
-
-    static function response($data, $code = 200)
-    {
-        return response()->json(['data' => $data], $code);
+        $payload = [
+            'success' => false,
+            'message' => $message,
+        ];
+        if ($errors !== null) {
+            $payload['errors'] = $errors;
+        }
+        return response()->json($payload, $code);
     }
 }

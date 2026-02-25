@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
-class LoginRequest extends FormRequest
+class ResetPasswordRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -16,17 +16,16 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'identifier' => 'nullable|string',
-            'email' => 'required_without:identifier|nullable|email',
-            'password' => 'required|string|min:6',
+            'email' => 'required|email',
+            'code' => 'required|string|size:6',
+            'newPassword' => 'required|string|min:6|confirmed',
         ];
     }
 
     protected function failedValidation(Validator $validator)
     {
         throw new HttpResponseException(response()->json([
-            'success' => false,
-            'message' => $validator->errors()->first() ?: 'رسالة الخطأ',
+            'message' => 'Validation failed.',
             'errors' => $validator->errors(),
         ], 422));
     }

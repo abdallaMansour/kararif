@@ -23,9 +23,14 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
      */
     protected $fillable = [
         'name',
+        'username',
         'phone',
         'email',
         'password',
+        'balance',
+        'level',
+        'points',
+        'avatar',
     ];
 
     /**
@@ -46,4 +51,14 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    public function roomPlayers(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(RoomPlayer::class);
+    }
+
+    public function payments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
 }
