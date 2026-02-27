@@ -25,7 +25,8 @@ class ChangePasswordRequest extends FormRequest
     {
         return [
             'current_password' => 'required|string',
-            'password' => 'required|string|size:4|confirmed'
+            // Dashboard/admin password change should keep stronger policy
+            'password' => 'required|string|min:8|confirmed'
         ];
     }
 

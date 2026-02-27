@@ -18,7 +18,8 @@ class LoginRequest extends FormRequest
         return [
             'identifier' => 'nullable|string',
             'email' => 'required_without:identifier|nullable|email',
-            'password' => 'required|string|size:4',
+            // Allow both legacy longer passwords and new 4-character ones
+            'password' => 'required|string|min:4',
         ];
     }
 
