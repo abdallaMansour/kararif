@@ -2,13 +2,15 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Auth\AppLoginController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\User\UserController;
 use App\Http\Controllers\Game\GameController;
 
-// Auth (frontend paths)
+// Auth (frontend/app paths)
 Route::prefix('auth')->group(function () {
-    Route::post('login', [LoginController::class, 'login']);
+    // App/adventurer login: ApiResponse shape
+    Route::post('login', [AppLoginController::class, 'login']);
     Route::post('register', [AuthController::class, 'register']);
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('verify-reset-code', [AuthController::class, 'verifyResetCode']);
