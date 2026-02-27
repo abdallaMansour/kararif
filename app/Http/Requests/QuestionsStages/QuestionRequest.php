@@ -15,6 +15,8 @@ class QuestionRequest extends FormRequest
             'category_id' => ['required', 'exists:categories,id'],
             'subcategory_id' => ['required', 'exists:subcategories,id'],
             'name' => ['required', 'string', 'max:255'],
+            // Optional image for the question (nullable)
+            'image' => ['nullable', 'image', 'max:2048'],
             'answer_1' => ['required', 'string'],
             'is_correct_1' => ['nullable', 'boolean'],
             'answer_2' => ['required', 'string'],

@@ -36,7 +36,12 @@ class DashboardQuestionController extends Controller
     public function create(QuestionRequest $request)
     {
         try {
-            Question::create($request->validated());
+            $question = Question::create($request->validated());
+
+            if ($request->hasFile('image')) {
+                $question->clearMediaCollection('image');
+                $question->addMediaFromRequest('image')->toMediaCollection('image');
+            }
             return $this->sendSuccess(__('response.created'));
         } catch (\Throwable $th) {
             return $this->sendError($th->getMessage(), [], 500);
@@ -47,6 +52,14 @@ class DashboardQuestionController extends Controller
     {
         try {
             $question->update($request->validated());
+
+            if ($request->hasFile('image')) {
+                $question->clearMediaCollection('image');
+                $question->addMediaFromRequest('image')->toMediaCollection('image');
+            } elseif ($request->has('image') && $request->input('image') === null) {
+                // Explicitly clear image when client sends image: null
+                $question->clearMediaCollection('image');
+            }
             return $this->sendSuccess(__('response.updated'));
         } catch (\Throwable $th) {
             return $this->sendError($th->getMessage(), [], 500);
