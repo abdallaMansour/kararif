@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Adventurer;
 
+use App\Helpers\RankHelper;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class DashboardAdventurerResource extends JsonResource
@@ -14,6 +15,7 @@ class DashboardAdventurerResource extends JsonResource
             'country' => $this->country,
             'email' => $this->email,
             'lifetime_score' => (float) $this->lifetime_score,
+            'rank' => RankHelper::getRankForScore((float) $this->lifetime_score),
             'number_correct_answers' => $this->number_correct_answers,
             'number_wrong_answers' => $this->number_wrong_answers,
             'number_full_winnings' => $this->number_full_winnings,
