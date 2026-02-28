@@ -19,7 +19,7 @@ class UserResource extends JsonResource
         $avatarPayload = $avatarRelation ? [
             'id' => (string) $avatarRelation->id,
             'name' => $avatarRelation->name,
-            'image' => $avatarRelation->image,
+            'image' => $avatarRelation->image_url,
         ] : null;
 
         return [

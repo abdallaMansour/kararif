@@ -6,7 +6,6 @@ use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Models\Avatar;
 use Illuminate\Http\JsonResponse;
-
 class AvatarController extends Controller
 {
     public function index(): JsonResponse
@@ -14,7 +13,7 @@ class AvatarController extends Controller
         $avatars = Avatar::orderBy('id')->get()->map(fn (Avatar $a) => [
             'id' => (string) $a->id,
             'name' => $a->name,
-            'image' => $a->image,
+            'image' => $a->image_url,
         ])->values()->all();
 
         return ApiResponse::success($avatars);

@@ -15,12 +15,10 @@ class AvatarRequest extends FormRequest
 
     public function rules(): array
     {
-        $avatar = $this->route('avatar');
-        $rules = [
+        return [
             'name' => ['nullable', 'string', 'max:255'],
-            'image' => ['nullable', 'string', 'max:500'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,gif,webp', 'max:2048'],
         ];
-        return $rules;
     }
 
     protected function failedValidation(Validator $validator)
