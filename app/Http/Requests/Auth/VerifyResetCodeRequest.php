@@ -15,7 +15,7 @@ class VerifyResetCodeRequest extends FormRequest
     {
         return [
             'email' => 'required|email',
-            'code' => 'required|string|size:6',
+            'code' => 'required|string|size:4',
         ];
     }
 }

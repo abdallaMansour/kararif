@@ -67,7 +67,7 @@ class AuthController extends Controller
             return ApiResponse::error('لا يوجد حساب مرتبط بهذا البريد', 404);
         }
 
-        $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $code = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
 
         PasswordResetCode::where('email', $email)->delete();
         PasswordResetCode::create([
