@@ -32,8 +32,12 @@ return [
     ],
 
     'ziina' => [
-        'base_url' => env('ZIINA_BASE_URL', 'https://api.ziina.com'),
-        'access_token' => env('ZIINA_ACCESS_TOKEN'),
+        'api_base' => env('ZIINA_API_BASE', 'https://api-v2.ziina.com/api'),
+        'api_key' => env('ZIINA_API_KEY'),
+        'success_url' => env('ZIINA_SUCCESS_URL', 'https://yourapp.com/payments/success'),
+        'cancel_url' => env('ZIINA_CANCEL_URL', 'https://yourapp.com/payments/cancel'),
+        'currency' => env('ZIINA_CURRENCY', 'AED'),
+        'mode' => env('ZIINA_MODE', 'sandbox'),
     ],
 
 ];
