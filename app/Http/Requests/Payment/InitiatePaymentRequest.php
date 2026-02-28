@@ -16,6 +16,7 @@ class InitiatePaymentRequest extends FormRequest
         return [
             'packageId' => 'required|exists:payment_packages,id',
             'paymentMethod' => 'nullable|string|max:50',
+            'couponCode' => 'nullable|string|max:100',
         ];
     }
 }

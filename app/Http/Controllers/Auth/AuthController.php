@@ -26,9 +26,17 @@ class AuthController extends Controller
     public function register(RegisterRequest $request): JsonResponse
     {
         $user = $this->authService->registerUser($request->validated());
+        $user->load('avatarRelation');
 
         $expiresIn = 3600;
         $token = $user->createToken('Access Token', expiresAt: now()->addSeconds($expiresIn))->plainTextToken;
+
+        $avatarRelation = $user->avatarRelation;
+        $avatarPayload = $avatarRelation ? [
+            'id' => (string) $avatarRelation->id,
+            'name' => $avatarRelation->name,
+            'image' => $avatarRelation->image,
+        ] : null;
 
         $userData = [
             'id' => (string) $user->id,
@@ -36,7 +44,11 @@ class AuthController extends Controller
             'email' => $user->email,
             'fullName' => $user->name,
             'phone' => $user->phone,
-            'avatar' => $user->avatar ?? $user->getFirstMediaUrl() ?? null,
+            'avatar' => $avatarPayload,
+            'country' => [
+                'label' => $user->country_label,
+                'code' => $user->country_code,
+            ],
             'badge' => null,
         ];
 

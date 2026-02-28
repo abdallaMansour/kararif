@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Http\Requests\Users;
+namespace App\Http\Requests\Avatar;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
-class UpdateProfileRequest extends FormRequest
+class AvatarRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -15,12 +15,11 @@ class UpdateProfileRequest extends FormRequest
 
     public function rules(): array
     {
+        $avatar = $this->route('avatar');
         $rules = [
-            'fullName' => 'sometimes|string|max:255',
-            'phone' => 'sometimes|nullable|string|max:20|unique:users,phone,' . auth()->guard('sanctum')->id(),
-            'newPassword' => 'sometimes|nullable|string|size:4|confirmed',
+            'name' => ['nullable', 'string', 'max:255'],
+            'image' => ['nullable', 'string', 'max:500'],
         ];
-
         return $rules;
     }
 
@@ -28,8 +27,8 @@ class UpdateProfileRequest extends FormRequest
     {
         throw new HttpResponseException(response()->json([
             'success' => false,
-            'message' => $validator->errors()->first() ?: 'كلمتا المرور غير متطابقتين',
+            'message' => $validator->errors()->first(),
             'errors' => $validator->errors(),
-        ], 400));
+        ], 422));
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\User;
 
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Users\AssignAvatarRequest;
 use App\Http\Requests\Users\ChangeImageRequest;
 use App\Http\Requests\Users\ChangePasswordRequest;
 use App\Http\Requests\Users\ChangeUserInfoRequest;
@@ -38,7 +39,7 @@ class UserController extends Controller
 
     public function getProfile(): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
+        $user = auth()->guard('sanctum')->user()->load('avatarRelation');
         $data = (new UserResource($user))->toArray(request());
         $data['id'] = (string) $data['id'];
         return ApiResponse::success($data);
@@ -56,17 +57,26 @@ class UserController extends Controller
         if (array_key_exists('phone', $data)) {
             $user->phone = $data['phone'];
         }
-        if (array_key_exists('avatar', $data)) {
-            $user->avatar = $data['avatar'];
-        }
         if (!empty($data['newPassword'])) {
             $user->password = Hash::make($data['newPassword']);
         }
         $user->save();
 
-        $out = (new UserResource($user->fresh()))->toArray(request());
+        $out = (new UserResource($user->fresh()->load('avatarRelation')))->toArray(request());
         $out['id'] = (string) $out['id'];
         return ApiResponse::success($out);
+    }
+
+    public function assignAvatar(AssignAvatarRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = auth()->guard('sanctum')->user();
+        $user->avatar_id = $request->input('avatarId');
+        $user->save();
+
+        $out = (new UserResource($user->fresh()->load('avatarRelation')))->toArray(request());
+        $out['id'] = (string) $out['id'];
+        return ApiResponse::success($out, 'تم تحديث الصورة الشخصية', 200);
     }
 
     public function deleteAccount(): JsonResponse

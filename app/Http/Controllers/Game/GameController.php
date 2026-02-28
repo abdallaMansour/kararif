@@ -12,6 +12,7 @@ use App\Models\Room;
 use App\Models\RoomPlayer;
 use App\Models\GameSession;
 use App\Models\Type;
+use App\Models\User;
 use App\Models\Category;
 use App\Models\Subcategory;
 use App\Services\GameService;
@@ -91,6 +92,12 @@ class GameController extends Controller
 
     public function createRoom(CreateRoomRequest $request): JsonResponse
     {
+        /** @var User $user */
+        $user = auth()->user();
+        if (($user->available_sessions ?? 0) < 1) {
+            return ApiResponse::error('لا توجد جلسات لعبة متاحة. يرجى شراء حزمة للاستمرار.', 403);
+        }
+
         $code = $this->gameService->generateRoomCode();
         $room = Room::create([
             'code' => $code,
@@ -104,6 +111,8 @@ class GameController extends Controller
             'players' => $request->input('players', 2),
             'expires_at' => now()->addHours(24),
         ]);
+
+        $user->decrement('available_sessions');
 
         return ApiResponse::success([
             'roomId' => (string) $room->id,
@@ -154,6 +163,8 @@ class GameController extends Controller
         }
 
         $userId = auth()->id();
+        /** @var User $user */
+        $user = User::find($userId);
         $existing = RoomPlayer::where('room_id', $roomId)->where('user_id', $userId)->first();
         if ($existing) {
             return ApiResponse::success([
@@ -163,6 +174,10 @@ class GameController extends Controller
             ]);
         }
 
+        if (($user->available_sessions ?? 0) < 1) {
+            return ApiResponse::error('لا توجد جلسات لعبة متاحة. يرجى شراء حزمة للاستمرار.', 403);
+        }
+
         $count = $room->roomPlayers()->count();
         $teamId = ($count % (int) $room->teams) + 1;
         $player = RoomPlayer::create([
@@ -170,6 +185,8 @@ class GameController extends Controller
             'user_id' => $userId,
             'team_id' => $teamId,
         ]);
+
+        $user->decrement('available_sessions');
 
         if ($room->roomPlayers()->count() >= (int) $room->players) {
             $this->gameService->getOrCreateSession($room->fresh());
@@ -235,6 +252,28 @@ class GameController extends Controller
             'nextQuestion' => $result['nextQuestion'] !== null,
         ];
         return ApiResponse::success($data);
+    }
+
+    public function surrender(int $sessionId): JsonResponse
+    {
+        $session = GameSession::find($sessionId);
+        if (!$session) {
+            return ApiResponse::error('الجلسة غير موجودة', 404);
+        }
+        if ($session->status === 'finished') {
+            return ApiResponse::error('انتهت الجلسة', 400);
+        }
+
+        /** @var User $user */
+        $user = auth()->user();
+        $roomPlayer = RoomPlayer::where('room_id', $session->room_id)->where('user_id', $user->id)->first();
+        if (!$roomPlayer) {
+            return ApiResponse::error('أنت غير مشارك في هذه المغامرة', 403);
+        }
+
+        $user->increment('surrender_count');
+
+        return ApiResponse::success(null, 'تم تسجيل الاستسلام', 200);
     }
 
     public function getResult(int $sessionId): JsonResponse

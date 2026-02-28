@@ -18,5 +18,8 @@ require __DIR__ . '/opinion.php';
 require __DIR__ . '/full_story.php';
 require __DIR__ . '/questions_stages.php';
 require __DIR__ . '/adventurers.php';
+require __DIR__ . '/avatars.php';
+require __DIR__ . '/packages.php';
+require __DIR__ . '/coupons.php';
 require __DIR__ . '/ranks.php';
 require __DIR__ . '/scoreboard.php';

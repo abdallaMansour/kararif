@@ -25,6 +25,7 @@ Route::prefix('auth')->group(function () {
 Route::prefix('user')->middleware('auth:sanctum')->group(function () {
     Route::get('profile', [UserController::class, 'getProfile']);
     Route::patch('profile', [UserController::class, 'updateProfile']);
+    Route::patch('avatar', [UserController::class, 'assignAvatar']);
     Route::delete('account', [UserController::class, 'deleteAccount']);
     Route::get('balance', [UserController::class, 'getBalance']);
     Route::get('games', [UserController::class, 'getGames']);
@@ -40,6 +41,11 @@ Route::post('support/tickets', [\App\Http\Controllers\SupportTicketController::c
 Route::post('subscribe', [\App\Http\Controllers\SubscriberController::class, 'store']);
 Route::get('payment/packages', [\App\Http\Controllers\PaymentController::class, 'packages']);
 Route::post('payment/initiate', [\App\Http\Controllers\PaymentController::class, 'initiate'])->middleware('auth:sanctum');
+
+Route::post('coupons/apply', [\App\Http\Controllers\Coupon\CouponController::class, 'apply'])->middleware('auth:sanctum');
+
+// Avatars (public list for profile picker)
+Route::get('avatars', [\App\Http\Controllers\Avatar\AvatarController::class, 'index']);
 
 // Content
 Route::get('news', [\App\Http\Controllers\NewsController::class, 'index']);
@@ -60,5 +66,6 @@ Route::prefix('game')->group(function () {
         Route::post('create-room', [GameController::class, 'createRoom']);
         Route::post('room/{roomId}/join', [GameController::class, 'joinRoom']);
         Route::post('session/{sessionId}/answer', [GameController::class, 'submitAnswer']);
+        Route::post('session/{sessionId}/surrender', [GameController::class, 'surrender']);
     });
 });

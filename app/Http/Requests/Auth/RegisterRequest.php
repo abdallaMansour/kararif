@@ -21,7 +21,9 @@ class RegisterRequest extends FormRequest
             'email' => 'required|email|unique:users,email',
             'phone' => 'nullable|string|max:20|unique:users,phone',
             'password' => 'required|string|size:4|confirmed',
+            'countryLabel' => 'nullable|string|max:255',
             'countryCode' => 'nullable|string|max:10',
+            'avatarId' => 'nullable|integer|exists:avatars,id',
         ];
     }
 
@@ -38,7 +40,10 @@ class RegisterRequest extends FormRequest
     {
         $data = parent::validated($key, $default);
         $data['name'] = $data['fullName'] ?? '';
-        unset($data['fullName'], $data['countryCode']);
+        $data['country_label'] = $data['countryLabel'] ?? null;
+        $data['country_code'] = $data['countryCode'] ?? null;
+        $data['avatar_id'] = $data['avatarId'] ?? null;
+        unset($data['fullName'], $data['countryLabel'], $data['countryCode'], $data['avatarId']);
         if (empty($data['phone'])) {
             $data['phone'] = null;
         }

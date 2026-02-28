@@ -31,6 +31,11 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
         'level',
         'points',
         'avatar',
+        'surrender_count',
+        'country_label',
+        'country_code',
+        'avatar_id',
+        'available_sessions',
     ];
 
     /**
@@ -50,6 +55,8 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'surrender_count' => 'integer',
+        'available_sessions' => 'integer',
     ];
 
     public function roomPlayers(): \Illuminate\Database\Eloquent\Relations\HasMany
@@ -60,5 +67,15 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
     public function payments(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function avatarRelation(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Avatar::class, 'avatar_id');
+    }
+
+    public function couponUsages(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(CouponUsage::class);
     }
 }

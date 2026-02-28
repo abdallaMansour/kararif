@@ -5,25 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Payment extends Model
+class CouponUsage extends Model
 {
-    protected $fillable = [
-        'user_id',
-        'payment_package_id',
-        'coupon_id',
-        'payment_id',
-        'status',
-        'amount',
+    protected $fillable = ['user_id', 'coupon_id', 'used_at'];
+
+    protected $casts = [
+        'used_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
-    }
-
-    public function paymentPackage(): BelongsTo
-    {
-        return $this->belongsTo(PaymentPackage::class);
     }
 
     public function coupon(): BelongsTo

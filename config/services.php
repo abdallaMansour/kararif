@@ -31,4 +31,9 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'ziina' => [
+        'base_url' => env('ZIINA_BASE_URL', 'https://api.ziina.com'),
+        'access_token' => env('ZIINA_ACCESS_TOKEN'),
+    ],
+
 ];

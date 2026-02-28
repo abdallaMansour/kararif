@@ -43,7 +43,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Test User\",\n  \"username\": \"testuser\",\n  \"email\": \"test@example.com\",\n  \"phone\": \"+966501234567\",\n  \"password\": \"password\",\n  \"password_confirmation\": \"password\"\n}"
+              "raw": "{\n  \"fullName\": \"Test User\",\n  \"username\": \"testuser\",\n  \"email\": \"test@example.com\",\n  \"phone\": \"+966501234567\",\n  \"password\": \"password\",\n  \"password_confirmation\": \"password\",\n  \"countryLabel\": \"Saudi Arabia\",\n  \"countryCode\": \"SA\",\n  \"avatarId\": 1\n}"
             },
             "url": "{{base_url}}/api/auth/register"
           }
@@ -118,7 +118,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Updated Name\",\n  \"phone\": \"+966509876543\",\n  \"avatar\": \"https://api.dicebear.com/7.x/avataaars/svg?seed=test\"\n}"
+              "raw": "{\n  \"fullName\": \"Updated Name\",\n  \"phone\": \"+966509876543\",\n  \"newPassword\": \"1234\",\n  \"newPassword_confirmation\": \"1234\"\n}"
             },
             "url": "{{base_url}}/api/user/profile"
           }
@@ -153,6 +153,21 @@
             "method": "DELETE",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
             "url": "{{base_url}}/api/user/account"
+          }
+        },
+        {
+          "name": "Assign Avatar",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"avatarId\": 1\n}"
+            },
+            "url": "{{base_url}}/api/user/avatar"
           }
         }
       ]
@@ -264,6 +279,14 @@
             "header": [],
             "url": "{{base_url}}/api/game/session/1/result"
           }
+        },
+        {
+          "name": "Surrender",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/game/session/1/surrender"
+          }
         }
       ]
     },
@@ -292,6 +315,14 @@
             "method": "GET",
             "header": [],
             "url": "{{base_url}}/api/content/how-to-play"
+          }
+        },
+        {
+          "name": "Get Avatars",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/avatars"
           }
         }
       ]
@@ -370,9 +401,24 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"packageId\": 1,\n  \"paymentMethod\": \"card\"\n}"
+              "raw": "{\n  \"packageId\": 1,\n  \"paymentMethod\": \"card\",\n  \"couponCode\": \"SAVE10\"\n}"
             },
             "url": "{{base_url}}/api/payment/initiate"
+          }
+        },
+        {
+          "name": "Apply Coupon",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"SAVE10\",\n  \"packageId\": 1\n}"
+            },
+            "url": "{{base_url}}/api/coupons/apply"
           }
         }
       ]

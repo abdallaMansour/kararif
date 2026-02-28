@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PaymentPackage extends Model
 {
-    protected $fillable = ['name', 'points', 'price', 'currency', 'active'];
+    protected $fillable = ['name', 'points', 'price', 'currency', 'active', 'sessions_count'];
 
     protected $casts = [
         'active' => 'boolean',

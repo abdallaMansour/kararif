@@ -13,6 +13,7 @@ return [
     |
     */
 
+    // Forgot-password OTP delivery uses this mailer; configure MAIL_* in .env for production.
     'default' => env('MAIL_MAILER', 'smtp'),
 
     /*
