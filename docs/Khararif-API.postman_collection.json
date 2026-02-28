@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Khararif API",
-    "description": "",
+    "description": "App: auth, user (profile, avatar, balance, games), game (question-types/categories/subcategories with counts, rooms, sessions), content, payment (packages, initiate, coupons/apply). Dashboard: login, types/categories/subcategories/questions/avatars/packages/coupons CRUD. Response shapes: types include categories_count; categories include type_name, questions_count; subcategories include category_name, questions_count; questions include type_name.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -177,6 +177,7 @@
       "item": [
         {
           "name": "Get Question Types",
+          "description": "Response (data): array of { id, name_ar, slug, categories_count }.",
           "request": {
             "method": "GET",
             "header": [],
@@ -185,6 +186,7 @@
         },
         {
           "name": "Get Categories",
+          "description": "Query: questionTypeId (optional). Response (data): array of { id, name_ar, slug, type_name, questions_count }.",
           "request": {
             "method": "GET",
             "header": [],
@@ -193,6 +195,7 @@
         },
         {
           "name": "Get Subcategories",
+          "description": "Query: categoryId (optional). Response (data): array of { id, name_ar, slug, category_name, questions_count }.",
           "request": {
             "method": "GET",
             "header": [],
@@ -456,6 +459,7 @@
         },
         {
           "name": "Get Types (Question Types)",
+          "description": "App types. Response: array of { id, name, image, status, categories_count }.",
           "request": {
             "method": "GET",
             "header": [],
@@ -464,6 +468,7 @@
         },
         {
           "name": "Get Categories",
+          "description": "App categories. Query: type_id (optional). Response: array of { id, type_id, type_name, name, image, status, questions_count }.",
           "request": {
             "method": "GET",
             "header": [],
@@ -472,10 +477,29 @@
         },
         {
           "name": "Get Subcategories",
+          "description": "App subcategories. Query: category_id (optional). Response: array of { id, category_id, category_name, name, image, status, questions_count }.",
           "request": {
             "method": "GET",
             "header": [],
             "url": "{{base_url}}/api/subcategories?category_id=1"
+          }
+        },
+        {
+          "name": "Get Questions",
+          "description": "App questions. Query: type_id, category_id, subcategory_id (optional). Response: array of { id, type_id, type_name, category_id, subcategory_id, name, answer_1..4, is_correct_1..4, status, video URLs }.",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/questions?type_id=1&category_id=1&subcategory_id=1"
+          }
+        },
+        {
+          "name": "Get Question",
+          "description": "App question show. Response: same shape as list item, includes type_name.",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/questions/1"
           }
         },
         {
@@ -484,6 +508,236 @@
             "method": "GET",
             "header": [],
             "url": "{{base_url}}/api/setting"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "description": "All dashboard requests require Authorization: Bearer {{token}} (use Dashboard Login first). Types/Categories/Subcategories require permission questions_and_stages; Questions require questions; Avatars/Packages/Coupons require avatars/packages/coupons.",
+      "item": [
+        {
+          "name": "Dashboard Auth",
+          "item": [
+            {
+              "name": "Dashboard Login",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password\"\n}" },
+                "url": "{{base_url}}/api/dashboard/login"
+              }
+            },
+            {
+              "name": "Dashboard Logout",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+                "url": "{{base_url}}/api/dashboard/logout"
+              }
+            },
+            {
+              "name": "Dashboard Profile",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+                "url": "{{base_url}}/api/dashboard/profile"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Types",
+          "item": [
+            {
+              "name": "List Types",
+              "description": "Response: array of { id, name, image, status, categories_count, created_at, updated_at }.",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/types" }
+            },
+            {
+              "name": "Show Type",
+              "description": "Response: { id, name, image, status, categories_count, created_at, updated_at }.",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/types/1" }
+            },
+            {
+              "name": "Create Type",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "body": { "mode": "formdata", "formdata": [] }, "url": "{{base_url}}/api/dashboard/types" }
+            },
+            {
+              "name": "Update Type",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "body": { "mode": "formdata", "formdata": [] }, "url": "{{base_url}}/api/dashboard/types/1" }
+            },
+            {
+              "name": "Delete Type",
+              "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/types/1" }
+            }
+          ]
+        },
+        {
+          "name": "Categories",
+          "item": [
+            {
+              "name": "List Categories",
+              "description": "Query: type_id (optional). Response: array of { id, type_id, type_name, name, image, status, questions_count, created_at, updated_at }.",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/categories?type_id=1" }
+            },
+            {
+              "name": "Show Category",
+              "description": "Response: { id, type_id, type_name, name, image, status, questions_count, created_at, updated_at }.",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/categories/1" }
+            },
+            {
+              "name": "Create Category",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "body": { "mode": "formdata", "formdata": [] }, "url": "{{base_url}}/api/dashboard/categories" }
+            },
+            {
+              "name": "Update Category",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "body": { "mode": "formdata", "formdata": [] }, "url": "{{base_url}}/api/dashboard/categories/1" }
+            },
+            {
+              "name": "Delete Category",
+              "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/categories/1" }
+            }
+          ]
+        },
+        {
+          "name": "Subcategories",
+          "item": [
+            {
+              "name": "List Subcategories",
+              "description": "Query: category_id (optional). Response: array of { id, category_id, category_name, name, image, status, questions_count, created_at, updated_at }.",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/subcategories?category_id=1" }
+            },
+            {
+              "name": "Show Subcategory",
+              "description": "Response: { id, category_id, category_name, name, image, status, questions_count, created_at, updated_at }.",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/subcategories/1" }
+            },
+            {
+              "name": "Create Subcategory",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "body": { "mode": "formdata", "formdata": [] }, "url": "{{base_url}}/api/dashboard/subcategories" }
+            },
+            {
+              "name": "Update Subcategory",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "body": { "mode": "formdata", "formdata": [] }, "url": "{{base_url}}/api/dashboard/subcategories/1" }
+            },
+            {
+              "name": "Delete Subcategory",
+              "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/subcategories/1" }
+            }
+          ]
+        },
+        {
+          "name": "Questions",
+          "item": [
+            {
+              "name": "List Questions",
+              "description": "Query: type_id, category_id, subcategory_id (optional). Response: array of { id, type_id, type_name, category_id, subcategory_id, name, answer_1..4, is_correct_1..4, status, video URLs, created_at, updated_at }.",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/questions?type_id=1&category_id=1&subcategory_id=1" }
+            },
+            {
+              "name": "Show Question",
+              "description": "Response: includes type_name and full question fields.",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/questions/1" }
+            },
+            {
+              "name": "Create Question",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "body": { "mode": "formdata", "formdata": [] }, "url": "{{base_url}}/api/dashboard/questions" }
+            },
+            {
+              "name": "Update Question",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "body": { "mode": "formdata", "formdata": [] }, "url": "{{base_url}}/api/dashboard/questions/1" }
+            },
+            {
+              "name": "Delete Question",
+              "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/questions/1" }
+            }
+          ]
+        },
+        {
+          "name": "Avatars",
+          "item": [
+            {
+              "name": "List Avatars",
+              "description": "Response: array of { id, name, image, created_at, updated_at }.",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/avatars" }
+            },
+            {
+              "name": "Show Avatar",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/avatars/1" }
+            },
+            {
+              "name": "Create Avatar",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Avatar\",\"image\":\"https://example.com/img.png\"}" }, "url": "{{base_url}}/api/dashboard/avatars" }
+            },
+            {
+              "name": "Update Avatar",
+              "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Avatar\",\"image\":\"https://example.com/img.png\"}" }, "url": "{{base_url}}/api/dashboard/avatars/1" }
+            },
+            {
+              "name": "Delete Avatar",
+              "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/avatars/1" }
+            }
+          ]
+        },
+        {
+          "name": "Packages",
+          "item": [
+            {
+              "name": "List Packages",
+              "description": "Response: array of { id, name, points, sessions_count, price, currency, active, created_at, updated_at }.",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/packages" }
+            },
+            {
+              "name": "Show Package",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/packages/1" }
+            },
+            {
+              "name": "Create Package",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Package\",\"sessions_count\":5,\"price\":99,\"currency\":\"AED\",\"points\":100,\"active\":true}" }, "url": "{{base_url}}/api/dashboard/packages" }
+            },
+            {
+              "name": "Update Package",
+              "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"Package\",\"sessions_count\":5,\"price\":99,\"currency\":\"AED\",\"points\":100,\"active\":true}" }, "url": "{{base_url}}/api/dashboard/packages/1" }
+            },
+            {
+              "name": "Delete Package",
+              "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/packages/1" }
+            }
+          ]
+        },
+        {
+          "name": "Coupons",
+          "item": [
+            {
+              "name": "List Coupons",
+              "description": "Response: array of { id, title, code, usage_per_user, discount_percentage, expires_at, status, created_at, updated_at }.",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/coupons" }
+            },
+            {
+              "name": "Show Coupon",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/coupons/1" }
+            },
+            {
+              "name": "Create Coupon",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"title\":\"Coupon\",\"code\":\"SAVE10\",\"usage_per_user\":1,\"discount_percentage\":10,\"expires_at\":\"2025-12-31\",\"status\":\"active\"}" }, "url": "{{base_url}}/api/dashboard/coupons" }
+            },
+            {
+              "name": "Update Coupon",
+              "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"title\":\"Coupon\",\"code\":\"SAVE10\",\"usage_per_user\":1,\"discount_percentage\":10,\"expires_at\":\"2025-12-31\",\"status\":\"active\"}" }, "url": "{{base_url}}/api/dashboard/coupons/1" }
+            },
+            {
+              "name": "Delete Coupon",
+              "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": "{{base_url}}/api/dashboard/coupons/1" }
+            }
+          ]
+        },
+        {
+          "name": "Get Setting",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/dashboard/setting"
           }
         }
       ]
