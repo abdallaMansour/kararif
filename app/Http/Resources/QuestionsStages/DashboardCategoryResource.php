@@ -11,9 +11,11 @@ class DashboardCategoryResource extends JsonResource
         return [
             'id' => $this->id,
             'type_id' => $this->type_id,
+            'type_name' => $this->type?->name,
             'name' => $this->name,
             'image' => $this->getFirstMediaUrl(),
             'status' => $this->status,
+            'questions_count' => (int) ($this->questions_count ?? 0),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

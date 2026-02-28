@@ -10,7 +10,7 @@ class TypeController extends Controller
 {
     public function index()
     {
-        return TypeResource::collection(Type::where('status', true)->get());
+        return TypeResource::collection(Type::where('status', true)->withCount('categories')->get());
     }
 
     public function show(Type $type)

@@ -11,9 +11,11 @@ class CategoryResource extends JsonResource
         return [
             'id' => $this->id,
             'type_id' => $this->type_id,
+            'type_name' => $this->type?->name,
             'name' => $this->name,
             'image' => $this->getFirstMediaUrl(),
             'status' => $this->status,
+            'questions_count' => (int) ($this->questions_count ?? 0),
         ];
     }
 }

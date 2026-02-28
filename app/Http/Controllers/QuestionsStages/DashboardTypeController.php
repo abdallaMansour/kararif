@@ -15,7 +15,7 @@ class DashboardTypeController extends Controller
 
     public function index()
     {
-        return DashboardTypeResource::collection(Type::all());
+        return DashboardTypeResource::collection(Type::withCount('categories')->get());
     }
 
     public function show(Type $type)

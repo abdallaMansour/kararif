@@ -13,6 +13,7 @@ class TypeResource extends JsonResource
             'name' => $this->name,
             'image' => $this->getFirstMediaUrl(),
             'status' => $this->status,
+            'categories_count' => (int) ($this->categories_count ?? 0),
         ];
     }
 }

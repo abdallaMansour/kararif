@@ -16,7 +16,7 @@ class DashboardCategoryController extends Controller
     public function index()
     {
         $typeId = request()->get('type_id');
-        $query = Category::query();
+        $query = Category::with('type')->withCount('questions');
         if ($typeId) {
             $query->where('type_id', $typeId);
         }
@@ -25,6 +25,7 @@ class DashboardCategoryController extends Controller
 
     public function show(Category $category)
     {
+        $category->load('type')->loadCount('questions');
         return new DashboardCategoryResource($category);
     }
 

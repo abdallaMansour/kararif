@@ -20,11 +20,12 @@ class QuestionController extends Controller
         if (request()->has('subcategory_id')) {
             $query->where('subcategory_id', request('subcategory_id'));
         }
-        return QuestionResource::collection($query->get());
+        return QuestionResource::collection($query->with('type')->get());
     }
 
     public function show(Question $question)
     {
+        $question->load('type');
         return new QuestionResource($question);
     }
 }

@@ -13,6 +13,7 @@ class DashboardTypeResource extends JsonResource
             'name' => $this->name,
             'image' => $this->getFirstMediaUrl(),
             'status' => $this->status,
+            'categories_count' => (int) ($this->categories_count ?? 0),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

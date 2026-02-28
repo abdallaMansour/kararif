@@ -15,7 +15,7 @@ class DashboardSubcategoryController extends Controller
 
     public function index()
     {
-        $query = Subcategory::query();
+        $query = Subcategory::with('category')->withCount('questions');
         if (request()->has('category_id')) {
             $query->where('category_id', request('category_id'));
         }
@@ -24,6 +24,7 @@ class DashboardSubcategoryController extends Controller
 
     public function show(Subcategory $subcategory)
     {
+        $subcategory->load('category')->loadCount('questions');
         return new DashboardSubcategoryResource($subcategory);
     }
 

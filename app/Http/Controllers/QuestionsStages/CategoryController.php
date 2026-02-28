@@ -11,7 +11,7 @@ class CategoryController extends Controller
     public function index()
     {
         $typeId = request()->get('type_id');
-        $query = Category::where('status', true);
+        $query = Category::where('status', true)->with('type')->withCount('questions');
         if ($typeId) {
             $query->where('type_id', $typeId);
         }
@@ -20,6 +20,7 @@ class CategoryController extends Controller
 
     public function show(Category $category)
     {
+        $category->load('type')->loadCount('questions');
         return new CategoryResource($category);
     }
 }

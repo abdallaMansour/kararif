@@ -26,10 +26,11 @@ class GameController extends Controller
 
     public function getQuestionTypes(): JsonResponse
     {
-        $types = Type::where('status', true)->orderBy('id')->get()->map(fn ($t) => [
+        $types = Type::where('status', true)->withCount('categories')->orderBy('id')->get()->map(fn ($t) => [
             'id' => (string) $t->id,
             'name_ar' => $t->name,
             'slug' => \Illuminate\Support\Str::slug($t->name),
+            'categories_count' => (int) ($t->categories_count ?? 0),
         ]);
         return ApiResponse::success($types->values()->all());
     }
@@ -41,10 +42,12 @@ class GameController extends Controller
         if ($questionTypeId !== null) {
             $query->where('type_id', $questionTypeId);
         }
-        $items = $query->orderBy('id')->get()->map(fn ($c) => [
+        $items = $query->with('type')->withCount('questions')->orderBy('id')->get()->map(fn ($c) => [
             'id' => (string) $c->id,
             'name_ar' => $c->name,
             'slug' => \Illuminate\Support\Str::slug($c->name),
+            'type_name' => $c->type?->name,
+            'questions_count' => (int) ($c->questions_count ?? 0),
         ]);
         return ApiResponse::success($items->values()->all());
     }
@@ -56,10 +59,12 @@ class GameController extends Controller
         if ($categoryId !== null) {
             $query->where('category_id', $categoryId);
         }
-        $items = $query->orderBy('id')->get()->map(fn ($s) => [
+        $items = $query->with('category')->withCount('questions')->orderBy('id')->get()->map(fn ($s) => [
             'id' => (string) $s->id,
             'name_ar' => $s->name,
             'slug' => \Illuminate\Support\Str::slug($s->name),
+            'category_name' => $s->category?->name,
+            'questions_count' => (int) ($s->questions_count ?? 0),
         ]);
         return ApiResponse::success($items->values()->all());
     }
