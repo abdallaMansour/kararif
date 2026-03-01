@@ -14,6 +14,8 @@ class RankRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'start_score' => ['required', 'integer', 'min:0'],
             'icon' => ['nullable', 'image'],
+            'prize_type' => ['nullable', 'string', 'in:discount_next_5_purchases,free_sessions'],
+            'prize_value' => ['nullable', 'integer', 'min:0'],
         ];
     }
 

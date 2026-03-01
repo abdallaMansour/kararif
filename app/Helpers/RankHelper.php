@@ -25,6 +25,9 @@ class RankHelper
             'start_score' => $rank->start_score,
             'end_score' => $endScore,
             'icon' => $rank->getFirstMediaUrl(),
+            'prize_type' => $rank->prize_type,
+            'prize_value' => $rank->prize_value,
+            'prize_label' => $rank->prize_label,
         ];
     }
 }
