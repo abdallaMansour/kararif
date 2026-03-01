@@ -44,9 +44,6 @@ Route::post('payment/initiate', [\App\Http\Controllers\PaymentController::class,
 
 Route::post('coupons/apply', [\App\Http\Controllers\Coupon\CouponController::class, 'apply'])->middleware('auth:sanctum');
 
-// Avatars (public list for profile picker)
-Route::get('avatars', [\App\Http\Controllers\Avatar\AvatarController::class, 'index']);
-
 // Content
 Route::get('news', [\App\Http\Controllers\NewsController::class, 'index']);
 Route::get('faq', [\App\Http\Controllers\FaqController::class, 'index']);

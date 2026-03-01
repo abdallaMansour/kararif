@@ -28,12 +28,9 @@ class DashboardAvatarController extends Controller
     public function store(AvatarRequest $request): JsonResponse
     {
         try {
-            $data = $request->validated();
-            if ($request->hasFile('image')) {
-                $data['image'] = $request->file('image')->store('avatars', 'public');
-            }
+            $data = $this->resolveAvatarImage($request, $request->validated());
             $avatar = Avatar::create($data);
-            return $this->sendResponse((new DashboardAvatarResource($avatar))->resolve(), __('response.created'), 201);
+            return $this->sendResponse((new DashboardAvatarResource($avatar))->resolve(), __('response.created'));
         } catch (\Throwable $th) {
             return $this->sendError($th->getMessage(), [], 500);
         }
@@ -42,12 +39,9 @@ class DashboardAvatarController extends Controller
     public function update(AvatarRequest $request, Avatar $avatar): JsonResponse
     {
         try {
-            $data = $request->validated();
-            if ($request->hasFile('image')) {
-                if ($avatar->image && Storage::disk('public')->exists($avatar->image)) {
-                    Storage::disk('public')->delete($avatar->image);
-                }
-                $data['image'] = $request->file('image')->store('avatars', 'public');
+            $data = $this->resolveAvatarImage($request, $request->validated());
+            if ($request->hasFile('image') && $avatar->image && ! str_starts_with((string) $avatar->image, 'http') && Storage::disk('public')->exists($avatar->image)) {
+                Storage::disk('public')->delete($avatar->image);
             }
             $avatar->update($data);
             return $this->sendResponse((new DashboardAvatarResource($avatar->fresh()))->resolve(), __('response.updated'));
@@ -59,7 +53,7 @@ class DashboardAvatarController extends Controller
     public function destroy(Avatar $avatar): JsonResponse
     {
         try {
-            if ($avatar->image && Storage::disk('public')->exists($avatar->image)) {
+            if ($avatar->image && ! str_starts_with((string) $avatar->image, 'http') && Storage::disk('public')->exists($avatar->image)) {
                 Storage::disk('public')->delete($avatar->image);
             }
             $avatar->delete();
@@ -67,5 +61,15 @@ class DashboardAvatarController extends Controller
         } catch (\Throwable $th) {
             return $this->sendError($th->getMessage(), [], 500);
         }
+    }
+
+    private function resolveAvatarImage(AvatarRequest $request, array $data): array
+    {
+        if ($request->hasFile('image')) {
+            $data['image'] = $request->file('image')->store('avatars', 'public');
+        } elseif ($request->filled('image')) {
+            $data['image'] = $request->input('image');
+        }
+        return $data;
     }
 }

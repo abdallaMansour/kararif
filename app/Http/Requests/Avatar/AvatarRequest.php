@@ -15,9 +15,13 @@ class AvatarRequest extends FormRequest
 
     public function rules(): array
     {
+        $imageRule = $this->hasFile('image')
+            ? ['nullable', 'image', 'mimes:jpeg,png,gif,webp', 'max:2048']
+            : ['nullable', 'string', 'max:2048'];
+
         return [
             'name' => ['nullable', 'string', 'max:255'],
-            'image' => ['nullable', 'image', 'mimes:jpeg,png,gif,webp', 'max:2048'],
+            'image' => $imageRule,
         ];
     }
 

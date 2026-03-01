@@ -2,6 +2,9 @@
 
 use Illuminate\Support\Facades\Route;
 
+// Public app avatars list (register first so it is never shadowed by dashboard routes)
+Route::get('avatars', [\App\Http\Controllers\Avatar\AvatarController::class, 'index']);
+
 // API routes: no locale in path; app uses Arabic (ar) for API
 require __DIR__ . '/frontend_api.php';
 require __DIR__ . '/auth.php';
