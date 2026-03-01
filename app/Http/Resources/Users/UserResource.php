@@ -38,6 +38,11 @@ class UserResource extends JsonResource
             ],
             'surrender_count' => (int) ($this->surrender_count ?? 0),
             'available_sessions' => (int) ($this->available_sessions ?? 0),
+            'rank_prize_discount' => [
+                'has_discount' => ($this->rank_discount_uses_left ?? 0) > 0 && ($this->rank_discount_percent ?? 0) > 0,
+                'discount_percent' => ($this->rank_discount_uses_left ?? 0) > 0 ? (int) ($this->rank_discount_percent ?? 0) : null,
+                'uses_left' => (int) ($this->rank_discount_uses_left ?? 0),
+            ],
             'stats' => [
                 'wins' => 0,
                 'losses' => 0,

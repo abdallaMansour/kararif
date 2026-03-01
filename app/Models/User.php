@@ -36,6 +36,10 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
         'country_code',
         'avatar_id',
         'available_sessions',
+        'rank_discount_percent',
+        'rank_discount_uses_left',
+        'granted_discount_rank_ids',
+        'granted_session_rank_ids',
     ];
 
     /**
@@ -57,6 +61,8 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
         'email_verified_at' => 'datetime',
         'surrender_count' => 'integer',
         'available_sessions' => 'integer',
+        'granted_discount_rank_ids' => 'array',
+        'granted_session_rank_ids' => 'array',
     ];
 
     public function roomPlayers(): \Illuminate\Database\Eloquent\Relations\HasMany

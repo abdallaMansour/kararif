@@ -12,6 +12,7 @@ use App\Http\Requests\Users\UpdateProfileRequest;
 use App\Http\Resources\Users\UserResource;
 use App\Models\RoomPlayer;
 use App\Models\User;
+use App\Services\RankPrizeService;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
@@ -19,7 +20,8 @@ use Illuminate\Support\Facades\Hash;
 class UserController extends Controller
 {
     public function __construct(
-        protected UserService $userService
+        protected UserService $userService,
+        protected RankPrizeService $rankPrizeService
     ) {}
 
     public function changePassword(ChangePasswordRequest $request)
@@ -39,7 +41,10 @@ class UserController extends Controller
 
     public function getProfile(): JsonResponse
     {
+        /** @var User $user */
         $user = auth()->guard('sanctum')->user()->load('avatarRelation');
+        $this->rankPrizeService->syncUserRankPrizes($user);
+        $user->refresh();
         $data = (new UserResource($user))->toArray(request());
         $data['id'] = (string) $data['id'];
         return ApiResponse::success($data);
