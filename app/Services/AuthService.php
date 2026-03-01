@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Avatar;
 use App\Models\User;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Hash;
@@ -11,6 +12,11 @@ class AuthService
     public function registerUser(array $data)
     {
         $data['password'] = Hash::make($data['password']);
+
+        if (empty($data['avatar_id'])) {
+            $data['avatar_id'] = Avatar::inRandomOrder()->value('id');
+        }
+
         $user = User::create($data);
         return $user;
     }
