@@ -65,9 +65,9 @@ class DashboardAvatarController extends Controller
 
     private function resolveAvatarImage(AvatarRequest $request, array $data): array
     {
-        if ($request->hasFile('image')) {
+        if ($request->hasFile('image') && $request->file('image')->isValid()) {
             $data['image'] = $request->file('image')->store('avatars', 'public');
-        } elseif ($request->filled('image')) {
+        } elseif ($request->filled('image') && ! $request->hasFile('image')) {
             $data['image'] = $request->input('image');
         }
         return $data;

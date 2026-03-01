@@ -8,5 +8,6 @@ Route::prefix('dashboard')->middleware(['auth:sanctum', 'hasPermission:avatars']
     Route::post('avatars', [DashboardAvatarController::class, 'store']);
     Route::get('avatars/{avatar}', [DashboardAvatarController::class, 'show']);
     Route::put('avatars/{avatar}', [DashboardAvatarController::class, 'update']);
+    Route::post('avatars/{avatar}', [DashboardAvatarController::class, 'update']);
     Route::delete('avatars/{avatar}', [DashboardAvatarController::class, 'destroy']);
 });
