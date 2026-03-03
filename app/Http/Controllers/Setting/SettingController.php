@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Setting;
 
 use App\Models\Setting;
+use App\Helpers\SettingHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Setting\SettingResource;
 use App\Http\Requests\Settings\UpdateSettingsRequest;
@@ -30,7 +31,10 @@ class SettingController extends Controller
             if ($setting->key === 'logo') {
                 $data[$key] = $setting->getFirstMediaUrl();
             } elseif (in_array($setting->key, ['faqs', 'privacy_policy', 'terms_conditions'])) {
-                $data[$key] = $setting->value ? json_decode($setting->value, true) : ['title' => null, 'content' => null];
+                $decoded = $setting->value ? json_decode($setting->value, true) : null;
+                $data[$key] = in_array($setting->key, ['privacy_policy', 'terms_conditions'])
+                    ? SettingHelper::normalizeStepsFormat(is_array($decoded) ? $decoded : null)
+                    : ($decoded ?? ['title' => null, 'content' => null]);
             } elseif (in_array($setting->key, ['faqs_image', 'privacy_policy_image', 'terms_conditions_image'])) {
                 $data[$key] = $setting->getFirstMediaUrl();
             } else {
@@ -61,9 +65,8 @@ class SettingController extends Controller
             ->orderByRaw('lang IS NOT NULL DESC')
             ->first();
         $imageSetting = Setting::where('key', 'terms_conditions_image')->first();
-        $data = $setting && $setting->value
-            ? json_decode($setting->value, true)
-            : ['title' => null, 'content' => null];
+        $decoded = $setting && $setting->value ? json_decode($setting->value, true) : null;
+        $data = SettingHelper::normalizeStepsFormat(is_array($decoded) ? $decoded : null);
         $data['image'] = $imageSetting ? $imageSetting->getFirstMediaUrl() : null;
         return response()->json(['data' => $data]);
     }
@@ -80,9 +83,8 @@ class SettingController extends Controller
             ->orderByRaw('lang IS NOT NULL DESC')
             ->first();
         $imageSetting = Setting::where('key', 'privacy_policy_image')->first();
-        $data = $setting && $setting->value
-            ? json_decode($setting->value, true)
-            : ['title' => null, 'content' => null];
+        $decoded = $setting && $setting->value ? json_decode($setting->value, true) : null;
+        $data = SettingHelper::normalizeStepsFormat(is_array($decoded) ? $decoded : null);
         $data['image'] = $imageSetting ? $imageSetting->getFirstMediaUrl() : null;
         return response()->json(['data' => $data]);
     }

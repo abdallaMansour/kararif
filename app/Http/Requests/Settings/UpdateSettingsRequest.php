@@ -45,6 +45,15 @@ class UpdateSettingsRequest extends FormRequest
             $validation['privacy_policy_content_' . $lang] = 'nullable|string';
             $validation['terms_conditions_title_' . $lang] = 'nullable|string|max:255';
             $validation['terms_conditions_content_' . $lang] = 'nullable|string';
+            // Steps format (array of { title, content }) for app step-by-step display
+            $validation['terms_conditions_last_updated_' . $lang] = 'nullable|string|date_format:Y-m-d';
+            $validation['terms_conditions_steps_' . $lang] = 'nullable|array';
+            $validation['terms_conditions_steps_' . $lang . '.*.title'] = 'nullable|string|max:500';
+            $validation['terms_conditions_steps_' . $lang . '.*.content'] = 'nullable|string';
+            $validation['privacy_policy_last_updated_' . $lang] = 'nullable|string|date_format:Y-m-d';
+            $validation['privacy_policy_steps_' . $lang] = 'nullable|array';
+            $validation['privacy_policy_steps_' . $lang . '.*.title'] = 'nullable|string|max:500';
+            $validation['privacy_policy_steps_' . $lang . '.*.content'] = 'nullable|string';
         }
 
         return $validation;
