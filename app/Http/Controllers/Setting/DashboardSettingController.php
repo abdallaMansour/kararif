@@ -113,10 +113,10 @@ class DashboardSettingController extends Controller
             }
 
             DB::commit();
-            return ApiResponse::response(['status' => true, 'message' => __('response.updated')]);
+            return ApiResponse::success(null, __('response.updated'), 200);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return ApiResponse::response(['error' => $th->getMessage()], 500);
+            return ApiResponse::error($th->getMessage(), 500);
         }
     }
 
@@ -246,10 +246,10 @@ class DashboardSettingController extends Controller
                 $setting->save();
             }
             DB::commit();
-            return ApiResponse::response(['status' => true, 'message' => __('response.updated')]);
+            return ApiResponse::success(null, __('response.updated'), 200);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return ApiResponse::response(['error' => $th->getMessage()], 500);
+            return ApiResponse::error($th->getMessage(), 500);
         }
     }
 }
