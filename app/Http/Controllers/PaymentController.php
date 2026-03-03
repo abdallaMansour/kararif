@@ -10,6 +10,7 @@ use App\Models\Payment;
 use App\Models\PaymentPackage;
 use App\Services\PaymentService;
 use App\Services\RankPrizeService;
+use App\Services\ZiinaService;
 use Illuminate\Http\JsonResponse;
 
 class PaymentController extends Controller
@@ -57,18 +58,37 @@ class PaymentController extends Controller
         }
 
         $amount = max(0, $amount);
+
+        $currency = config('ziina.currency', config('services.ziina.currency', 'AED'));
+        $ziina = app(ZiinaService::class);
+        $intent = $ziina->createPaymentIntent(
+            (float) $amount,
+            $currency,
+            null,
+            null,
+            null,
+            $package->name
+        );
+
+        $paymentIdExternal = null;
+        $redirectUrl = null;
+        if ($intent && ! empty($intent['redirect_url'])) {
+            $paymentIdExternal = $intent['id'];
+            $redirectUrl = $intent['redirect_url'];
+        }
+
         $payment = Payment::create([
             'user_id' => $user->id,
             'payment_package_id' => $package->id,
             'coupon_id' => $couponId,
-            'payment_id' => 'pay_' . uniqid(),
+            'payment_id' => $paymentIdExternal,
             'status' => 'pending',
             'amount' => $amount,
         ]);
 
         return ApiResponse::success([
             'paymentId' => (string) $payment->id,
-            'redirectUrl' => null,
+            'redirectUrl' => $redirectUrl,
         ], null, 200);
     }
 }

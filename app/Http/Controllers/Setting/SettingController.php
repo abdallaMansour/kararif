@@ -48,4 +48,42 @@ class SettingController extends Controller
     {
         return response()->json(['logo' => Setting::where('key', 'logo')->first()->getFirstMediaUrl()]);
     }
+
+    /**
+     * Public endpoint: terms and conditions for the app.
+     */
+    public function terms()
+    {
+        $setting = Setting::where('key', 'terms_conditions')
+            ->where(function ($q) {
+                $q->where('lang', app()->getLocale())->orWhereNull('lang');
+            })
+            ->orderByRaw('lang IS NOT NULL DESC')
+            ->first();
+        $imageSetting = Setting::where('key', 'terms_conditions_image')->first();
+        $data = $setting && $setting->value
+            ? json_decode($setting->value, true)
+            : ['title' => null, 'content' => null];
+        $data['image'] = $imageSetting ? $imageSetting->getFirstMediaUrl() : null;
+        return response()->json(['data' => $data]);
+    }
+
+    /**
+     * Public endpoint: privacy policy for the app.
+     */
+    public function privacyPolicy()
+    {
+        $setting = Setting::where('key', 'privacy_policy')
+            ->where(function ($q) {
+                $q->where('lang', app()->getLocale())->orWhereNull('lang');
+            })
+            ->orderByRaw('lang IS NOT NULL DESC')
+            ->first();
+        $imageSetting = Setting::where('key', 'privacy_policy_image')->first();
+        $data = $setting && $setting->value
+            ? json_decode($setting->value, true)
+            : ['title' => null, 'content' => null];
+        $data['image'] = $imageSetting ? $imageSetting->getFirstMediaUrl() : null;
+        return response()->json(['data' => $data]);
+    }
 }

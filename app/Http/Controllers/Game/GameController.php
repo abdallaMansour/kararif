@@ -80,14 +80,16 @@ class GameController extends Controller
             return ApiResponse::error('رمز المغامرة غير صحيح أو منتهي', 400);
         }
 
+        $teams = (int) $room->teams;
         $data = [
             'valid' => true,
             'roomId' => (string) $room->id,
             'code' => $room->code,
             'gameTitle' => $room->title ?? $room->type?->name ?? '',
             'rounds' => (int) $room->rounds,
-            'teams' => (int) $room->teams,
+            'teams' => $teams,
             'players' => (int) $room->players,
+            'playersPerTeam' => $teams > 0 ? (int) ($room->players / $teams) : 0,
             'questionType' => $room->type?->name ?? '',
             'questionCategory' => $room->category?->name ?? '',
             'questionSubCategory' => $room->subcategory?->name ?? '',
@@ -104,6 +106,10 @@ class GameController extends Controller
         }
 
         $code = $this->gameService->generateRoomCode();
+        $teams = (int) $request->input('teams', 2);
+        $playersPerTeam = (int) $request->input('players', 2);
+        $totalPlayers = $playersPerTeam * $teams;
+
         $room = Room::create([
             'code' => $code,
             'type_id' => $request->input('questionType'),
@@ -112,8 +118,8 @@ class GameController extends Controller
             'created_by' => auth()->id(),
             'title' => $request->input('title'),
             'rounds' => $request->input('rounds', 5),
-            'teams' => $request->input('teams', 2),
-            'players' => $request->input('players', 2),
+            'teams' => $teams,
+            'players' => $totalPlayers,
             'expires_at' => now()->addHours(24),
         ]);
 
@@ -136,6 +142,7 @@ class GameController extends Controller
             return ApiResponse::error('الغرفة غير موجودة', 404);
         }
 
+        $teams = (int) $room->teams;
         $data = [
             'roomId' => (string) $room->id,
             'code' => $room->code,
@@ -144,8 +151,9 @@ class GameController extends Controller
             'settings' => [
                 'gameTitle' => $room->title ?? $room->type?->name ?? '',
                 'rounds' => (int) $room->rounds,
-                'teams' => (int) $room->teams,
+                'teams' => $teams,
                 'players' => (int) $room->players,
+                'playersPerTeam' => $teams > 0 ? (int) ($room->players / $teams) : 0,
                 'questionType' => $room->type?->name ?? '',
                 'questionCategory' => $room->category?->name ?? '',
                 'questionSubCategory' => $room->subcategory?->name ?? '',
@@ -271,14 +279,52 @@ class GameController extends Controller
 
         /** @var User $user */
         $user = auth()->user();
-        $roomPlayer = RoomPlayer::where('room_id', $session->room_id)->where('user_id', $user->id)->first();
+        $roomPlayer = RoomPlayer::where('room_id', $session->room_id)
+            ->where('user_id', $user->id)
+            ->first();
         if (!$roomPlayer) {
             return ApiResponse::error('أنت غير مشارك في هذه المغامرة', 403);
         }
 
         $user->increment('surrender_count');
 
-        return ApiResponse::success(null, 'تم تسجيل الاستسلام', 200);
+        // When any player surrenders, the whole team loses and the session ends.
+        $surrenderingTeamId = $roomPlayer->team_id;
+
+        // Mark session and room as finished
+        $session->update(['status' => 'finished']);
+        $session->room?->update(['status' => 'finished']);
+
+        // Build scores similar to getResult()
+        $session->load('room.roomPlayers.user');
+        $byTeam = $session->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
+            $first = $players->first();
+            $name = $first?->user?->name ?? 'الفريق ' . $teamId;
+            $score = $players->sum('score');
+            return [
+                'teamId' => (string) $teamId,
+                'name' => $name,
+                'score' => $score,
+            ];
+        })->values()->all();
+
+        // All teams except the surrendering team are considered winners
+        $winnerIds = collect($byTeam)
+            ->pluck('teamId')
+            ->reject(fn ($id) => (int) $id === (int) $surrenderingTeamId)
+            ->values()
+            ->all();
+
+        $data = [
+            'sessionId' => (string) $session->id,
+            'endedBySurrender' => true,
+            'surrenderingTeamId' => (string) $surrenderingTeamId,
+            'scores' => $byTeam,
+            'winnerIds' => $winnerIds,
+            'message' => 'تم إنهاء المغامرة بسبب استسلام أحد الفرق',
+        ];
+
+        return ApiResponse::success($data, null, 200);
     }
 
     public function getResult(int $sessionId): JsonResponse

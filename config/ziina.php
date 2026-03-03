@@ -13,4 +13,5 @@ return [
     'cancel_url' => env('ZIINA_CANCEL_URL', 'https://yourapp.com/payments/cancel'),
     'currency' => env('ZIINA_CURRENCY', 'AED'),
     'mode' => env('ZIINA_MODE', 'sandbox'),
+    'user_agent' => env('ZIINA_USER_AGENT', 'Khararif-Backend/1.0'),
 ];
