@@ -35,9 +35,6 @@ class StageRequest extends FormRequest
                 }
             }
             if ($this->stage_type === 'life_points') {
-                if (!$this->filled('number_of_questions')) {
-                    $validator->errors()->add('number_of_questions', __('Number of questions is required for Life Points Stage.'));
-                }
                 if (!$this->filled('life_points_per_question') && $this->life_points_per_question !== '0') {
                     $validator->errors()->add('life_points_per_question', __('Life points per question is required for Life Points Stage.'));
                 }
