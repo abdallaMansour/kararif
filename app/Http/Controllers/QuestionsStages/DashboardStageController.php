@@ -30,14 +30,14 @@ class DashboardStageController extends Controller
         try {
             DB::beginTransaction();
             $data = $request->validated();
-            $files = ['start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'];
+            $files = ['start_video', 'end_video', 'lunch_video', 'correct_answer_video', 'wrong_answer_video'];
             foreach ($files as $f) {
                 unset($data[$f]);
             }
             $stage = Stage::create($data);
 
             if ($stage->stage_type === Stage::TYPE_LIFE_POINTS) {
-                foreach (['start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'] as $col) {
+                foreach (['start_video', 'end_video', 'lunch_video', 'correct_answer_video', 'wrong_answer_video'] as $col) {
                     if ($request->hasFile($col)) {
                         $stage->addMediaFromRequest($col)->toMediaCollection($col);
                     }
@@ -46,6 +46,11 @@ class DashboardStageController extends Controller
             if ($stage->stage_type === Stage::TYPE_QUESTIONS_GROUP && $stage->question_groups_count) {
                 for ($i = 0; $i < (int) $stage->question_groups_count; $i++) {
                     StageQuestionGroup::create(['stage_id' => $stage->id, 'sort_order' => $i]);
+                }
+                foreach (['start_video', 'end_video'] as $col) {
+                    if ($request->hasFile($col)) {
+                        $stage->addMediaFromRequest($col)->toMediaCollection($col);
+                    }
                 }
             }
 
@@ -62,7 +67,7 @@ class DashboardStageController extends Controller
         try {
             DB::beginTransaction();
             $data = $request->validated();
-            $files = ['start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'];
+            $files = ['start_video', 'end_video', 'lunch_video', 'correct_answer_video', 'wrong_answer_video'];
             foreach ($files as $f) {
                 unset($data[$f]);
             }
@@ -78,13 +83,16 @@ class DashboardStageController extends Controller
                 });
             }
             if ($stage->stage_type === Stage::TYPE_QUESTIONS_GROUP) {
-                foreach (['start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'] as $col) {
-                    $stage->clearMediaCollection($col);
+                foreach (['start_video', 'end_video'] as $col) {
+                    if ($request->hasFile($col)) {
+                        $stage->clearMediaCollection($col);
+                        $stage->addMediaFromRequest($col)->toMediaCollection($col);
+                    }
                 }
             }
 
             if ($stage->stage_type === Stage::TYPE_LIFE_POINTS) {
-                foreach (['start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'] as $col) {
+                foreach (['start_video', 'end_video', 'lunch_video', 'correct_answer_video', 'wrong_answer_video'] as $col) {
                     if ($request->hasFile($col)) {
                         $stage->clearMediaCollection($col);
                         $stage->addMediaFromRequest($col)->toMediaCollection($col);
@@ -120,7 +128,7 @@ class DashboardStageController extends Controller
     public function destroy(Stage $stage)
     {
         try {
-            foreach (['start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'] as $col) {
+            foreach (['start_video', 'end_video', 'lunch_video', 'correct_answer_video', 'wrong_answer_video'] as $col) {
                 $stage->clearMediaCollection($col);
             }
             foreach ($stage->questionGroups as $g) {

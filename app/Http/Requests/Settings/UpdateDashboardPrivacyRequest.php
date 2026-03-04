@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Settings;
 
-use App\Helpers\Languages;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateDashboardPrivacyRequest extends FormRequest
@@ -17,7 +16,7 @@ class UpdateDashboardPrivacyRequest extends FormRequest
         $validation = [
             'privacy_policy_image' => 'nullable|image|max:2048',
         ];
-        foreach (Languages::LANGS as $lang) {
+        foreach (['ar'] as $lang) {
             $validation['privacy_policy_last_updated_' . $lang] = 'nullable|string|date_format:Y-m-d';
             $validation['privacy_policy_steps_' . $lang] = 'nullable|array';
             $validation['privacy_policy_steps_' . $lang . '.*.title'] = 'nullable|string|max:500';

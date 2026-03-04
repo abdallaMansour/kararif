@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Setting\SettingController;
 use App\Http\Controllers\Setting\DashboardSettingController;
+use App\Http\Controllers\Setting\DashboardFaqItemController;
 
 Route::get('setting', [SettingController::class, 'index']);
 Route::get('setting/logo', [SettingController::class, 'logo']);
@@ -18,4 +19,10 @@ Route::prefix('dashboard')->middleware('hasPermission:setting')->group(function 
     Route::post('privacy-policy', [DashboardSettingController::class, 'updatePrivacy']);
     Route::get('faq', [DashboardSettingController::class, 'showFaq']);
     Route::post('faq', [DashboardSettingController::class, 'updateFaq']);
+    Route::get('faq-items', [DashboardFaqItemController::class, 'index']);
+    Route::post('faq-items', [DashboardFaqItemController::class, 'store']);
+    Route::get('faq-items/{faqItem}', [DashboardFaqItemController::class, 'show']);
+    Route::put('faq-items/{faqItem}', [DashboardFaqItemController::class, 'update']);
+    Route::patch('faq-items/{faqItem}', [DashboardFaqItemController::class, 'update']);
+    Route::delete('faq-items/{faqItem}', [DashboardFaqItemController::class, 'destroy']);
 });

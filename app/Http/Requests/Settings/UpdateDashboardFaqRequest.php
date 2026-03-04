@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Settings;
 
-use App\Helpers\Languages;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateDashboardFaqRequest extends FormRequest
@@ -14,13 +13,10 @@ class UpdateDashboardFaqRequest extends FormRequest
 
     public function rules(): array
     {
-        $validation = [
+        return [
             'faqs_image' => 'nullable|image|max:2048',
+            'faqs_title_ar' => 'nullable|string|max:255',
+            'faqs_content_ar' => 'nullable|string',
         ];
-        foreach (Languages::LANGS as $lang) {
-            $validation['faqs_title_' . $lang] = 'nullable|string|max:255';
-            $validation['faqs_content_' . $lang] = 'nullable|string';
-        }
-        return $validation;
     }
 }

@@ -38,11 +38,25 @@ class DashboardQuestionController extends Controller
     public function create(QuestionRequest $request)
     {
         try {
-            $question = Question::create($request->validated());
+            $data = $request->validated();
+            $kind = $data['question_kind'] ?? Question::KIND_NORMAL;
+            if ($kind === Question::KIND_WORDS) {
+                $data['answer_1'] = $data['answer_2'] = $data['answer_3'] = $data['answer_4'] = '';
+                $data['is_correct_1'] = $data['is_correct_2'] = $data['is_correct_3'] = $data['is_correct_4'] = false;
+            }
+            $question = Question::create($data);
 
             if ($request->hasFile('image')) {
                 $question->clearMediaCollection('image');
                 $question->addMediaFromRequest('image')->toMediaCollection('image');
+            }
+            if ($request->hasFile('voice')) {
+                $question->clearMediaCollection('voice');
+                $question->addMediaFromRequest('voice')->toMediaCollection('voice');
+            }
+            if ($request->hasFile('video')) {
+                $question->clearMediaCollection('video');
+                $question->addMediaFromRequest('video')->toMediaCollection('video');
             }
             return $this->sendSuccess(__('response.created'));
         } catch (\Throwable $th) {
@@ -53,14 +67,31 @@ class DashboardQuestionController extends Controller
     public function update(QuestionRequest $request, Question $question)
     {
         try {
-            $question->update($request->validated());
+            $data = $request->validated();
+            $kind = $data['question_kind'] ?? $question->question_kind;
+            if ($kind === Question::KIND_WORDS) {
+                $data['answer_1'] = $data['answer_2'] = $data['answer_3'] = $data['answer_4'] = '';
+                $data['is_correct_1'] = $data['is_correct_2'] = $data['is_correct_3'] = $data['is_correct_4'] = false;
+            }
+            $question->update($data);
 
             if ($request->hasFile('image')) {
                 $question->clearMediaCollection('image');
                 $question->addMediaFromRequest('image')->toMediaCollection('image');
             } elseif ($request->has('image') && $request->input('image') === null) {
-                // Explicitly clear image when client sends image: null
                 $question->clearMediaCollection('image');
+            }
+            if ($request->hasFile('voice')) {
+                $question->clearMediaCollection('voice');
+                $question->addMediaFromRequest('voice')->toMediaCollection('voice');
+            } elseif ($request->has('voice') && $request->input('voice') === null) {
+                $question->clearMediaCollection('voice');
+            }
+            if ($request->hasFile('video')) {
+                $question->clearMediaCollection('video');
+                $question->addMediaFromRequest('video')->toMediaCollection('video');
+            } elseif ($request->has('video') && $request->input('video') === null) {
+                $question->clearMediaCollection('video');
             }
             return $this->sendSuccess(__('response.updated'));
         } catch (\Throwable $th) {
@@ -76,6 +107,9 @@ class DashboardQuestionController extends Controller
             $question->clearMediaCollection('question_video');
             $question->clearMediaCollection('correct_answer_video');
             $question->clearMediaCollection('wrong_answer_video');
+            $question->clearMediaCollection('image');
+            $question->clearMediaCollection('voice');
+            $question->clearMediaCollection('video');
             $question->delete();
             return $this->sendSuccess(__('response.deleted'));
         } catch (\Throwable $th) {

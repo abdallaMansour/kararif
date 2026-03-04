@@ -17,6 +17,7 @@ class StageResource extends JsonResource
             'life_points_per_question' => $this->life_points_per_question,
             'start_video' => $this->getFirstMediaUrl('start_video'),
             'end_video' => $this->getFirstMediaUrl('end_video'),
+            'lunch_video' => $this->getFirstMediaUrl('lunch_video'),
             'correct_answer_video' => $this->getFirstMediaUrl('correct_answer_video'),
             'wrong_answer_video' => $this->getFirstMediaUrl('wrong_answer_video'),
             'question_groups' => DashboardStageQuestionGroupResource::collection($this->whenLoaded('questionGroups')),

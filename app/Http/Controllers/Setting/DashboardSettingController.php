@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Setting;
 use App\Helpers\ApiResponse;
 use App\Models\Setting;
 use App\Traits\ApiTrait;
-use App\Helpers\Languages;
 use App\Helpers\SettingHelper;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
@@ -26,7 +25,9 @@ class DashboardSettingController extends Controller
         $data = [];
 
         foreach ($settings as $setting) {
-            // لو فيه لغة نحطها ضمن المفتاح
+            if (in_array($setting->key, ['faqs', 'privacy_policy', 'terms_conditions']) && $setting->lang !== null && $setting->lang !== 'ar') {
+                continue;
+            }
             $key = $setting->lang ? "{$setting->key}_{$setting->lang}" : $setting->key;
 
             if ($setting->key === 'logo') {
@@ -64,6 +65,9 @@ class DashboardSettingController extends Controller
             DB::beginTransaction();
 
             foreach (Setting::all() as $setting) {
+                if ($setting->lang != null && $setting->lang !== 'ar' && in_array($setting->key, ['faqs', 'privacy_policy', 'terms_conditions'])) {
+                    continue;
+                }
                 if ($setting->lang != null && in_array($setting->key, ['faqs', 'privacy_policy', 'terms_conditions'])) {
                     if (in_array($setting->key, ['privacy_policy', 'terms_conditions'])) {
                         $steps = $request->input($setting->key . '_steps_' . $setting->lang);
@@ -183,7 +187,10 @@ class DashboardSettingController extends Controller
                 $data[$key . '_image'] = $setting->getFirstMediaUrl();
                 continue;
             }
-            $langKey = $setting->lang ? "{$key}_{$setting->lang}" : $key;
+            if ($setting->lang !== 'ar') {
+                continue;
+            }
+            $langKey = "{$key}_{$setting->lang}";
             $decoded = $setting->value ? json_decode($setting->value, true) : null;
             $data[$langKey] = in_array($key, ['privacy_policy', 'terms_conditions'])
                 ? SettingHelper::normalizeStepsFormat(is_array($decoded) ? $decoded : null)
@@ -211,10 +218,10 @@ class DashboardSettingController extends Controller
                     $setting->save();
                     continue;
                 }
-                if ($setting->lang === null) {
+                if ($setting->lang !== 'ar') {
                     continue;
                 }
-                $lang = $setting->lang;
+                $lang = 'ar';
                 if ($stepsFormat) {
                     $steps = $request->input($key . '_steps_' . $lang);
                     $lastUpdated = $request->input($key . '_last_updated_' . $lang);
