@@ -19,6 +19,7 @@ class CreateRoomRequest extends FormRequest
             'subCategoryId' => 'required|exists:subcategories,id',
             'title' => 'nullable|string|max:255',
             'rounds' => 'nullable|integer|min:1|max:20',
+            'questionsCount' => 'nullable|integer|min:1|max:50',
             'teams' => 'nullable|integer|min:1|max:4',
             'players' => 'nullable|integer|min:1|max:10',
         ];

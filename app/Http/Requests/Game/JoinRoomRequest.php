@@ -15,6 +15,8 @@ class JoinRoomRequest extends FormRequest
     {
         return [
             'code' => 'sometimes|string|size:6',
+            'teamCode' => 'required|string|regex:/^K[1-9][0-9]*$/',
+            'isLeader' => 'required|boolean',
         ];
     }
 }

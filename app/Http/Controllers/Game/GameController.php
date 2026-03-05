@@ -109,6 +109,7 @@ class GameController extends Controller
         $teams = (int) $request->input('teams', 2);
         $playersPerTeam = (int) $request->input('players', 2);
         $totalPlayers = $playersPerTeam * $teams;
+        $rounds = (int) ($request->input('questionsCount') ?? $request->input('rounds', 5));
 
         $room = Room::create([
             'code' => $code,
@@ -117,7 +118,7 @@ class GameController extends Controller
             'subcategory_id' => $request->input('subCategoryId'),
             'created_by' => auth()->id(),
             'title' => $request->input('title'),
-            'rounds' => $request->input('rounds', 5),
+            'rounds' => $rounds,
             'teams' => $teams,
             'players' => $totalPlayers,
             'expires_at' => now()->addHours(24),
@@ -125,10 +126,19 @@ class GameController extends Controller
 
         $user->decrement('available_sessions');
 
+        $teamsData = [];
+        for ($i = 1; $i <= $teams; $i++) {
+            $teamsData[] = [
+                'teamId' => (string) $i,
+                'teamCode' => 'K' . $i,
+            ];
+        }
+
         return ApiResponse::success([
             'roomId' => (string) $room->id,
             'code' => $room->code,
             'expiresAt' => $room->expires_at?->toIso8601String(),
+            'teams' => $teamsData,
         ], null, 201);
     }
 
@@ -143,6 +153,13 @@ class GameController extends Controller
         }
 
         $teams = (int) $room->teams;
+        $teamCodes = [];
+        for ($i = 1; $i <= $teams; $i++) {
+            $teamCodes[] = [
+                'teamId' => (string) $i,
+                'teamCode' => 'K' . $i,
+            ];
+        }
         $data = [
             'roomId' => (string) $room->id,
             'code' => $room->code,
@@ -158,6 +175,7 @@ class GameController extends Controller
                 'questionCategory' => $room->category?->name ?? '',
                 'questionSubCategory' => $room->subcategory?->name ?? '',
             ],
+            'teams' => $teamCodes,
         ];
         return ApiResponse::success($data);
     }
@@ -184,6 +202,7 @@ class GameController extends Controller
                 'joined' => true,
                 'teamId' => (string) $existing->team_id,
                 'playerId' => (string) $existing->id,
+                'teamCode' => 'K' . $existing->team_id,
             ]);
         }
 
@@ -191,12 +210,37 @@ class GameController extends Controller
             return ApiResponse::error('لا توجد جلسات لعبة متاحة. يرجى شراء حزمة للاستمرار.', 403);
         }
 
-        $count = $room->roomPlayers()->count();
-        $teamId = ($count % (int) $room->teams) + 1;
+        $teamCode = $request->input('teamCode');
+        $teamId = (int) ltrim($teamCode, 'K');
+        if ($teamId < 1 || $teamId > (int) $room->teams) {
+            return ApiResponse::error('رمز الفريق غير صالح لهذه المغامرة', 400);
+        }
+
+        $teams = (int) $room->teams;
+        $playersPerTeam = $teams > 0 ? (int) ($room->players / $teams) : 0;
+        if ($playersPerTeam > 0) {
+            $teamPlayersCount = $room->roomPlayers()->where('team_id', $teamId)->count();
+            if ($teamPlayersCount >= $playersPerTeam) {
+                return ApiResponse::error('هذا الفريق ممتلئ، يرجى اختيار فريق آخر', 400);
+            }
+        }
+
+        $isLeader = (bool) $request->boolean('isLeader');
+        if ($isLeader) {
+            $hasLeader = $room->roomPlayers()
+                ->where('team_id', $teamId)
+                ->where('is_leader', true)
+                ->exists();
+            if ($hasLeader) {
+                return ApiResponse::error('تم تعيين قائد لهذا الفريق بالفعل', 400);
+            }
+        }
+
         $player = RoomPlayer::create([
             'room_id' => $roomId,
             'user_id' => $userId,
             'team_id' => $teamId,
+            'is_leader' => $isLeader,
         ]);
 
         $user->decrement('available_sessions');
@@ -209,6 +253,8 @@ class GameController extends Controller
             'joined' => true,
             'teamId' => (string) $player->team_id,
             'playerId' => (string) $player->id,
+            'teamCode' => 'K' . $player->team_id,
+            'isLeader' => (bool) $player->is_leader,
         ]);
     }
 
@@ -228,6 +274,7 @@ class GameController extends Controller
                 'id' => (string) $teamId,
                 'name' => $name,
                 'score' => $score,
+                'teamCode' => 'K' . $teamId,
             ];
         })->values()->all();
 
@@ -256,6 +303,9 @@ class GameController extends Controller
         $roomPlayer = RoomPlayer::where('room_id', $session->room_id)->where('user_id', $user->id)->first();
         if (!$roomPlayer) {
             return ApiResponse::error('أنت غير مشارك في هذه المغامرة', 403);
+        }
+        if (!$roomPlayer->is_leader) {
+            return ApiResponse::error('فقط قائد الفريق يمكنه الإجابة على الأسئلة', 403);
         }
 
         $result = $this->gameService->submitAnswer($session, $roomPlayer->id, $optionIndex);
@@ -305,6 +355,7 @@ class GameController extends Controller
                 'teamId' => (string) $teamId,
                 'name' => $name,
                 'score' => $score,
+                'teamCode' => 'K' . $teamId,
             ];
         })->values()->all();
 
@@ -342,6 +393,7 @@ class GameController extends Controller
                 'teamId' => (string) $teamId,
                 'name' => $name,
                 'score' => $score,
+                'teamCode' => 'K' . $teamId,
             ];
         })->values()->all();
 
