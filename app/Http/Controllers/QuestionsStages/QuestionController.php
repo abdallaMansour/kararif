@@ -20,6 +20,9 @@ class QuestionController extends Controller
         if (request()->has('subcategory_id')) {
             $query->where('subcategory_id', request('subcategory_id'));
         }
+        if (request()->filled('question_kind')) {
+            $query->where('question_kind', request('question_kind'));
+        }
         $perPage = min((int) request('per_page', 15), 100);
         return QuestionResource::collection($query->with('type')->paginate($perPage));
     }

@@ -25,6 +25,9 @@ class DashboardQuestionController extends Controller
         if (request()->has('subcategory_id')) {
             $query->where('subcategory_id', request('subcategory_id'));
         }
+        if (request()->filled('question_kind')) {
+            $query->where('question_kind', request('question_kind'));
+        }
         $perPage = min((int) request('per_page', 15), 100);
         return DashboardQuestionResource::collection($query->with('type')->paginate($perPage));
     }
