@@ -22,20 +22,19 @@ class QuestionRequest extends FormRequest
 
         $kind = $this->input('question_kind', 'normal');
 
+        // All kinds (including words) use 4 options with one correct answer
+        $rules['answer_1'] = ['required', 'string'];
+        $rules['is_correct_1'] = ['nullable', 'boolean'];
+        $rules['answer_2'] = ['required', 'string'];
+        $rules['is_correct_2'] = ['nullable', 'boolean'];
+        $rules['answer_3'] = ['required', 'string'];
+        $rules['is_correct_3'] = ['nullable', 'boolean'];
+        $rules['answer_4'] = ['required', 'string'];
+        $rules['is_correct_4'] = ['nullable', 'boolean'];
+
+        // For words kind, require the raw word string (letters separated by spaces)
         if ($kind === Question::KIND_WORDS) {
-            $rules['word_data'] = ['required', 'array', 'min:1'];
-            $rules['word_data.*.options'] = ['required', 'array', 'min:1'];
-            $rules['word_data.*.options.*'] = ['string'];
-            $rules['word_data.*.correct_index'] = ['required', 'integer', 'min:0'];
-        } else {
-            $rules['answer_1'] = ['required', 'string'];
-            $rules['is_correct_1'] = ['nullable', 'boolean'];
-            $rules['answer_2'] = ['required', 'string'];
-            $rules['is_correct_2'] = ['nullable', 'boolean'];
-            $rules['answer_3'] = ['required', 'string'];
-            $rules['is_correct_3'] = ['nullable', 'boolean'];
-            $rules['answer_4'] = ['required', 'string'];
-            $rules['is_correct_4'] = ['nullable', 'boolean'];
+            $rules['word'] = ['required', 'string'];
         }
 
         if ($kind === Question::KIND_IMAGE) {
@@ -55,18 +54,16 @@ class QuestionRequest extends FormRequest
     {
         $validator->after(function (Validator $validator) {
             $kind = $this->input('question_kind', 'normal');
-            if ($kind === Question::KIND_WORDS) {
-                $wordData = $this->input('word_data', []);
-                foreach ($wordData as $i => $slot) {
-                    $opts = $slot['options'] ?? [];
-                    $idx = $slot['correct_index'] ?? -1;
-                    if (is_array($opts) && $idx >= 0 && $idx >= count($opts)) {
-                        $validator->errors()->add("word_data.{$i}.correct_index", __('Correct index must be within options count.'));
+            if ($kind === Question::KIND_WORDS || in_array($kind, [Question::KIND_NORMAL, Question::KIND_VOICE, Question::KIND_VIDEO, Question::KIND_IMAGE])) {
+                $raw = trim((string) $this->input('word', ''));
+                $letters = $raw === '' ? [] : preg_split('/\s+/', $raw);
+                if (empty($letters)) {
+                    if ($kind === Question::KIND_WORDS) {
+                        $validator->errors()->add('word', __('Word letters must contain at least one letter.'));
                     }
                 }
-                return;
             }
-            if (in_array($kind, [Question::KIND_NORMAL, Question::KIND_VOICE, Question::KIND_VIDEO, Question::KIND_IMAGE])) {
+            if (in_array($kind, [Question::KIND_NORMAL, Question::KIND_WORDS, Question::KIND_VOICE, Question::KIND_VIDEO, Question::KIND_IMAGE])) {
                 $correct = [
                     (bool) $this->input('is_correct_1'),
                     (bool) $this->input('is_correct_2'),

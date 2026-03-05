@@ -41,8 +41,10 @@ class DashboardQuestionController extends Controller
             $data = $request->validated();
             $kind = $data['question_kind'] ?? Question::KIND_NORMAL;
             if ($kind === Question::KIND_WORDS) {
-                $data['answer_1'] = $data['answer_2'] = $data['answer_3'] = $data['answer_4'] = '';
-                $data['is_correct_1'] = $data['is_correct_2'] = $data['is_correct_3'] = $data['is_correct_4'] = false;
+                $raw = trim((string) ($data['word'] ?? ''));
+                $letters = $raw === '' ? [] : preg_split('/\s+/', $raw);
+                $data['word_data'] = $letters;
+                unset($data['word']);
             }
             $question = Question::create($data);
 
@@ -70,8 +72,10 @@ class DashboardQuestionController extends Controller
             $data = $request->validated();
             $kind = $data['question_kind'] ?? $question->question_kind;
             if ($kind === Question::KIND_WORDS) {
-                $data['answer_1'] = $data['answer_2'] = $data['answer_3'] = $data['answer_4'] = '';
-                $data['is_correct_1'] = $data['is_correct_2'] = $data['is_correct_3'] = $data['is_correct_4'] = false;
+                $raw = trim((string) ($data['word'] ?? ''));
+                $letters = $raw === '' ? [] : preg_split('/\s+/', $raw);
+                $data['word_data'] = $letters;
+                unset($data['word']);
             }
             $question->update($data);
 
