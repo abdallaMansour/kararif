@@ -41,6 +41,7 @@ Route::post('support/tickets', [\App\Http\Controllers\SupportTicketController::c
 Route::post('subscribe', [\App\Http\Controllers\SubscriberController::class, 'store']);
 Route::get('payment/packages', [\App\Http\Controllers\PaymentController::class, 'packages']);
 Route::post('payment/initiate', [\App\Http\Controllers\PaymentController::class, 'initiate'])->middleware('auth:sanctum');
+Route::post('payment/webhook', [\App\Http\Controllers\PaymentWebhookController::class, 'ziina']);
 
 Route::post('coupons/apply', [\App\Http\Controllers\Coupon\CouponController::class, 'apply'])->middleware('auth:sanctum');
 

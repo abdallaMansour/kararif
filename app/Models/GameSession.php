@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class GameSession extends Model
 {
-    protected $fillable = ['room_id', 'current_round', 'status', 'started_at', 'question_ids'];
+    protected $fillable = ['room_id', 'current_round', 'status', 'started_at', 'question_started_at', 'question_ids'];
 
     protected $casts = [
         'started_at' => 'datetime',
+        'question_started_at' => 'datetime',
         'question_ids' => 'array',
     ];
 

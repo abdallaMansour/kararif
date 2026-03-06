@@ -7,10 +7,12 @@ use App\Models\RoomPlayer;
 use App\Models\GameSession;
 use App\Models\SessionAnswer;
 use App\Models\Question;
-use Illuminate\Support\Facades\DB;
 
 class GameService
 {
+    public function __construct(
+        protected FirebaseGameSyncService $firebaseSync
+    ) {}
     public function generateRoomCode(): string
     {
         do {
@@ -40,10 +42,15 @@ class GameService
         $session = $room->gameSessions()->create([
             'status' => 'playing',
             'started_at' => now(),
+            'question_started_at' => now(),
             'question_ids' => $questionIds,
         ]);
 
         $room->update(['status' => 'playing']);
+
+        $this->firebaseSync->syncSessionStart($session);
+        $this->firebaseSync->syncQuestion($session);
+
         return $session;
     }
 
@@ -117,13 +124,17 @@ class GameService
             $roomPlayer->increment('score', $scoreDelta);
         }
 
+        $this->firebaseSync->syncScores($session->fresh());
+
         $nextRound = $session->current_round + 1;
         if ($nextRound <= count($questionIds)) {
-            $session->update(['current_round' => $nextRound]);
+            $session->update(['current_round' => $nextRound, 'question_started_at' => now()]);
+            $this->firebaseSync->syncQuestion($session->fresh());
             $nextQuestion = $this->getCurrentQuestion($session->fresh());
         } else {
             $session->update(['status' => 'finished', 'current_round' => $nextRound]);
             $session->room->update(['status' => 'finished']);
+            $this->firebaseSync->syncSessionEnd($session->fresh());
             $nextQuestion = null;
         }
 

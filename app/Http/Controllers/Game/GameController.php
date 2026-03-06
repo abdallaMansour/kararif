@@ -15,13 +15,15 @@ use App\Models\Type;
 use App\Models\User;
 use App\Models\Category;
 use App\Models\Subcategory;
+use App\Services\FirebaseGameSyncService;
 use App\Services\GameService;
 use Illuminate\Http\JsonResponse;
 
 class GameController extends Controller
 {
     public function __construct(
-        protected GameService $gameService
+        protected GameService $gameService,
+        protected FirebaseGameSyncService $firebaseSync
     ) {}
 
     public function getQuestionTypes(): JsonResponse
@@ -126,6 +128,8 @@ class GameController extends Controller
 
         $user->decrement('available_sessions');
 
+        $this->firebaseSync->syncRoom($room);
+
         $teamsData = [];
         for ($i = 1; $i <= $teams; $i++) {
             $teamsData[] = [
@@ -145,7 +149,7 @@ class GameController extends Controller
     public function getRoom(int $roomId): JsonResponse
     {
         $room = Room::withCount('roomPlayers')
-            ->with(['type', 'category', 'subcategory'])
+            ->with(['type', 'category', 'subcategory', 'roomPlayers.user'])
             ->find($roomId);
 
         if (!$room) {
@@ -176,6 +180,14 @@ class GameController extends Controller
                 'questionSubCategory' => $room->subcategory?->name ?? '',
             ],
             'teams' => $teamCodes,
+            'players' => $room->roomPlayers->map(fn ($rp) => [
+                'playerId' => (string) $rp->id,
+                'userId' => (string) $rp->user_id,
+                'userName' => $rp->user?->name ?? 'Player',
+                'teamId' => (string) $rp->team_id,
+                'teamCode' => 'K' . $rp->team_id,
+                'isLeader' => (bool) $rp->is_leader,
+            ])->values()->all(),
         ];
         return ApiResponse::success($data);
     }
@@ -245,6 +257,8 @@ class GameController extends Controller
 
         $user->decrement('available_sessions');
 
+        $this->firebaseSync->syncRoomPlayers($room->fresh());
+
         if ($room->roomPlayers()->count() >= (int) $room->players) {
             $this->gameService->getOrCreateSession($room->fresh());
         }
@@ -278,11 +292,18 @@ class GameController extends Controller
             ];
         })->values()->all();
 
+        $timeLeft = 120;
+        if ($session->question_started_at) {
+            $elapsed = (int) $session->question_started_at->diffInSeconds(now());
+            $timeLeft = max(0, 120 - $elapsed);
+        }
+
         $data = [
             'sessionId' => (string) $session->id,
             'round' => $session->current_round,
             'question' => $questionData,
-            'timeLeft' => 120,
+            'timeLeft' => $timeLeft,
+            'questionStartedAt' => $session->question_started_at?->timestamp ? (int) ($session->question_started_at->timestamp * 1000) : null,
             'teams' => $teams,
         ];
         return ApiResponse::success($data);
@@ -365,6 +386,8 @@ class GameController extends Controller
             ->reject(fn ($id) => (int) $id === (int) $surrenderingTeamId)
             ->values()
             ->all();
+
+        $this->firebaseSync->syncSessionEnd($session->fresh(), $winnerIds);
 
         $data = [
             'sessionId' => (string) $session->id,

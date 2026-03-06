@@ -14,4 +14,11 @@ return [
     'currency' => env('ZIINA_CURRENCY', 'AED'),
     'mode' => env('ZIINA_MODE', 'sandbox'),
     'user_agent' => env('ZIINA_USER_AGENT', 'Khararif-Backend/1.0'),
+
+    /*
+    | Webhook secret for HMAC verification (optional).
+    | If set, Ziina sends X-Hmac-Signature header; we verify request authenticity.
+    | Set this when configuring the webhook URL in Ziina Business Dashboard.
+    */
+    'webhook_secret' => env('ZIINA_WEBHOOK_SECRET'),
 ];
