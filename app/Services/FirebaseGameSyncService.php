@@ -16,14 +16,19 @@ class FirebaseGameSyncService
         if ($this->database !== null) {
             return $this->database;
         }
-        if (!config('firebase.projects.app.database.url')) {
+        $url = config('firebase.projects.app.database.url');
+        if (!$url) {
+            Log::info('Firebase sync skipped: FIREBASE_DATABASE_URL not set');
             return null;
         }
         try {
             $this->database = app(Database::class);
             return $this->database;
         } catch (\Throwable $e) {
-            Log::warning('Firebase database not available', ['error' => $e->getMessage()]);
+            Log::warning('Firebase database not available', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return null;
         }
     }
@@ -34,6 +39,7 @@ class FirebaseGameSyncService
         if (!$db) {
             return;
         }
+        Log::info('Firebase syncRoom starting', ['room_id' => $room->id]);
         try {
             $room->load(['type', 'category', 'subcategory', 'roomPlayers.user']);
             $teams = (int) $room->teams;
@@ -61,8 +67,13 @@ class FirebaseGameSyncService
             ];
 
             $db->getReference('rooms/' . $room->id)->set($data);
+            Log::info('Firebase syncRoom success', ['room_id' => $room->id]);
         } catch (\Throwable $e) {
-            Log::warning('Firebase syncRoom failed', ['room_id' => $room->id, 'error' => $e->getMessage()]);
+            Log::warning('Firebase syncRoom failed', [
+                'room_id' => $room->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
         }
     }
 
