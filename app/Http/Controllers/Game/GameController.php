@@ -149,7 +149,7 @@ class GameController extends Controller
     public function getRoom(int $roomId): JsonResponse
     {
         $room = Room::withCount('roomPlayers')
-            ->with(['type', 'category', 'subcategory', 'roomPlayers.user'])
+            ->with(['type', 'category', 'subcategory', 'roomPlayers.user', 'gameSessions' => fn ($q) => $q->whereIn('status', ['waiting', 'playing'])->latest()->limit(1)])
             ->find($roomId);
 
         if (!$room) {
@@ -164,10 +164,12 @@ class GameController extends Controller
                 'teamCode' => 'K' . $i,
             ];
         }
+        $activeSession = $room->gameSessions->first();
         $data = [
             'roomId' => (string) $room->id,
             'code' => $room->code,
             'status' => $room->status,
+            'sessionId' => $activeSession ? (string) $activeSession->id : null,
             'joinedCount' => $room->room_players_count ?? $room->roomPlayers()->count(),
             'settings' => [
                 'gameTitle' => $room->title ?? $room->type?->name ?? '',
