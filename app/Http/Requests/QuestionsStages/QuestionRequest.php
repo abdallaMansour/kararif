@@ -38,7 +38,7 @@ class QuestionRequest extends FormRequest
         }
 
         if ($kind === Question::KIND_IMAGE) {
-            $rules['image'] = ['nullable', 'image', 'max:2048'];
+            $rules['image'] = ['nullable', 'image', 'max:10240']; // 10MB
         }
         if ($kind === Question::KIND_VOICE) {
             $rules['voice'] = ['nullable', 'file', 'mimetypes:audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm'];
