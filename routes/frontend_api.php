@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\AppLoginController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\User\UserController;
 use App\Http\Controllers\Game\GameController;
+use App\Http\Controllers\Game\TvDisplayController;
 
 // Auth (frontend/app paths)
 Route::prefix('auth')->group(function () {
@@ -60,8 +61,14 @@ Route::prefix('game')->group(function () {
     Route::get('session/{sessionId}', [GameController::class, 'getSession']);
     Route::get('session/{sessionId}/result', [GameController::class, 'getResult']);
 
+    // TV display (no auth)
+    Route::post('tv/code', [TvDisplayController::class, 'getOrCreateCode']);
+    Route::get('tv/display/by-code/{code}', [TvDisplayController::class, 'getDisplayStatusByCode']);
+    Route::get('tv/display/{displayId}', [TvDisplayController::class, 'getDisplayStatus']);
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('create-room', [GameController::class, 'createRoom']);
+        Route::post('room/{roomId}/link-tv', [GameController::class, 'linkTv']);
         Route::post('room/{roomId}/join', [GameController::class, 'joinRoom']);
         Route::post('session/{sessionId}/answer', [GameController::class, 'submitAnswer']);
         Route::post('session/{sessionId}/surrender', [GameController::class, 'surrender']);

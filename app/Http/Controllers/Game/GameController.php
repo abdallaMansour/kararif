@@ -8,9 +8,11 @@ use App\Http\Requests\Game\ValidateCodeRequest;
 use App\Http\Requests\Game\CreateRoomRequest;
 use App\Http\Requests\Game\JoinRoomRequest;
 use App\Http\Requests\Game\SubmitAnswerRequest;
+use App\Http\Requests\Game\LinkTvRequest;
 use App\Models\Room;
 use App\Models\RoomPlayer;
 use App\Models\GameSession;
+use App\Models\TvDisplay;
 use App\Models\Type;
 use App\Models\User;
 use App\Models\Category;
@@ -192,6 +194,40 @@ class GameController extends Controller
             ])->values()->all(),
         ];
         return ApiResponse::success($data);
+    }
+
+    public function linkTv(LinkTvRequest $request, int $roomId): JsonResponse
+    {
+        $room = Room::find($roomId);
+        if (!$room) {
+            return ApiResponse::error('الغرفة غير موجودة', 404);
+        }
+        if ($room->status !== 'waiting') {
+            return ApiResponse::error('لا يمكن ربط التلفزيون بعد بدء اللعبة', 400);
+        }
+
+        $tvCode = $request->input('tvCode');
+        $display = TvDisplay::where('code', $tvCode)->first();
+
+        if (!$display) {
+            return ApiResponse::error('رمز التلفزيون غير صحيح', 400);
+        }
+        if (!$display->isWaiting()) {
+            return ApiResponse::error('رمز التلفزيون منتهي أو مستخدم مسبقاً', 400);
+        }
+
+        $display->update([
+            'room_id' => $roomId,
+            'status' => TvDisplay::STATUS_LINKED,
+        ]);
+
+        $this->firebaseSync->syncTvDisplay($display->fresh());
+        $this->firebaseSync->syncRoom($room->fresh());
+
+        return ApiResponse::success([
+            'linked' => true,
+            'roomId' => (string) $room->id,
+        ]);
     }
 
     public function joinRoom(JoinRoomRequest $request, int $roomId): JsonResponse

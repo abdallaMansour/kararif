@@ -7,6 +7,7 @@ use App\Models\RoomPlayer;
 use App\Models\GameSession;
 use App\Models\SessionAnswer;
 use App\Models\Question;
+use App\Models\TvDisplay;
 
 class GameService
 {
@@ -20,6 +21,36 @@ class GameService
         } while (Room::where('code', $code)->exists());
 
         return $code;
+    }
+
+    public function generateTvDisplayCode(): string
+    {
+        do {
+            $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        } while (TvDisplay::where('code', $code)->exists());
+
+        return $code;
+    }
+
+    public function getOrCreateTvDisplay(string $deviceId): TvDisplay
+    {
+        $expiresAt = now()->addMinutes(15);
+
+        $existing = TvDisplay::where('device_id', $deviceId)
+            ->where('status', TvDisplay::STATUS_WAITING)
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        return TvDisplay::create([
+            'device_id' => $deviceId,
+            'code' => $this->generateTvDisplayCode(),
+            'status' => TvDisplay::STATUS_WAITING,
+            'expires_at' => $expiresAt,
+        ]);
     }
 
     public function getOrCreateSession(Room $room): GameSession

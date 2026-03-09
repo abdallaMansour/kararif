@@ -754,6 +754,117 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "TV",
+          "item": [
+            {
+              "name": "Get/Generate TV Code",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"deviceId\": \"tv-device-001\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/game/tv/code",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "tv",
+                    "code"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Display Status by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/game/tv/display/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "tv",
+                    "display",
+                    "1"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Display Status by Code",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/game/tv/display/by-code/123456",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "tv",
+                    "display",
+                    "by-code",
+                    "123456"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Link Room to TV",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tvCode\": \"123456\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/game/room/3/link-tv",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "room",
+                    "3",
+                    "link-tv"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
         }
       ]
     },

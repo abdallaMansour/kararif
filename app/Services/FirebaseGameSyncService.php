@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\GameSession;
 use App\Models\Room;
+use App\Models\TvDisplay;
 use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Contract\Database;
 
@@ -51,10 +52,12 @@ class FirebaseGameSyncService
                 'isLeader' => (bool) $rp->is_leader,
             ])->toArray();
 
+            $tvDisplay = TvDisplay::where('room_id', $room->id)->where('status', 'linked')->first();
             $data = [
                 'roomId' => (string) $room->id,
                 'code' => $room->code,
                 'status' => $room->status,
+                'tvDisplayId' => $tvDisplay ? (string) $tvDisplay->id : null,
                 'type_id' => (int) $room->type_id,
                 'category_id' => (int) $room->category_id,
                 'subcategory_id' => (int) $room->subcategory_id,
@@ -80,6 +83,42 @@ class FirebaseGameSyncService
     public function syncRoomPlayers(Room $room): void
     {
         $this->syncRoom($room);
+    }
+
+    public function syncTvDisplay(TvDisplay $display): void
+    {
+        $db = $this->getDatabase();
+        if (!$db) {
+            return;
+        }
+        try {
+            $sessionId = null;
+            if ($display->room_id) {
+                $session = $display->room->gameSessions()
+                    ->whereIn('status', ['waiting', 'playing'])
+                    ->latest()
+                    ->first();
+                $sessionId = $session ? (string) $session->id : null;
+            }
+
+            $data = [
+                'displayId' => (string) $display->id,
+                'linked' => $display->status === TvDisplay::STATUS_LINKED,
+                'roomId' => $display->room_id ? (string) $display->room_id : null,
+                'sessionId' => $sessionId,
+                'status' => $display->status,
+                'linkedAt' => $display->status === TvDisplay::STATUS_LINKED ? (int) round(microtime(true) * 1000) : null,
+            ];
+
+            $db->getReference('tv_displays/' . $display->id)->set($data);
+            Log::info('Firebase syncTvDisplay success', ['display_id' => $display->id]);
+        } catch (\Throwable $e) {
+            Log::warning('Firebase syncTvDisplay failed', [
+                'display_id' => $display->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }
     }
 
     public function syncSessionStart(GameSession $session): void
