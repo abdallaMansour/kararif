@@ -3,8 +3,11 @@
 namespace App\Repositories\ContactUs;
 
 use Exception;
+use App\Models\Setting;
 use App\Models\ContactUs;
+use App\Mail\ContactMessageMail;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Database\Eloquent\Model;
 use App\Http\Resources\ContactUs\ContactUsResource;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -31,14 +34,20 @@ class ContactUsRepository
         try {
             DB::beginTransaction();
 
-            ContactUs::create([
+            $contact = ContactUs::create([
                 'name'    => $data['name'],
                 'email'   => $data['email'],
                 'category' => $data['category'] ?? null,
                 'subject' => $data['subject'] ?? null,
                 'message' => $data['message'],
+                'source'  => $data['source'] ?? null,
             ]);
             DB::commit();
+
+            $mainEmail = Setting::where('key', 'email')->value('value');
+            if ($mainEmail) {
+                Mail::to($mainEmail)->send(new ContactMessageMail($contact));
+            }
 
             return response()->json(['success' => true, 'message' => 'تم استلام رسالتك وسنتواصل معك قريباً']);
         } catch (\Throwable $th) {

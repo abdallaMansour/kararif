@@ -17,6 +17,11 @@ class ContactUs extends Model
         'category',
         'subject',
         'message',
+        'source',
         'is_read',
     ];
+
+    public const SOURCE_MOBILE = 'mobile';
+    public const SOURCE_TV = 'tv';
+    public const SOURCE_OTHER = 'other';
 }

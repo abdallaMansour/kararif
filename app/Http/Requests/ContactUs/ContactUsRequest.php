@@ -23,7 +23,8 @@ class ContactUsRequest extends FormRequest
             'email' => ['required', 'email'],
             'category' => ['nullable', 'string', 'max:100'],
             'subject' => ['nullable', 'string', 'max:255'],
-            'message' => ['required', 'string']
+            'message' => ['required', 'string'],
+            'source' => ['nullable', 'string', 'in:mobile,tv,other'],
         ];
     }
 
