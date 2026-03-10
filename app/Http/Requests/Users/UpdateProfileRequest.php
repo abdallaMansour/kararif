@@ -15,9 +15,11 @@ class UpdateProfileRequest extends FormRequest
 
     public function rules(): array
     {
+        $user = auth()->guard('sanctum')->user();
+        $table = $user instanceof \App\Models\Adventurer ? 'adventurers' : 'users';
         $rules = [
             'fullName' => 'sometimes|string|max:255',
-            'phone' => 'sometimes|nullable|string|max:20|unique:users,phone,' . auth()->guard('sanctum')->id(),
+            'phone' => 'sometimes|nullable|string|max:20|unique:' . $table . ',phone,' . $user->id,
             'newPassword' => 'sometimes|nullable|string|size:4|confirmed',
         ];
 

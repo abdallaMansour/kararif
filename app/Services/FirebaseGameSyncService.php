@@ -42,11 +42,11 @@ class FirebaseGameSyncService
         }
         Log::info('Firebase syncRoom starting', ['room_id' => $room->id]);
         try {
-            $room->load(['type', 'category', 'subcategory', 'roomPlayers.user']);
+            $room->load(['type', 'category', 'subcategory', 'roomPlayers.user', 'roomPlayers.adventurer']);
             $teams = (int) $room->teams;
             $players = $room->roomPlayers->keyBy('id')->map(fn ($rp) => [
-                'userId' => (string) $rp->user_id,
-                'userName' => $rp->user?->name ?? 'Player',
+                'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
+                'userName' => ($rp->adventurer ?? $rp->user)?->name ?? 'Player',
                 'teamId' => (string) $rp->team_id,
                 'teamCode' => 'K' . $rp->team_id,
                 'isLeader' => (bool) $rp->is_leader,
@@ -128,7 +128,7 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user');
+            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsData($session);
 
@@ -175,7 +175,7 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user');
+            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
             $teams = $this->buildTeamsData($session);
             $db->getReference('sessions/' . $session->id)->update(['teams' => $teams]);
         } catch (\Throwable $e) {
@@ -190,7 +190,7 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user');
+            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
             $teams = $this->buildTeamsData($session);
 
             $data = [
@@ -222,7 +222,7 @@ class FirebaseGameSyncService
             $first = $players->first();
             $teams[(string) $teamId] = [
                 'id' => (string) $teamId,
-                'name' => $first?->user?->name ?? 'الفريق ' . $teamId,
+                'name' => ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId,
                 'score' => (int) $players->sum('score'),
                 'teamCode' => 'K' . $teamId,
             ];

@@ -26,14 +26,13 @@ class UserService
     public function changeImage($image)
     {
         try {
-            /** @var User $user */
             $user = Auth::user();
-
+            if ($user instanceof \App\Models\Adventurer) {
+                return response()->json(['message' => 'استخدم تعيين الصورة الشخصية من القائمة المتاحة']);
+            }
             $user->clearMediaCollection();
             $user->addMedia($image)->toMediaCollection();
-
             $user->save();
-
             return response()->json(['message' => 'user image updated successfully']);
         } catch (\Throwable $th) {
             return response()->json(['message' => $th->getMessage()], 500);

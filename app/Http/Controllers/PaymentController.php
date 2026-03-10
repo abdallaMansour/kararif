@@ -49,7 +49,11 @@ class PaymentController extends Controller
         if ($couponCode) {
             $coupon = Coupon::where('code', $couponCode)->first();
             if ($coupon && $coupon->isActive() && !$coupon->isExpired()) {
-                $usedCount = CouponUsage::where('coupon_id', $coupon->id)->where('user_id', $user->id)->count();
+                $usedQuery = CouponUsage::where('coupon_id', $coupon->id);
+                $usedQuery = $user instanceof \App\Models\Adventurer
+                    ? $usedQuery->where('adventurer_id', $user->id)
+                    : $usedQuery->where('user_id', $user->id);
+                $usedCount = $usedQuery->count();
                 if ($usedCount < $coupon->usage_per_user) {
                     $couponId = $coupon->id;
                     $amount = max(0, round($amount * (1 - (float) $coupon->discount_percentage / 100), 2));
@@ -77,14 +81,15 @@ class PaymentController extends Controller
             $redirectUrl = $intent['redirect_url'];
         }
 
-        $payment = Payment::create([
-            'user_id' => $user->id,
+        $paymentData = [
             'payment_package_id' => $package->id,
             'coupon_id' => $couponId,
             'payment_id' => $paymentIdExternal,
             'status' => 'pending',
             'amount' => $amount,
-        ]);
+        ];
+        $paymentData[$user instanceof \App\Models\Adventurer ? 'adventurer_id' : 'user_id'] = $user->id;
+        $payment = Payment::create($paymentData);
 
         return ApiResponse::success([
             'paymentId' => (string) $payment->id,

@@ -12,6 +12,7 @@ class Room extends Model
     protected $fillable = [
         'code',
         'type_id',
+        'created_by_adventurer_id',
         'category_id',
         'subcategory_id',
         'created_by',
@@ -45,6 +46,11 @@ class Room extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function creatorAdventurer(): BelongsTo
+    {
+        return $this->belongsTo(Adventurer::class, 'created_by_adventurer_id');
     }
 
     public function roomPlayers(): HasMany

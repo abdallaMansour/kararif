@@ -9,6 +9,7 @@ use App\Http\Requests\Game\CreateRoomRequest;
 use App\Http\Requests\Game\JoinRoomRequest;
 use App\Http\Requests\Game\SubmitAnswerRequest;
 use App\Http\Requests\Game\LinkTvRequest;
+use App\Models\Adventurer;
 use App\Models\Room;
 use App\Models\RoomPlayer;
 use App\Models\GameSession;
@@ -35,6 +36,7 @@ class GameController extends Controller
             'name_ar' => $t->name,
             'slug' => \Illuminate\Support\Str::slug($t->name),
             'categories_count' => (int) ($t->categories_count ?? 0),
+            'image' => $t->getFirstMediaUrl(),
         ]);
         return ApiResponse::success($types->values()->all());
     }
@@ -52,6 +54,7 @@ class GameController extends Controller
             'slug' => \Illuminate\Support\Str::slug($c->name),
             'type_name' => $c->type?->name,
             'questions_count' => (int) ($c->questions_count ?? 0),
+            'image' => $c->getFirstMediaUrl(),
         ]);
         return ApiResponse::success($items->values()->all());
     }
@@ -69,6 +72,7 @@ class GameController extends Controller
             'slug' => \Illuminate\Support\Str::slug($s->name),
             'category_name' => $s->category?->name,
             'questions_count' => (int) ($s->questions_count ?? 0),
+            'image' => $s->getFirstMediaUrl(),
         ]);
         return ApiResponse::success($items->values()->all());
     }
@@ -103,7 +107,6 @@ class GameController extends Controller
 
     public function createRoom(CreateRoomRequest $request): JsonResponse
     {
-        /** @var User $user */
         $user = auth()->user();
         if (($user->available_sessions ?? 0) < 1) {
             return ApiResponse::error('لا توجد جلسات لعبة متاحة. يرجى شراء حزمة للاستمرار.', 403);
@@ -115,18 +118,23 @@ class GameController extends Controller
         $totalPlayers = $playersPerTeam * $teams;
         $rounds = (int) ($request->input('questionsCount') ?? $request->input('rounds', 5));
 
-        $room = Room::create([
+        $roomData = [
             'code' => $code,
             'type_id' => $request->input('questionType'),
             'category_id' => $request->input('mainCategoryId'),
             'subcategory_id' => $request->input('subCategoryId'),
-            'created_by' => auth()->id(),
             'title' => $request->input('title'),
             'rounds' => $rounds,
             'teams' => $teams,
             'players' => $totalPlayers,
             'expires_at' => now()->addHours(24),
-        ]);
+        ];
+        if ($user instanceof Adventurer) {
+            $roomData['created_by_adventurer_id'] = $user->id;
+        } else {
+            $roomData['created_by'] = $user->id;
+        }
+        $room = Room::create($roomData);
 
         $user->decrement('available_sessions');
 
@@ -151,7 +159,7 @@ class GameController extends Controller
     public function getRoom(int $roomId): JsonResponse
     {
         $room = Room::withCount('roomPlayers')
-            ->with(['type', 'category', 'subcategory', 'roomPlayers.user', 'gameSessions' => fn ($q) => $q->whereIn('status', ['waiting', 'playing'])->latest()->limit(1)])
+            ->with(['type', 'category', 'subcategory', 'roomPlayers.user', 'roomPlayers.adventurer', 'gameSessions' => fn ($q) => $q->whereIn('status', ['waiting', 'playing'])->latest()->limit(1)])
             ->find($roomId);
 
         if (!$room) {
@@ -186,8 +194,8 @@ class GameController extends Controller
             'teams' => $teamCodes,
             'players' => $room->roomPlayers->map(fn ($rp) => [
                 'playerId' => (string) $rp->id,
-                'userId' => (string) $rp->user_id,
-                'userName' => $rp->user?->name ?? 'Player',
+                'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
+                'userName' => ($rp->adventurer ?? $rp->user)?->name ?? 'Player',
                 'teamId' => (string) $rp->team_id,
                 'teamCode' => 'K' . $rp->team_id,
                 'isLeader' => (bool) $rp->is_leader,
@@ -243,10 +251,12 @@ class GameController extends Controller
             return ApiResponse::error('الغرفة ممتلئة أو الرمز خاطئ', 400);
         }
 
-        $userId = auth()->id();
-        /** @var User $user */
-        $user = User::find($userId);
-        $existing = RoomPlayer::where('room_id', $roomId)->where('user_id', $userId)->first();
+        $user = auth()->user();
+        $adventurerId = $user instanceof Adventurer ? $user->id : null;
+        $userId = $user instanceof User ? $user->id : null;
+        $existing = $adventurerId
+            ? RoomPlayer::where('room_id', $roomId)->where('adventurer_id', $adventurerId)->first()
+            : RoomPlayer::where('room_id', $roomId)->where('user_id', $userId)->first();
         if ($existing) {
             return ApiResponse::success([
                 'joined' => true,
@@ -286,12 +296,13 @@ class GameController extends Controller
             }
         }
 
-        $player = RoomPlayer::create([
-            'room_id' => $roomId,
-            'user_id' => $userId,
-            'team_id' => $teamId,
-            'is_leader' => $isLeader,
-        ]);
+        $playerData = ['room_id' => $roomId, 'team_id' => $teamId, 'is_leader' => $isLeader];
+        if ($adventurerId) {
+            $playerData['adventurer_id'] = $adventurerId;
+        } else {
+            $playerData['user_id'] = $userId;
+        }
+        $player = RoomPlayer::create($playerData);
 
         $user->decrement('available_sessions');
 
@@ -312,7 +323,7 @@ class GameController extends Controller
 
     public function getSession(int $sessionId): JsonResponse
     {
-        $session = GameSession::with('room.roomPlayers.user')->find($sessionId);
+        $session = GameSession::with('room.roomPlayers.user', 'room.roomPlayers.adventurer')->find($sessionId);
         if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
@@ -320,7 +331,7 @@ class GameController extends Controller
         $questionData = $this->gameService->getCurrentQuestion($session);
         $teams = $session->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
             $first = $players->first();
-            $name = $first?->user?->name ?? 'الفريق ' . $teamId;
+            $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId;
             $score = $players->sum('score');
             return [
                 'id' => (string) $teamId,
@@ -359,7 +370,9 @@ class GameController extends Controller
 
         $optionIndex = (int) $request->input('optionIndex', $request->input('answerId', 1));
         $user = auth()->user();
-        $roomPlayer = RoomPlayer::where('room_id', $session->room_id)->where('user_id', $user->id)->first();
+        $roomPlayer = $user instanceof Adventurer
+            ? RoomPlayer::where('room_id', $session->room_id)->where('adventurer_id', $user->id)->first()
+            : RoomPlayer::where('room_id', $session->room_id)->where('user_id', $user->id)->first();
         if (!$roomPlayer) {
             return ApiResponse::error('أنت غير مشارك في هذه المغامرة', 403);
         }
@@ -386,11 +399,10 @@ class GameController extends Controller
             return ApiResponse::error('انتهت الجلسة', 400);
         }
 
-        /** @var User $user */
         $user = auth()->user();
-        $roomPlayer = RoomPlayer::where('room_id', $session->room_id)
-            ->where('user_id', $user->id)
-            ->first();
+        $roomPlayer = $user instanceof Adventurer
+            ? RoomPlayer::where('room_id', $session->room_id)->where('adventurer_id', $user->id)->first()
+            : RoomPlayer::where('room_id', $session->room_id)->where('user_id', $user->id)->first();
         if (!$roomPlayer) {
             return ApiResponse::error('أنت غير مشارك في هذه المغامرة', 403);
         }
@@ -404,11 +416,13 @@ class GameController extends Controller
         $session->update(['status' => 'finished']);
         $session->room?->update(['status' => 'finished']);
 
+        $this->gameService->updatePointsForFinishedSession($session->fresh());
+
         // Build scores similar to getResult()
-        $session->load('room.roomPlayers.user');
+        $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
         $byTeam = $session->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
             $first = $players->first();
-            $name = $first?->user?->name ?? 'الفريق ' . $teamId;
+            $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId;
             $score = $players->sum('score');
             return [
                 'teamId' => (string) $teamId,
@@ -441,14 +455,14 @@ class GameController extends Controller
 
     public function getResult(int $sessionId): JsonResponse
     {
-        $session = GameSession::with('room.roomPlayers.user')->find($sessionId);
+        $session = GameSession::with('room.roomPlayers.user', 'room.roomPlayers.adventurer')->find($sessionId);
         if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
 
         $byTeam = $session->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
             $first = $players->first();
-            $name = $first?->user?->name ?? 'الفريق ' . $teamId;
+            $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId;
             $score = $players->sum('score');
             return [
                 'teamId' => (string) $teamId,

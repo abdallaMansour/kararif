@@ -18,7 +18,7 @@ class RankResource extends JsonResource
             'icon' => $this->getFirstMediaUrl(),
             'prize_type' => $this->prize_type,
             'prize_value' => $this->prize_value !== null ? (int) $this->prize_value : null,
-            'prize_label' => $this->prize_label,
+            'prize_label' => $this->prize_label_ar,
         ];
     }
 }

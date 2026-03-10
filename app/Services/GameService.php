@@ -165,6 +165,7 @@ class GameService
         } else {
             $session->update(['status' => 'finished', 'current_round' => $nextRound]);
             $session->room->update(['status' => 'finished']);
+            $this->updatePointsForFinishedSession($session->fresh());
             $this->firebaseSync->syncSessionEnd($session->fresh());
             $nextQuestion = null;
         }
@@ -174,5 +175,23 @@ class GameService
             'scoreDelta' => $scoreDelta,
             'nextQuestion' => $nextQuestion,
         ];
+    }
+
+    public function updatePointsForFinishedSession(GameSession $session): void
+    {
+        $session->load('room.roomPlayers.adventurer', 'room.roomPlayers.user');
+        $teamScores = $session->room->roomPlayers->groupBy('team_id')
+            ->map(fn ($players) => $players->sum('score'));
+        $maxScore = $teamScores->max();
+        $winnerTeamIds = $teamScores->filter(fn ($s) => $s >= $maxScore)->keys();
+
+        foreach ($session->room->roomPlayers as $rp) {
+            $player = $rp->adventurer ?? $rp->user;
+            if (!$player) {
+                continue;
+            }
+            $delta = $winnerTeamIds->contains((string) $rp->team_id) ? 1 : -1;
+            $player->increment('points', $delta);
+        }
     }
 }

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
-use App\Models\User;
+use App\Models\Adventurer;
 use App\Models\PasswordResetCode;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
@@ -25,7 +25,7 @@ class AuthController extends Controller
 
     public function register(RegisterRequest $request): JsonResponse
     {
-        $user = $this->authService->registerUser($request->validated());
+        $user = $this->authService->registerAdventurer($request->validated());
         $user->load('avatarRelation');
 
         $expiresIn = 3600;
@@ -62,8 +62,8 @@ class AuthController extends Controller
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
         $email = $request->input('email');
-        $user = User::where('email', $email)->first();
-        if (!$user) {
+        $adventurer = Adventurer::where('email', $email)->first();
+        if (!$adventurer) {
             return ApiResponse::error('لا يوجد حساب مرتبط بهذا البريد', 404);
         }
 
@@ -120,12 +120,12 @@ class AuthController extends Controller
             return ApiResponse::error('رمز التحقق غير صحيح أو منتهي', 400);
         }
 
-        $user = User::where('email', $email)->first();
-        if (!$user) {
+        $adventurer = Adventurer::where('email', $email)->first();
+        if (!$adventurer) {
             return ApiResponse::error('لا يوجد حساب مرتبط بهذا البريد', 404);
         }
 
-        $user->update(['password' => Hash::make($newPassword)]);
+        $adventurer->update(['password' => Hash::make($newPassword)]);
         PasswordResetCode::where('email', $email)->delete();
 
         return ApiResponse::success(null, 'تم تغيير كلمة المرور بنجاح', 200);

@@ -15,19 +15,21 @@ class Rank extends Model implements HasMedia
         'start_score',
         'prize_type',
         'prize_value',
+        'prize_label_ar',
     ];
 
-    protected $appends = ['prize_label'];
-
-    public function getPrizeLabelAttribute(): ?string
+    public function getPrizeLabelArAttribute(): ?string
     {
+        if (! empty($this->attributes['prize_label_ar'] ?? null)) {
+            return $this->attributes['prize_label_ar'];
+        }
         if (! $this->prize_type) {
             return null;
         }
         $value = (int) ($this->prize_value ?? 0);
         return match ($this->prize_type) {
-            'discount_next_5_purchases' => $value > 0 ? "{$value}% discount on next 5 purchases" : 'Discount on next 5 purchases',
-            'free_sessions' => $value > 0 ? "{$value} free game sessions" : 'Free game sessions',
+            'discount_next_5_purchases' => $value > 0 ? "خصم {$value}% على 5 مشتريات قادمة" : 'خصم على 5 مشتريات قادمة',
+            'free_sessions' => $value > 0 ? "{$value} جلسات لعبة مجانية" : 'جلسات لعبة مجانية',
             default => null,
         };
     }

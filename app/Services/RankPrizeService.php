@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Helpers\RankHelper;
+use App\Models\Adventurer;
 use App\Models\User;
 
 class RankPrizeService
@@ -11,7 +12,7 @@ class RankPrizeService
      * Sync user's rank prizes: grant discount uses (next 5 purchases) and free sessions
      * when they reach a rank that has those prizes, once per rank.
      */
-    public function syncUserRankPrizes(User $user): void
+    public function syncUserRankPrizes(User|Adventurer $user): void
     {
         $score = (float) ($user->points ?? 0);
         $rankData = RankHelper::getRankForScore($score);
@@ -51,7 +52,7 @@ class RankPrizeService
     /**
      * Whether the user has an active rank discount that can be applied.
      */
-    public function hasActiveDiscount(User $user): bool
+    public function hasActiveDiscount(User|Adventurer $user): bool
     {
         return ($user->rank_discount_uses_left ?? 0) > 0
             && ($user->rank_discount_percent ?? 0) > 0;
@@ -60,7 +61,7 @@ class RankPrizeService
     /**
      * Apply rank discount to an amount and consume one use. Returns the discounted amount.
      */
-    public function applyDiscountAndConsumeOne(User $user, float $amount): float
+    public function applyDiscountAndConsumeOne(User|Adventurer $user, float $amount): float
     {
         if (! $this->hasActiveDiscount($user)) {
             return $amount;

@@ -97,8 +97,8 @@ class UserController extends Controller
     {
         $user = auth()->guard('sanctum')->user();
         return ApiResponse::success([
-            'balance' => (int) ($user->balance ?? 0),
-            'currencyLabel' => 'لعبة',
+            'balance' => (int) ($user->available_sessions ?? 0),
+            'currencyLabel' => 'جلسة',
         ]);
     }
 
@@ -108,31 +108,64 @@ class UserController extends Controller
         $limit = (int) request('limit', 10);
         $page = (int) request('page', 1);
 
-        $roomPlayers = RoomPlayer::where('user_id', $user->id)
+        $roomPlayerQuery = $user instanceof \App\Models\Adventurer
+            ? RoomPlayer::where('adventurer_id', $user->id)
+            : RoomPlayer::where('user_id', $user->id);
+        $roomPlayers = $roomPlayerQuery
             ->whereHas('room', fn ($q) => $q->whereHas('gameSessions', fn ($s) => $s->where('status', 'finished')))
-            ->with(['room.roomPlayers.user', 'room.gameSessions' => fn ($q) => $q->where('status', 'finished')])
+            ->with(['room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.gameSessions' => fn ($q) => $q->where('status', 'finished')])
             ->orderByDesc('joined_at')
             ->paginate($limit, ['*'], 'page', $page);
 
+        $resultFilter = request('result'); // win|loss
+        $rankFilter = request('rank'); // 1|2|3
         $games = collect($roomPlayers->items())->map(function (RoomPlayer $rp) {
             $session = $rp->room->gameSessions->first();
+            $roomName = $rp->room->title ?: $rp->room->type?->name ?: ($rp->room->category?->name ?? 'مغامرة');
             $myScore = $rp->score;
-            $opponent = $rp->room->roomPlayers->where('id', '!=', $rp->id)->first();
+            $playersByScore = $rp->room->roomPlayers->sortByDesc('score')->values();
+            $myRank = $playersByScore->search(fn ($p) => $p->id === $rp->id) + 1;
+            $myTeamId = $rp->team_id;
+            $teamScores = $rp->room->roomPlayers->groupBy('team_id')->map(fn ($pls) => $pls->sum('score'));
+            $sortedTeams = $teamScores->sortByDesc(fn ($s) => $s)->keys()->values();
+            $teamRank = $sortedTeams->search($myTeamId) + 1;
+            $userRank = $teamRank;
             $result = 'draw';
-            if ($opponent) {
-                $result = $myScore > $opponent->score ? 'win' : ($myScore < $opponent->score ? 'loss' : 'draw');
+            if ($teamScores->count() > 1) {
+                $maxScore = $teamScores->max();
+                $myTeamScore = $teamScores->get($myTeamId, 0);
+                $result = $myTeamScore >= $maxScore ? 'win' : 'loss';
             }
+            $opponent = $rp->room->roomPlayers->where('id', '!=', $rp->id)->first();
+            $opponentName = ($opponent->adventurer ?? $opponent->user)?->name ?? null;
+            $rankLabel = match ($userRank) {
+                1 => 'أول',
+                2 => 'ثاني',
+                3 => 'ثالث',
+                default => null,
+            };
             return [
                 'id' => (string) ($session?->id ?? $rp->room_id),
                 'date' => $rp->joined_at?->toIso8601String(),
+                'roomName' => $roomName,
+                'category' => $rp->room->category?->name ?? $rp->room->type?->name,
                 'result' => $result,
+                'userRank' => $rankLabel,
                 'score' => $myScore,
-                'opponent' => $opponent?->user?->name,
+                'opponent' => $opponentName,
             ];
-        })->values()->all();
+        })->values();
+
+        if ($resultFilter && in_array($resultFilter, ['win', 'loss'], true)) {
+            $games = $games->where('result', $resultFilter)->values();
+        }
+        if ($rankFilter && in_array($rankFilter, ['1', '2', '3'], true)) {
+            $rankLabel = match ($rankFilter) { '1' => 'أول', '2' => 'ثاني', '3' => 'ثالث', default => null };
+            $games = $games->where('userRank', $rankLabel)->values();
+        }
 
         return ApiResponse::success([
-            'games' => $games,
+            'games' => $games->values()->all(),
             'total' => $roomPlayers->total(),
         ]);
     }

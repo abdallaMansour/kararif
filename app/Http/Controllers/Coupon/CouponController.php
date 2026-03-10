@@ -29,7 +29,11 @@ class CouponController extends Controller
         }
 
         $user = auth()->user();
-        $usedCount = CouponUsage::where('coupon_id', $coupon->id)->where('user_id', $user->id)->count();
+        $usedQuery = CouponUsage::where('coupon_id', $coupon->id);
+        $usedQuery = $user instanceof \App\Models\Adventurer
+            ? $usedQuery->where('adventurer_id', $user->id)
+            : $usedQuery->where('user_id', $user->id);
+        $usedCount = $usedQuery->count();
         if ($usedCount >= $coupon->usage_per_user) {
             return ApiResponse::error('استخدمت هذا الكود الحد المسموح له', 400);
         }

@@ -17,9 +17,9 @@ class RegisterRequest extends FormRequest
     {
         return [
             'fullName' => 'required|string|max:255',
-            'username' => 'nullable|string|max:255|unique:users,username',
-            'email' => 'required|email|unique:users,email',
-            'phone' => 'nullable|string|max:20|unique:users,phone',
+            'username' => 'nullable|string|max:255|unique:adventurers,username',
+            'email' => 'required|email|unique:adventurers,email',
+            'phone' => 'nullable|string|max:20|unique:adventurers,phone',
             'password' => 'required|string|size:4|confirmed',
             'countryLabel' => 'nullable|string|max:255',
             'countryCode' => 'nullable|string|max:10',

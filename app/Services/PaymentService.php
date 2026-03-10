@@ -17,18 +17,17 @@ class PaymentService
             return;
         }
 
-        $payment->load('user', 'paymentPackage', 'coupon');
+        $payment->load('user', 'adventurer', 'paymentPackage', 'coupon');
+        $recipient = $payment->adventurer ?? $payment->user;
         $sessions = (int) ($payment->paymentPackage->sessions_count ?? 0);
-        if ($sessions > 0) {
-            $payment->user->increment('available_sessions', $sessions);
+        if ($sessions > 0 && $recipient) {
+            $recipient->increment('available_sessions', $sessions);
         }
 
-        if ($payment->coupon_id) {
-            CouponUsage::create([
-                'user_id' => $payment->user_id,
-                'coupon_id' => $payment->coupon_id,
-                'used_at' => now(),
-            ]);
+        if ($payment->coupon_id && $recipient) {
+            $usageData = ['coupon_id' => $payment->coupon_id, 'used_at' => now()];
+            $usageData[$recipient instanceof \App\Models\Adventurer ? 'adventurer_id' : 'user_id'] = $recipient->id;
+            CouponUsage::create($usageData);
         }
 
         $payment->update(['status' => 'completed']);

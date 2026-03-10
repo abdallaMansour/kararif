@@ -27,7 +27,7 @@ class RankHelper
             'icon' => $rank->getFirstMediaUrl(),
             'prize_type' => $rank->prize_type,
             'prize_value' => $rank->prize_value,
-            'prize_label' => $rank->prize_label,
+            'prize_label' => $rank->prize_label_ar,
         ];
     }
 }

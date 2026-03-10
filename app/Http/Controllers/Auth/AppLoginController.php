@@ -18,7 +18,7 @@ class AppLoginController extends Controller
 
     public function login(LoginRequest $request)
     {
-        $user = $this->authService->loginUser($request->only('identifier', 'email', 'password', 'device_name'));
+        $user = $this->authService->loginAdventurer($request->only('identifier', 'email', 'password', 'device_name'));
 
         $expiresIn = 3600;
         $token = $user->createToken('Access Token', expiresAt: now()->addSeconds($expiresIn))->plainTextToken;
@@ -29,7 +29,7 @@ class AppLoginController extends Controller
             'email' => $user->email,
             'fullName' => $user->name,
             'phone' => $user->phone,
-            'avatar' => $user->avatar ?? $user->getFirstMediaUrl() ?? null,
+            'avatar' => $user->avatarRelation ? ['id' => (string) $user->avatarRelation->id, 'name' => $user->avatarRelation->name, 'image' => $user->avatarRelation->image_url] : null,
             'badge' => null,
         ];
 
