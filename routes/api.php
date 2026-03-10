@@ -26,3 +26,5 @@ require __DIR__ . '/packages.php';
 require __DIR__ . '/coupons.php';
 require __DIR__ . '/ranks.php';
 require __DIR__ . '/scoreboard.php';
+require __DIR__ . '/news.php';
+require __DIR__ . '/how_to_play.php';
