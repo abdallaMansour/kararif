@@ -266,9 +266,7 @@ class GameController extends Controller
             ]);
         }
 
-        if (($user->available_sessions ?? 0) < 1) {
-            return ApiResponse::error('لا توجد جلسات لعبة متاحة. يرجى شراء حزمة للاستمرار.', 403);
-        }
+        // Join room is free; only create room costs a session
 
         $teamCode = $request->input('teamCode');
         $teamId = (int) ltrim($teamCode, 'K');
@@ -304,7 +302,7 @@ class GameController extends Controller
         }
         $player = RoomPlayer::create($playerData);
 
-        $user->decrement('available_sessions');
+        // No session cost for joining; only create room deducts
 
         $this->firebaseSync->syncRoomPlayers($room->fresh());
 
