@@ -58,7 +58,7 @@ class TvDisplayController extends Controller
 
         if ($linked && $display->room) {
             $session = $display->room->gameSessions()
-                ->whereIn('status', ['waiting', 'playing'])
+                ->whereIn('status', ['waiting', 'playing', 'starting'])
                 ->latest()
                 ->first();
             $sessionId = $session ? (string) $session->id : null;

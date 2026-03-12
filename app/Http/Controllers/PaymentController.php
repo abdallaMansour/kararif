@@ -88,7 +88,12 @@ class PaymentController extends Controller
             'status' => 'pending',
             'amount' => $amount,
         ];
-        $paymentData[$user instanceof \App\Models\Adventurer ? 'adventurer_id' : 'user_id'] = $user->id;
+        if ($user instanceof \App\Models\Adventurer) {
+            $paymentData['adventurer_id'] = $user->id;
+            $paymentData['user_id'] = null;
+        } else {
+            $paymentData['user_id'] = $user->id;
+        }
         $payment = Payment::create($paymentData);
 
         return ApiResponse::success([

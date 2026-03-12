@@ -13,6 +13,7 @@ class RoomPlayer extends Model
 
     protected $casts = [
         'joined_at' => 'datetime',
+        'tv_view_joined_at' => 'datetime',
         'is_leader' => 'boolean',
     ];
 

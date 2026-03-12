@@ -646,6 +646,58 @@
           "response": []
         },
         {
+          "name": "Leave Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/game/room/3/leave",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "game",
+                "room",
+                "3",
+                "leave"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Viewing TV",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/game/room/3/viewing-tv",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "game",
+                "room",
+                "3",
+                "viewing-tv"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Get Session",
           "request": {
             "method": "GET",
@@ -978,6 +1030,28 @@
           "response": []
         },
         {
+          "name": "Get Scoreboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/scoreboard?per_page=50&country_code=SA",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "scoreboard"
+              ],
+              "query": [
+                {"key": "per_page", "value": "50"},
+                {"key": "country_code", "value": "SA"}
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Get Avatars",
           "request": {
             "method": "GET",
@@ -1151,6 +1225,7 @@
               "mode": "raw",
               "raw": "{\n  \"packageId\": 1,\n  \"paymentMethod\": \"card\",\n  \"couponCode\": \"SAVE10\"\n}"
             },
+            "description": "Works with Adventurer (app) or User auth. Requires available package. couponCode optional.",
             "url": {
               "raw": "{{base_url}}/api/payment/initiate",
               "host": [

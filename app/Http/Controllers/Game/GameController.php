@@ -319,6 +319,78 @@ class GameController extends Controller
         ]);
     }
 
+    public function leaveRoom(int $roomId): JsonResponse
+    {
+        $room = Room::find($roomId);
+        if (!$room) {
+            return ApiResponse::error('الغرفة غير موجودة', 404);
+        }
+        if ($room->status !== 'waiting') {
+            return ApiResponse::error('لا يمكن المغادرة بعد بدء اللعبة. استخدم الاستسلام لإنهاء المغامرة.', 400);
+        }
+
+        $user = auth()->user();
+        $roomPlayer = $user instanceof Adventurer
+            ? RoomPlayer::where('room_id', $roomId)->where('adventurer_id', $user->id)->first()
+            : RoomPlayer::where('room_id', $roomId)->where('user_id', $user->id)->first();
+
+        if (!$roomPlayer) {
+            return ApiResponse::error('أنت غير مشارك في هذه الغرفة', 403);
+        }
+
+        $roomPlayer->delete();
+        $this->firebaseSync->syncRoomPlayers($room->fresh());
+
+        return ApiResponse::success([
+            'left' => true,
+            'roomId' => (string) $room->id,
+            'message' => 'تم مغادرة الغرفة بنجاح',
+        ]);
+    }
+
+    public function viewingTv(int $roomId): JsonResponse
+    {
+        $room = Room::find($roomId);
+        if (!$room) {
+            return ApiResponse::error('الغرفة غير موجودة', 404);
+        }
+
+        $tvDisplay = TvDisplay::where('room_id', $roomId)->where('status', TvDisplay::STATUS_LINKED)->first();
+        if (!$tvDisplay) {
+            return ApiResponse::error('لم يتم ربط الغرفة بالتلفزيون', 400);
+        }
+
+        $user = auth()->user();
+        $roomPlayer = $user instanceof Adventurer
+            ? RoomPlayer::where('room_id', $roomId)->where('adventurer_id', $user->id)->first()
+            : RoomPlayer::where('room_id', $roomId)->where('user_id', $user->id)->first();
+
+        if (!$roomPlayer) {
+            return ApiResponse::error('أنت غير مشارك في هذه الغرفة', 403);
+        }
+
+        if ($roomPlayer->tv_view_joined_at === null) {
+            $roomPlayer->update(['tv_view_joined_at' => now()]);
+            $this->firebaseSync->syncRoomPlayers($room->fresh());
+
+            $activeSession = $room->gameSessions()->whereIn('status', ['starting', 'playing'])->latest()->first();
+            if ($activeSession) {
+                if ($activeSession->status === 'starting') {
+                    $this->firebaseSync->syncSessionStarting($activeSession->fresh());
+                } else {
+                    $this->firebaseSync->syncScores($activeSession->fresh());
+                }
+            }
+        }
+
+        $session = $room->gameSessions()->whereIn('status', ['starting', 'playing'])->latest()->first();
+        return ApiResponse::success([
+            'viewingTv' => true,
+            'roomId' => (string) $room->id,
+            'sessionId' => $session ? (string) $session->id : null,
+        ]);
+    }
+
     public function getSession(int $sessionId): JsonResponse
     {
         $session = GameSession::with('room.roomPlayers.user', 'room.roomPlayers.adventurer')->find($sessionId);
@@ -326,7 +398,9 @@ class GameController extends Controller
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
 
-        $questionData = $this->gameService->getCurrentQuestion($session);
+        $session = $this->gameService->ensureSessionPlaying($session);
+
+        $questionData = $session->status === 'playing' ? $this->gameService->getCurrentQuestion($session) : null;
         $teams = $session->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
             $first = $players->first();
             $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId;
@@ -345,12 +419,21 @@ class GameController extends Controller
             $timeLeft = max(0, 120 - $elapsed);
         }
 
+        $questionIds = $session->question_ids ?? [];
+        $remainingCount = count($questionIds) - max(0, $session->current_round - 1);
+        if ($remainingCount < 0) {
+            $remainingCount = 0;
+        }
+
         $data = [
             'sessionId' => (string) $session->id,
+            'status' => $session->status,
             'round' => $session->current_round,
+            'remainingQuestionsCount' => $remainingCount,
             'question' => $questionData,
             'timeLeft' => $timeLeft,
             'questionStartedAt' => $session->question_started_at?->timestamp ? (int) ($session->question_started_at->timestamp * 1000) : null,
+            'startTimerEndsAt' => $session->start_timer_ends_at?->timestamp ? (int) ($session->start_timer_ends_at->timestamp * 1000) : null,
             'teams' => $teams,
         ];
         return ApiResponse::success($data);
@@ -364,6 +447,11 @@ class GameController extends Controller
         }
         if ($session->status === 'finished') {
             return ApiResponse::error('انتهت الجلسة', 400);
+        }
+
+        $session = $this->gameService->ensureSessionPlaying($session);
+        if ($session->status === 'starting') {
+            return ApiResponse::error('اللعبة لم تبدأ بعد', 400);
         }
 
         $optionIndex = (int) $request->input('optionIndex', $request->input('answerId', 1));

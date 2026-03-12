@@ -95,7 +95,7 @@ class FirebaseGameSyncService
             $sessionId = null;
             if ($display->room_id) {
                 $session = $display->room->gameSessions()
-                    ->whereIn('status', ['waiting', 'playing'])
+                    ->whereIn('status', ['waiting', 'playing', 'starting'])
                     ->latest()
                     ->first();
                 $sessionId = $session ? (string) $session->id : null;
@@ -121,6 +121,35 @@ class FirebaseGameSyncService
         }
     }
 
+    public function syncSessionStarting(GameSession $session): void
+    {
+        $db = $this->getDatabase();
+        if (!$db) {
+            return;
+        }
+        try {
+            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
+            $teams = $this->buildTeamsData($session);
+
+            $data = [
+                'roomId' => (string) $session->room_id,
+                'status' => 'starting',
+                'currentRound' => 0,
+                'startTimerEndsAt' => $session->start_timer_ends_at
+                    ? (int) ($session->start_timer_ends_at->timestamp * 1000)
+                    : null,
+                'remainingQuestionsCount' => count($session->question_ids ?? []),
+                'question' => null,
+                'teams' => $teams,
+                'sessionId' => (string) $session->id,
+            ];
+
+            $db->getReference('sessions/' . $session->id)->set($data);
+        } catch (\Throwable $e) {
+            Log::warning('Firebase syncSessionStarting failed', ['session_id' => $session->id, 'error' => $e->getMessage()]);
+        }
+    }
+
     public function syncSessionStart(GameSession $session): void
     {
         $db = $this->getDatabase();
@@ -132,10 +161,18 @@ class FirebaseGameSyncService
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsData($session);
 
+            $questionIds = $session->question_ids ?? [];
+            $remainingCount = count($questionIds) - max(0, $session->current_round - 1);
+            if ($remainingCount < 0) {
+                $remainingCount = 0;
+            }
+
             $data = [
                 'roomId' => (string) $session->room_id,
+                'sessionId' => (string) $session->id,
                 'status' => $session->status,
                 'currentRound' => (int) $session->current_round,
+                'remainingQuestionsCount' => $remainingCount,
                 'questionStartedAt' => (int) round(microtime(true) * 1000),
                 'question' => $question,
                 'teams' => $teams,
@@ -156,9 +193,15 @@ class FirebaseGameSyncService
         try {
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsData($session);
+            $questionIds = $session->question_ids ?? [];
+            $remainingCount = count($questionIds) - max(0, $session->current_round - 1);
+            if ($remainingCount < 0) {
+                $remainingCount = 0;
+            }
 
             $db->getReference('sessions/' . $session->id)->update([
                 'currentRound' => (int) $session->current_round,
+                'remainingQuestionsCount' => $remainingCount,
                 'questionStartedAt' => (int) round(microtime(true) * 1000),
                 'question' => $question,
                 'teams' => $teams,
@@ -195,6 +238,7 @@ class FirebaseGameSyncService
 
             $data = [
                 'status' => $session->status,
+                'remainingQuestionsCount' => 0,
                 'teams' => $teams,
                 'sessionEndedAt' => (int) round(microtime(true) * 1000),
             ];
@@ -216,15 +260,25 @@ class FirebaseGameSyncService
 
     private function buildTeamsData(GameSession $session): array
     {
-        $byTeam = $session->room->roomPlayers->groupBy('team_id');
+        $room = $session->room;
+        $room->load('roomPlayers.user', 'roomPlayers.adventurer');
+        $byTeam = $room->roomPlayers->groupBy('team_id');
         $teams = [];
         foreach ($byTeam as $teamId => $players) {
             $first = $players->first();
+            $playerList = $players->map(fn ($rp) => [
+                'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
+                'userName' => ($rp->adventurer ?? $rp->user)?->name ?? 'Player',
+                'isLeader' => (bool) $rp->is_leader,
+                'tvViewJoined' => $rp->tv_view_joined_at !== null,
+            ])->values()->all();
+
             $teams[(string) $teamId] = [
                 'id' => (string) $teamId,
                 'name' => ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId,
                 'score' => (int) $players->sum('score'),
                 'teamCode' => 'K' . $teamId,
+                'players' => $playerList,
             ];
         }
         return $teams;

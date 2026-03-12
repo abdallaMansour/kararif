@@ -55,7 +55,7 @@ class GameService
 
     public function getOrCreateSession(Room $room): GameSession
     {
-        $session = $room->gameSessions()->whereIn('status', ['waiting', 'playing'])->first();
+        $session = $room->gameSessions()->whereIn('status', ['waiting', 'playing', 'starting'])->first();
         if ($session) {
             return $session;
         }
@@ -70,19 +70,43 @@ class GameService
             ->values()
             ->toArray();
 
+        shuffle($questionIds);
+
+        $countdownSeconds = config('game.start_countdown_seconds', 5);
+        $startTimerEndsAt = now()->addSeconds($countdownSeconds);
+
         $session = $room->gameSessions()->create([
-            'status' => 'playing',
+            'status' => 'starting',
             'started_at' => now(),
-            'question_started_at' => now(),
+            'start_timer_ends_at' => $startTimerEndsAt,
+            'question_started_at' => null,
             'question_ids' => $questionIds,
         ]);
 
         $room->update(['status' => 'playing']);
 
-        $this->firebaseSync->syncSessionStart($session);
-        $this->firebaseSync->syncQuestion($session);
+        $this->firebaseSync->syncSessionStarting($session);
 
         return $session;
+    }
+
+    public function ensureSessionPlaying(GameSession $session): GameSession
+    {
+        if ($session->status !== 'starting') {
+            return $session;
+        }
+        if ($session->start_timer_ends_at && now()->lt($session->start_timer_ends_at)) {
+            return $session;
+        }
+
+        $session->update([
+            'status' => 'playing',
+            'question_started_at' => now(),
+        ]);
+
+        $this->firebaseSync->syncSessionStart($session->fresh());
+
+        return $session->fresh();
     }
 
     public function getCurrentQuestion(GameSession $session): ?array
@@ -101,13 +125,30 @@ class GameService
         }
         return [
             'id' => (string) $question->id,
+            'title' => $question->name,
             'text' => $question->name,
+            'question_kind' => $question->question_kind ?? 'normal',
+            'word_data' => $question->question_kind === Question::KIND_WORDS ? $question->word_data : null,
+            'answers' => [
+                ['id' => 'o1', 'text' => $question->answer_1],
+                ['id' => 'o2', 'text' => $question->answer_2],
+                ['id' => 'o3', 'text' => $question->answer_3],
+                ['id' => 'o4', 'text' => $question->answer_4],
+            ],
             'options' => [
                 ['id' => 'o1', 'text' => $question->answer_1],
                 ['id' => 'o2', 'text' => $question->answer_2],
                 ['id' => 'o3', 'text' => $question->answer_3],
                 ['id' => 'o4', 'text' => $question->answer_4],
             ],
+            'image' => $question->getFirstMediaUrl('image'),
+            'voice' => $question->getFirstMediaUrl('voice'),
+            'video' => $question->getFirstMediaUrl('video'),
+            'start_video' => $question->getFirstMediaUrl('start_video'),
+            'lunch_video' => $question->getFirstMediaUrl('lunch_video'),
+            'question_video' => $question->getFirstMediaUrl('question_video'),
+            'correct_answer_video' => $question->getFirstMediaUrl('correct_answer_video'),
+            'wrong_answer_video' => $question->getFirstMediaUrl('wrong_answer_video'),
         ];
     }
 

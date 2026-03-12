@@ -70,6 +70,8 @@ Route::prefix('game')->group(function () {
         Route::post('create-room', [GameController::class, 'createRoom']);
         Route::post('room/{roomId}/link-tv', [GameController::class, 'linkTv']);
         Route::post('room/{roomId}/join', [GameController::class, 'joinRoom']);
+        Route::post('room/{roomId}/leave', [GameController::class, 'leaveRoom']);
+        Route::post('room/{roomId}/viewing-tv', [GameController::class, 'viewingTv']);
         Route::post('session/{sessionId}/answer', [GameController::class, 'submitAnswer']);
         Route::post('session/{sessionId}/surrender', [GameController::class, 'surrender']);
     });
