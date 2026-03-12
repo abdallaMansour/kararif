@@ -99,6 +99,32 @@ class GameService
             return $session;
         }
 
+        return $this->transitionSessionToPlaying($session);
+    }
+
+    public function maybeStartSessionWhenAllJoined(Room $room): ?GameSession
+    {
+        $session = $room->gameSessions()->where('status', 'starting')->latest()->first();
+        if (!$session) {
+            return null;
+        }
+
+        $room->load('roomPlayers');
+        $total = $room->roomPlayers->count();
+        if ($total === 0) {
+            return null;
+        }
+
+        $joinedCount = $room->roomPlayers->filter(fn ($rp) => $rp->tv_view_joined_at !== null)->count();
+        if ($joinedCount < $total) {
+            return null;
+        }
+
+        return $this->transitionSessionToPlaying($session->fresh());
+    }
+
+    private function transitionSessionToPlaying(GameSession $session): GameSession
+    {
         $session->update([
             'status' => 'playing',
             'question_started_at' => now(),

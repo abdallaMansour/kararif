@@ -249,7 +249,10 @@ class GameController extends Controller
             $activeSession = $room->gameSessions()->whereIn('status', ['starting', 'playing'])->latest()->first();
             if ($activeSession) {
                 if ($activeSession->status === 'starting') {
-                    $this->firebaseSync->syncSessionStarting($activeSession->fresh());
+                    $startedSession = $this->gameService->maybeStartSessionWhenAllJoined($room->fresh());
+                    if (!$startedSession) {
+                        $this->firebaseSync->syncSessionStarting($activeSession->fresh());
+                    }
                 } else {
                     $this->firebaseSync->syncScores($activeSession->fresh());
                 }
