@@ -21,7 +21,11 @@ class ScoreboardController extends Controller
         }
         $adventurers = $query->limit($perPage)->get();
 
-        $all = ScoreboardEntryResource::collection($adventurers)->resolve();
+        $resolved = ScoreboardEntryResource::collection($adventurers)->resolve();
+        $all = array_map(function ($entry, $index) {
+            $entry['place'] = $index + 1;
+            return $entry;
+        }, $resolved, array_keys($resolved));
         $top3 = array_slice($all, 0, 3);
         $rest = array_slice($all, 3);
 
