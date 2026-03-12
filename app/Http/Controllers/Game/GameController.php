@@ -159,7 +159,7 @@ class GameController extends Controller
     public function getRoom(int $roomId): JsonResponse
     {
         $room = Room::withCount('roomPlayers')
-            ->with(['type', 'category', 'subcategory', 'roomPlayers.user', 'roomPlayers.adventurer', 'gameSessions' => fn ($q) => $q->whereIn('status', ['waiting', 'playing'])->latest()->limit(1)])
+            ->with(['type', 'category', 'subcategory.stage.questionGroups', 'roomPlayers.user', 'roomPlayers.adventurer', 'gameSessions' => fn ($q) => $q->whereIn('status', ['waiting', 'playing'])->latest()->limit(1)])
             ->find($roomId);
 
         if (!$room) {
@@ -192,6 +192,7 @@ class GameController extends Controller
                 'questionSubCategory' => $room->subcategory?->name ?? '',
             ],
             'teams' => $teamCodes,
+            'stage' => $this->firebaseSync->getStageDataForRoom($room),
             'players' => $room->roomPlayers->map(fn ($rp) => [
                 'playerId' => (string) $rp->id,
                 'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
@@ -380,7 +381,7 @@ class GameController extends Controller
 
     public function getSession(int $sessionId): JsonResponse
     {
-        $session = GameSession::with('room.roomPlayers.user', 'room.roomPlayers.adventurer')->find($sessionId);
+        $session = GameSession::with('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups')->find($sessionId);
         if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
@@ -419,6 +420,7 @@ class GameController extends Controller
             'questionStartedAt' => $session->question_started_at?->timestamp ? (int) ($session->question_started_at->timestamp * 1000) : null,
             'startTimerEndsAt' => $session->start_timer_ends_at?->timestamp ? (int) ($session->start_timer_ends_at->timestamp * 1000) : null,
             'teams' => $teams,
+            'stage' => $this->firebaseSync->getStageDataForRoom($session->room),
         ];
         return ApiResponse::success($data);
     }

@@ -24,7 +24,7 @@ class DashboardSubcategoryController extends Controller
 
     public function show(Subcategory $subcategory)
     {
-        $subcategory->load('category')->loadCount('questions');
+        $subcategory->load('category', 'stage.questionGroups')->loadCount('questions');
         return new DashboardSubcategoryResource($subcategory);
     }
 
@@ -34,6 +34,9 @@ class DashboardSubcategoryController extends Controller
             DB::beginTransaction();
             $data = $request->validated();
             unset($data['image']);
+            if (empty($data['use_stage'])) {
+                $data['stage_id'] = null;
+            }
             $subcategory = Subcategory::create($data);
 
             if ($request->hasFile('image')) {
@@ -54,6 +57,9 @@ class DashboardSubcategoryController extends Controller
             DB::beginTransaction();
             $data = $request->validated();
             unset($data['image']);
+            if (empty($data['use_stage'])) {
+                $data['stage_id'] = null;
+            }
             $subcategory->update($data);
 
             if ($request->hasFile('image')) {

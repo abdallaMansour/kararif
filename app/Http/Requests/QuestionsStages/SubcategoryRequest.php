@@ -15,6 +15,8 @@ class SubcategoryRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'image' => ['nullable', 'image'],
             'status' => ['nullable', 'boolean'],
+            'use_stage' => ['nullable', 'boolean'],
+            'stage_id' => ['nullable', 'required_if:use_stage,true', 'exists:stages,id'],
         ];
     }
 

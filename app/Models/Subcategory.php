@@ -14,10 +14,13 @@ class Subcategory extends Model implements HasMedia
         'category_id',
         'name',
         'status',
+        'use_stage',
+        'stage_id',
     ];
 
     protected $casts = [
         'status' => 'boolean',
+        'use_stage' => 'boolean',
     ];
 
     public function category()
@@ -28,5 +31,10 @@ class Subcategory extends Model implements HasMedia
     public function questions()
     {
         return $this->hasMany(Question::class);
+    }
+
+    public function stage()
+    {
+        return $this->belongsTo(Stage::class);
     }
 }

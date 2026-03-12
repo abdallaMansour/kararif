@@ -128,11 +128,13 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
+            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
             $teams = $this->buildTeamsData($session);
+            $stage = $this->buildStageData($session->room);
 
             $data = [
                 'roomId' => (string) $session->room_id,
+                'sessionId' => (string) $session->id,
                 'status' => 'starting',
                 'currentRound' => 0,
                 'startTimerEndsAt' => $session->start_timer_ends_at
@@ -141,7 +143,7 @@ class FirebaseGameSyncService
                 'remainingQuestionsCount' => count($session->question_ids ?? []),
                 'question' => null,
                 'teams' => $teams,
-                'sessionId' => (string) $session->id,
+                'stage' => $stage,
             ];
 
             $db->getReference('sessions/' . $session->id)->set($data);
@@ -157,9 +159,10 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
+            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsData($session);
+            $stage = $this->buildStageData($session->room);
 
             $questionIds = $session->question_ids ?? [];
             $remainingCount = max(0, count($questionIds) - $session->current_round);
@@ -173,6 +176,7 @@ class FirebaseGameSyncService
                 'questionStartedAt' => (int) round(microtime(true) * 1000),
                 'question' => $question,
                 'teams' => $teams,
+                'stage' => $stage,
             ];
 
             $db->getReference('sessions/' . $session->id)->set($data);
@@ -188,8 +192,10 @@ class FirebaseGameSyncService
             return;
         }
         try {
+            $session->load('room.subcategory.stage.questionGroups');
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsData($session);
+            $stage = $this->buildStageData($session->room);
             $questionIds = $session->question_ids ?? [];
             $remainingCount = max(0, count($questionIds) - $session->current_round);
 
@@ -199,6 +205,7 @@ class FirebaseGameSyncService
                 'questionStartedAt' => (int) round(microtime(true) * 1000),
                 'question' => $question,
                 'teams' => $teams,
+                'stage' => $stage,
             ]);
         } catch (\Throwable $e) {
             Log::warning('Firebase syncQuestion failed', ['session_id' => $session->id, 'error' => $e->getMessage()]);
@@ -212,9 +219,10 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
+            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
             $teams = $this->buildTeamsData($session);
-            $db->getReference('sessions/' . $session->id)->update(['teams' => $teams]);
+            $stage = $this->buildStageData($session->room);
+            $db->getReference('sessions/' . $session->id)->update(['teams' => $teams, 'stage' => $stage]);
         } catch (\Throwable $e) {
             Log::warning('Firebase syncScores failed', ['session_id' => $session->id, 'error' => $e->getMessage()]);
         }
@@ -227,13 +235,15 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
+            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
             $teams = $this->buildTeamsData($session);
+            $stage = $this->buildStageData($session->room);
 
             $data = [
                 'status' => $session->status,
                 'remainingQuestionsCount' => 0,
                 'teams' => $teams,
+                'stage' => $stage,
                 'sessionEndedAt' => (int) round(microtime(true) * 1000),
             ];
             if ($winnerIds !== null) {
@@ -244,6 +254,51 @@ class FirebaseGameSyncService
         } catch (\Throwable $e) {
             Log::warning('Firebase syncSessionEnd failed', ['session_id' => $session->id, 'error' => $e->getMessage()]);
         }
+    }
+
+    public function getStageDataForRoom(Room $room): ?array
+    {
+        return $this->buildStageData($room);
+    }
+
+    private function buildStageData(Room $room): ?array
+    {
+        $subcategory = $room->subcategory;
+        if (!$subcategory || !$subcategory->use_stage || !$subcategory->stage_id) {
+            return null;
+        }
+        $stage = $subcategory->stage;
+        if (!$stage) {
+            return null;
+        }
+
+        $stage->load('questionGroups');
+
+        $questionGroups = $stage->questionGroups->sortBy('sort_order')->values()->map(function ($g) {
+            return [
+                'id' => (int) $g->id,
+                'sort_order' => (int) $g->sort_order,
+                'start_video' => $g->getFirstMediaUrl('start_video'),
+                'end_video' => $g->getFirstMediaUrl('end_video'),
+                'correct_answer_video' => $g->getFirstMediaUrl('correct_answer_video'),
+                'wrong_answer_video' => $g->getFirstMediaUrl('wrong_answer_video'),
+            ];
+        })->all();
+
+        return [
+            'id' => (int) $stage->id,
+            'name' => $stage->name,
+            'stage_type' => $stage->stage_type,
+            'question_groups_count' => (int) ($stage->question_groups_count ?? 0),
+            'number_of_questions' => (int) ($stage->number_of_questions ?? 0),
+            'life_points_per_question' => $stage->life_points_per_question !== null ? (float) $stage->life_points_per_question : null,
+            'start_video' => $stage->getFirstMediaUrl('start_video'),
+            'end_video' => $stage->getFirstMediaUrl('end_video'),
+            'lunch_video' => $stage->getFirstMediaUrl('lunch_video'),
+            'correct_answer_video' => $stage->getFirstMediaUrl('correct_answer_video'),
+            'wrong_answer_video' => $stage->getFirstMediaUrl('wrong_answer_video'),
+            'question_groups' => $questionGroups,
+        ];
     }
 
     private function buildQuestionData(GameSession $session): ?array
