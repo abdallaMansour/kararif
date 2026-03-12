@@ -672,32 +672,6 @@
           "response": []
         },
         {
-          "name": "Viewing TV",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/game/room/3/viewing-tv",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "game",
-                "room",
-                "3",
-                "viewing-tv"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
           "name": "Get Session",
           "request": {
             "method": "GET",
@@ -887,6 +861,7 @@
                     "value": "Bearer {{token}}"
                   }
                 ],
+                "description": "If TV is not linked: links TV to room and marks current user as viewing. If TV already linked to this room: marks current user as viewing only. Always sets tvViewJoined for the player in Firebase session teams. Response: linked, viewingTv, roomId, sessionId.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"tvCode\": \"123456\"\n}"

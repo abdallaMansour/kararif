@@ -210,8 +210,14 @@ class GameController extends Controller
         if (!$room) {
             return ApiResponse::error('الغرفة غير موجودة', 404);
         }
-        if ($room->status !== 'waiting') {
-            return ApiResponse::error('لا يمكن ربط التلفزيون بعد بدء اللعبة', 400);
+
+        $user = auth()->user();
+        $roomPlayer = $user instanceof Adventurer
+            ? RoomPlayer::where('room_id', $roomId)->where('adventurer_id', $user->id)->first()
+            : RoomPlayer::where('room_id', $roomId)->where('user_id', $user->id)->first();
+
+        if (!$roomPlayer) {
+            return ApiResponse::error('أنت غير مشارك في هذه الغرفة', 403);
         }
 
         $tvCode = $request->input('tvCode');
@@ -220,21 +226,45 @@ class GameController extends Controller
         if (!$display) {
             return ApiResponse::error('رمز التلفزيون غير صحيح', 400);
         }
-        if (!$display->isWaiting()) {
-            return ApiResponse::error('رمز التلفزيون منتهي أو مستخدم مسبقاً', 400);
+
+        $wasLinked = false;
+        if ($display->isWaiting()) {
+            if ($room->status !== 'waiting') {
+                return ApiResponse::error('لا يمكن ربط التلفزيون بعد بدء اللعبة', 400);
+            }
+            $display->update([
+                'room_id' => $roomId,
+                'status' => TvDisplay::STATUS_LINKED,
+            ]);
+            $this->firebaseSync->syncTvDisplay($display->fresh());
+            $this->firebaseSync->syncRoom($room->fresh());
+            $wasLinked = true;
+        } elseif ($display->status === TvDisplay::STATUS_LINKED && (int) $display->room_id === (int) $roomId) {
+            // TV already linked to this room – just join current user
+        } else {
+            return ApiResponse::error('رمز التلفزيون منتهي أو مربوط بغرفة أخرى', 400);
         }
 
-        $display->update([
-            'room_id' => $roomId,
-            'status' => TvDisplay::STATUS_LINKED,
-        ]);
+        if ($roomPlayer->tv_view_joined_at === null) {
+            $roomPlayer->update(['tv_view_joined_at' => now()]);
+            $this->firebaseSync->syncRoomPlayers($room->fresh());
 
-        $this->firebaseSync->syncTvDisplay($display->fresh());
-        $this->firebaseSync->syncRoom($room->fresh());
+            $activeSession = $room->gameSessions()->whereIn('status', ['starting', 'playing'])->latest()->first();
+            if ($activeSession) {
+                if ($activeSession->status === 'starting') {
+                    $this->firebaseSync->syncSessionStarting($activeSession->fresh());
+                } else {
+                    $this->firebaseSync->syncScores($activeSession->fresh());
+                }
+            }
+        }
 
+        $session = $room->gameSessions()->whereIn('status', ['starting', 'playing'])->latest()->first();
         return ApiResponse::success([
-            'linked' => true,
+            'linked' => $wasLinked,
+            'viewingTv' => true,
             'roomId' => (string) $room->id,
+            'sessionId' => $session ? (string) $session->id : null,
         ]);
     }
 
@@ -345,49 +375,6 @@ class GameController extends Controller
             'left' => true,
             'roomId' => (string) $room->id,
             'message' => 'تم مغادرة الغرفة بنجاح',
-        ]);
-    }
-
-    public function viewingTv(int $roomId): JsonResponse
-    {
-        $room = Room::find($roomId);
-        if (!$room) {
-            return ApiResponse::error('الغرفة غير موجودة', 404);
-        }
-
-        $tvDisplay = TvDisplay::where('room_id', $roomId)->where('status', TvDisplay::STATUS_LINKED)->first();
-        if (!$tvDisplay) {
-            return ApiResponse::error('لم يتم ربط الغرفة بالتلفزيون', 400);
-        }
-
-        $user = auth()->user();
-        $roomPlayer = $user instanceof Adventurer
-            ? RoomPlayer::where('room_id', $roomId)->where('adventurer_id', $user->id)->first()
-            : RoomPlayer::where('room_id', $roomId)->where('user_id', $user->id)->first();
-
-        if (!$roomPlayer) {
-            return ApiResponse::error('أنت غير مشارك في هذه الغرفة', 403);
-        }
-
-        if ($roomPlayer->tv_view_joined_at === null) {
-            $roomPlayer->update(['tv_view_joined_at' => now()]);
-            $this->firebaseSync->syncRoomPlayers($room->fresh());
-
-            $activeSession = $room->gameSessions()->whereIn('status', ['starting', 'playing'])->latest()->first();
-            if ($activeSession) {
-                if ($activeSession->status === 'starting') {
-                    $this->firebaseSync->syncSessionStarting($activeSession->fresh());
-                } else {
-                    $this->firebaseSync->syncScores($activeSession->fresh());
-                }
-            }
-        }
-
-        $session = $room->gameSessions()->whereIn('status', ['starting', 'playing'])->latest()->first();
-        return ApiResponse::success([
-            'viewingTv' => true,
-            'roomId' => (string) $room->id,
-            'sessionId' => $session ? (string) $session->id : null,
         ]);
     }
 

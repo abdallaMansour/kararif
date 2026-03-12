@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RoomPlayer extends Model
 {
-    protected $fillable = ['room_id', 'user_id', 'adventurer_id', 'team_id', 'is_leader', 'score'];
+    protected $fillable = ['room_id', 'user_id', 'adventurer_id', 'team_id', 'is_leader', 'score', 'tv_view_joined_at'];
 
     protected $casts = [
         'joined_at' => 'datetime',
