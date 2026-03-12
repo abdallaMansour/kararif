@@ -229,9 +229,6 @@ class GameController extends Controller
 
         $wasLinked = false;
         if ($display->isWaiting()) {
-            if ($room->status !== 'waiting') {
-                return ApiResponse::error('لا يمكن ربط التلفزيون بعد بدء اللعبة', 400);
-            }
             $display->update([
                 'room_id' => $roomId,
                 'status' => TvDisplay::STATUS_LINKED,
