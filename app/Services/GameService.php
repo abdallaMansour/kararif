@@ -149,23 +149,34 @@ class GameService
         if (!$question) {
             return null;
         }
+        $shapes = ['triangle', 'circle', 'x', 'square']; // PS controller: o1=triangle, o2=circle, o3=x, o4=square
+        $correctId = 'o1';
+        if ($question->is_correct_2) {
+            $correctId = 'o2';
+        } elseif ($question->is_correct_3) {
+            $correctId = 'o3';
+        } elseif ($question->is_correct_4) {
+            $correctId = 'o4';
+        }
+
         return [
             'id' => (string) $question->id,
             'title' => $question->name,
             'text' => $question->name,
             'question_kind' => $question->question_kind ?? 'normal',
             'word_data' => $question->question_kind === Question::KIND_WORDS ? $question->word_data : null,
+            'correctAnswerId' => $correctId,
             'answers' => [
-                ['id' => 'o1', 'text' => $question->answer_1],
-                ['id' => 'o2', 'text' => $question->answer_2],
-                ['id' => 'o3', 'text' => $question->answer_3],
-                ['id' => 'o4', 'text' => $question->answer_4],
+                ['id' => 'o1', 'text' => $question->answer_1, 'shape' => $shapes[0]],
+                ['id' => 'o2', 'text' => $question->answer_2, 'shape' => $shapes[1]],
+                ['id' => 'o3', 'text' => $question->answer_3, 'shape' => $shapes[2]],
+                ['id' => 'o4', 'text' => $question->answer_4, 'shape' => $shapes[3]],
             ],
             'options' => [
-                ['id' => 'o1', 'text' => $question->answer_1],
-                ['id' => 'o2', 'text' => $question->answer_2],
-                ['id' => 'o3', 'text' => $question->answer_3],
-                ['id' => 'o4', 'text' => $question->answer_4],
+                ['id' => 'o1', 'text' => $question->answer_1, 'shape' => $shapes[0]],
+                ['id' => 'o2', 'text' => $question->answer_2, 'shape' => $shapes[1]],
+                ['id' => 'o3', 'text' => $question->answer_3, 'shape' => $shapes[2]],
+                ['id' => 'o4', 'text' => $question->answer_4, 'shape' => $shapes[3]],
             ],
             'image' => $question->getFirstMediaUrl('image'),
             'voice' => $question->getFirstMediaUrl('voice'),

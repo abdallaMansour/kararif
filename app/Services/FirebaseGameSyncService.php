@@ -162,10 +162,7 @@ class FirebaseGameSyncService
             $teams = $this->buildTeamsData($session);
 
             $questionIds = $session->question_ids ?? [];
-            $remainingCount = count($questionIds) - max(0, $session->current_round - 1);
-            if ($remainingCount < 0) {
-                $remainingCount = 0;
-            }
+            $remainingCount = max(0, count($questionIds) - $session->current_round);
 
             $data = [
                 'roomId' => (string) $session->room_id,
@@ -194,10 +191,7 @@ class FirebaseGameSyncService
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsData($session);
             $questionIds = $session->question_ids ?? [];
-            $remainingCount = count($questionIds) - max(0, $session->current_round - 1);
-            if ($remainingCount < 0) {
-                $remainingCount = 0;
-            }
+            $remainingCount = max(0, count($questionIds) - $session->current_round);
 
             $db->getReference('sessions/' . $session->id)->update([
                 'currentRound' => (int) $session->current_round,

@@ -407,10 +407,7 @@ class GameController extends Controller
         }
 
         $questionIds = $session->question_ids ?? [];
-        $remainingCount = count($questionIds) - max(0, $session->current_round - 1);
-        if ($remainingCount < 0) {
-            $remainingCount = 0;
-        }
+        $remainingCount = max(0, count($questionIds) - $session->current_round);
 
         $data = [
             'sessionId' => (string) $session->id,
