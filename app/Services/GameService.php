@@ -164,7 +164,9 @@ class GameService
             'title' => $question->name,
             'text' => $question->name,
             'question_kind' => $question->question_kind ?? 'normal',
-            'word_data' => $question->question_kind === Question::KIND_WORDS ? $question->word_data : null,
+            'word_data' => $question->question_kind === Question::KIND_WORDS
+                ? ($question->word_data ?? [])
+                : null,
             'correctAnswerId' => $correctId,
             'answers' => [
                 ['id' => 'o1', 'text' => $question->answer_1, 'shape' => $shapes[0]],
@@ -178,14 +180,14 @@ class GameService
                 ['id' => 'o3', 'text' => $question->answer_3, 'shape' => $shapes[2]],
                 ['id' => 'o4', 'text' => $question->answer_4, 'shape' => $shapes[3]],
             ],
-            'image' => $question->getFirstMediaUrl('image'),
-            'voice' => $question->getFirstMediaUrl('voice'),
-            'video' => $question->getFirstMediaUrl('video'),
-            'start_video' => $question->getFirstMediaUrl('start_video'),
-            'lunch_video' => $question->getFirstMediaUrl('lunch_video'),
-            'question_video' => $question->getFirstMediaUrl('question_video'),
-            'correct_answer_video' => $question->getFirstMediaUrl('correct_answer_video'),
-            'wrong_answer_video' => $question->getFirstMediaUrl('wrong_answer_video'),
+            'image' => $question->getMediaUrlOrNull('image'),
+            'voice' => $question->getMediaUrlOrNull('voice'),
+            'video' => $question->getMediaUrlOrNull('video'),
+            'start_video' => $question->getMediaUrlOrNull('start_video'),
+            'lunch_video' => $question->getMediaUrlOrNull('lunch_video'),
+            'question_video' => $question->getMediaUrlOrNull('question_video'),
+            'correct_answer_video' => $question->getMediaUrlOrNull('correct_answer_video'),
+            'wrong_answer_video' => $question->getMediaUrlOrNull('wrong_answer_video'),
         ];
     }
 

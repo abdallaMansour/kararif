@@ -56,4 +56,20 @@ class Question extends Model implements HasMedia
     {
         return $this->belongsTo(Subcategory::class);
     }
+
+    /**
+     * Get full URL for a media collection, or null if empty.
+     */
+    public function getMediaUrlOrNull(string $collectionName): ?string
+    {
+        $media = $this->getFirstMedia($collectionName);
+        if (!$media) {
+            return null;
+        }
+        $url = method_exists($media, 'getFullUrl') ? $media->getFullUrl() : $media->getUrl();
+        if (empty($url)) {
+            return null;
+        }
+        return str_starts_with($url, 'http') ? $url : url($url);
+    }
 }
