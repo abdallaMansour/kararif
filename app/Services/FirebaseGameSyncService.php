@@ -95,7 +95,7 @@ class FirebaseGameSyncService
             $sessionId = null;
             if ($display->room_id) {
                 $session = $display->room->gameSessions()
-                    ->whereIn('status', ['waiting', 'playing', 'starting'])
+                    ->whereIn('status', ['waiting', 'playing', 'starting', 'paused'])
                     ->latest()
                     ->first();
                 $sessionId = $session ? (string) $session->id : null;
@@ -309,9 +309,31 @@ class FirebaseGameSyncService
 
     private function buildTeamsData(GameSession $session): array
     {
+        return $this->buildTeamsDataWithStats($session, false);
+    }
+
+    private function buildTeamsDataWithStats(GameSession $session, bool $includeAnswerStats): array
+    {
         $room = $session->room;
         $room->load('roomPlayers.user', 'roomPlayers.adventurer');
         $byTeam = $room->roomPlayers->groupBy('team_id');
+
+        $correctWrongByRoomPlayer = [];
+        if ($includeAnswerStats) {
+            $answers = $session->sessionAnswers;
+            foreach ($answers as $a) {
+                $id = $a->room_player_id;
+                if (!isset($correctWrongByRoomPlayer[$id])) {
+                    $correctWrongByRoomPlayer[$id] = ['correct' => 0, 'wrong' => 0];
+                }
+                if ($a->correct) {
+                    $correctWrongByRoomPlayer[$id]['correct']++;
+                } else {
+                    $correctWrongByRoomPlayer[$id]['wrong']++;
+                }
+            }
+        }
+
         $teams = [];
         foreach ($byTeam as $teamId => $players) {
             $first = $players->first();
@@ -322,14 +344,71 @@ class FirebaseGameSyncService
                 'tvViewJoined' => $rp->tv_view_joined_at !== null,
             ])->values()->all();
 
-            $teams[(string) $teamId] = [
+            $correctCount = 0;
+            $wrongCount = 0;
+            if ($includeAnswerStats) {
+                foreach ($players as $rp) {
+                    $stats = $correctWrongByRoomPlayer[$rp->id] ?? ['correct' => 0, 'wrong' => 0];
+                    $correctCount += $stats['correct'];
+                    $wrongCount += $stats['wrong'];
+                }
+            }
+
+            $teamData = [
                 'id' => (string) $teamId,
                 'name' => ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId,
                 'score' => (int) $players->sum('score'),
                 'teamCode' => 'K' . $teamId,
                 'players' => $playerList,
             ];
+            if ($includeAnswerStats) {
+                $teamData['correctCount'] = $correctCount;
+                $teamData['wrongCount'] = $wrongCount;
+            }
+            $teams[(string) $teamId] = $teamData;
         }
         return $teams;
+    }
+
+    public function syncSessionPaused(GameSession $session, bool $lastAnswerCorrect): void
+    {
+        $db = $this->getDatabase();
+        if (!$db) {
+            return;
+        }
+        try {
+            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups', 'sessionAnswers');
+            $question = $this->buildQuestionData($session);
+            $teams = $this->buildTeamsDataWithStats($session, true);
+            $stage = $this->buildStageData($session->room);
+
+            $questionIds = $session->question_ids ?? [];
+            $remainingCount = max(0, count($questionIds) - $session->current_round);
+
+            $totalCorrect = $session->sessionAnswers->where('correct', true)->count();
+            $totalWrong = $session->sessionAnswers->where('correct', false)->count();
+
+            $data = [
+                'roomId' => (string) $session->room_id,
+                'sessionId' => (string) $session->id,
+                'status' => 'paused',
+                'currentRound' => (int) $session->current_round,
+                'remainingQuestionsCount' => $remainingCount,
+                'question' => $question,
+                'lastAnswerCorrect' => $lastAnswerCorrect,
+                'teams' => $teams,
+                'stats' => [
+                    'totalCorrect' => $totalCorrect,
+                    'totalWrong' => $totalWrong,
+                    'answeredCount' => $totalCorrect + $totalWrong,
+                ],
+                'stage' => $stage,
+                'pausedAt' => (int) round(microtime(true) * 1000),
+            ];
+
+            $db->getReference('sessions/' . $session->id)->update($data);
+        } catch (\Throwable $e) {
+            Log::warning('Firebase syncSessionPaused failed', ['session_id' => $session->id, 'error' => $e->getMessage()]);
+        }
     }
 }

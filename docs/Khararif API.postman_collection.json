@@ -726,6 +726,33 @@
           "response": []
         },
         {
+          "name": "Next Question",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "Call when session is paused (after answer submit). TV calls when correct/wrong video ends. Returns finished=true if no more questions.",
+            "url": {
+              "raw": "{{base_url}}/api/game/session/1/next-question",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "game",
+                "session",
+                "1",
+                "next-question"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Get Session Result",
           "request": {
             "method": "GET",

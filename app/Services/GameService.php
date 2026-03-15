@@ -55,7 +55,7 @@ class GameService
 
     public function getOrCreateSession(Room $room): GameSession
     {
-        $session = $room->gameSessions()->whereIn('status', ['waiting', 'playing', 'starting'])->first();
+        $session = $room->gameSessions()->whereIn('status', ['waiting', 'playing', 'starting', 'paused'])->first();
         if ($session) {
             return $session;
         }
@@ -235,26 +235,45 @@ class GameService
             $roomPlayer->increment('score', $scoreDelta);
         }
 
-        $this->firebaseSync->syncScores($session->fresh());
-
         $nextRound = $session->current_round + 1;
-        if ($nextRound <= count($questionIds)) {
-            $session->update(['current_round' => $nextRound, 'question_started_at' => now()]);
-            $this->firebaseSync->syncQuestion($session->fresh());
-            $nextQuestion = $this->getCurrentQuestion($session->fresh());
-        } else {
-            $session->update(['status' => 'finished', 'current_round' => $nextRound]);
-            $session->room->update(['status' => 'finished']);
-            $this->updatePointsForFinishedSession($session->fresh());
-            $this->firebaseSync->syncSessionEnd($session->fresh());
-            $nextQuestion = null;
-        }
+        $totalQuestions = count($questionIds);
+        $nextQuestionAvailable = $nextRound <= $totalQuestions;
+
+        $session->update(['status' => 'paused']);
+        $this->firebaseSync->syncSessionPaused($session->fresh(), $correct);
 
         return [
             'correct' => $correct,
             'scoreDelta' => $scoreDelta,
-            'nextQuestion' => $nextQuestion,
+            'nextQuestionAvailable' => $nextQuestionAvailable,
         ];
+    }
+
+    public function advanceToNextQuestion(GameSession $session): array
+    {
+        if ($session->status !== 'paused') {
+            return ['finished' => false, 'invalid' => true];
+        }
+
+        $questionIds = $session->question_ids ?? [];
+        $nextRound = $session->current_round + 1;
+        $total = count($questionIds);
+
+        if ($nextRound > $total) {
+            $session->update(['status' => 'finished', 'current_round' => $nextRound]);
+            $session->room->update(['status' => 'finished']);
+            $this->updatePointsForFinishedSession($session->fresh());
+            $this->firebaseSync->syncSessionEnd($session->fresh());
+            return ['finished' => true, 'round' => null];
+        }
+
+        $session->update([
+            'status' => 'playing',
+            'current_round' => $nextRound,
+            'question_started_at' => now(),
+        ]);
+        $this->firebaseSync->syncSessionStart($session->fresh());
+        return ['finished' => false, 'round' => $nextRound];
     }
 
     public function updatePointsForFinishedSession(GameSession $session): void

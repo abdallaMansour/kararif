@@ -159,7 +159,7 @@ class GameController extends Controller
     public function getRoom(int $roomId): JsonResponse
     {
         $room = Room::withCount('roomPlayers')
-            ->with(['type', 'category', 'subcategory.stage.questionGroups', 'roomPlayers.user', 'roomPlayers.adventurer', 'gameSessions' => fn ($q) => $q->whereIn('status', ['waiting', 'playing'])->latest()->limit(1)])
+            ->with(['type', 'category', 'subcategory.stage.questionGroups', 'roomPlayers.user', 'roomPlayers.adventurer', 'gameSessions' => fn ($q) => $q->whereIn('status', ['waiting', 'playing', 'starting', 'paused'])->latest()->limit(1)])
             ->find($roomId);
 
         if (!$room) {
@@ -247,7 +247,7 @@ class GameController extends Controller
             $roomPlayer->update(['tv_view_joined_at' => now()]);
             $this->firebaseSync->syncRoomPlayers($room->fresh());
 
-            $activeSession = $room->gameSessions()->whereIn('status', ['starting', 'playing'])->latest()->first();
+            $activeSession = $room->gameSessions()->whereIn('status', ['starting', 'playing', 'paused'])->latest()->first();
             if ($activeSession) {
                 if ($activeSession->status === 'starting') {
                     $startedSession = $this->gameService->maybeStartSessionWhenAllJoined($room->fresh());
@@ -260,7 +260,7 @@ class GameController extends Controller
             }
         }
 
-        $session = $room->gameSessions()->whereIn('status', ['starting', 'playing'])->latest()->first();
+        $session = $room->gameSessions()->whereIn('status', ['starting', 'playing', 'paused'])->latest()->first();
         return ApiResponse::success([
             'linked' => $wasLinked,
             'viewingTv' => true,
@@ -388,7 +388,9 @@ class GameController extends Controller
 
         $session = $this->gameService->ensureSessionPlaying($session);
 
-        $questionData = $session->status === 'playing' ? $this->gameService->getCurrentQuestion($session) : null;
+        $questionData = in_array($session->status, ['playing', 'paused'], true)
+            ? $this->gameService->getCurrentQuestion($session)
+            : null;
         $teams = $session->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
             $first = $players->first();
             $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId;
@@ -422,6 +424,10 @@ class GameController extends Controller
             'teams' => $teams,
             'stage' => $this->firebaseSync->getStageDataForRoom($session->room),
         ];
+        if ($session->status === 'paused') {
+            $lastAnswer = $session->sessionAnswers()->latest('id')->first();
+            $data['lastAnswerCorrect'] = $lastAnswer ? $lastAnswer->correct : null;
+        }
         return ApiResponse::success($data);
     }
 
@@ -433,6 +439,9 @@ class GameController extends Controller
         }
         if ($session->status === 'finished') {
             return ApiResponse::error('انتهت الجلسة', 400);
+        }
+        if ($session->status === 'paused') {
+            return ApiResponse::error('اللعبة متوقفة؛ انتظر السؤال التالي', 400);
         }
 
         $session = $this->gameService->ensureSessionPlaying($session);
@@ -456,9 +465,31 @@ class GameController extends Controller
         $data = [
             'correct' => $result['correct'],
             'scoreDelta' => $result['scoreDelta'],
-            'nextQuestion' => $result['nextQuestion'] !== null,
+            'nextQuestionAvailable' => $result['nextQuestionAvailable'],
         ];
         return ApiResponse::success($data);
+    }
+
+    public function nextQuestion(int $sessionId): JsonResponse
+    {
+        $session = GameSession::find($sessionId);
+        if (!$session) {
+            return ApiResponse::error('الجلسة غير موجودة', 404);
+        }
+        if ($session->status !== 'paused') {
+            return ApiResponse::error('الجلسة ليست في حالة الإيقاف المؤقت', 400);
+        }
+
+        $result = $this->gameService->advanceToNextQuestion($session);
+        if (!empty($result['invalid'])) {
+            return ApiResponse::error('لا يمكن الانتقال للسؤال التالي', 400);
+        }
+
+        return ApiResponse::success([
+            'finished' => $result['finished'],
+            'sessionId' => (string) $session->id,
+            'round' => $result['round'],
+        ]);
     }
 
     public function surrender(int $sessionId): JsonResponse

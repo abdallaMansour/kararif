@@ -72,6 +72,7 @@ Route::prefix('game')->group(function () {
         Route::post('room/{roomId}/join', [GameController::class, 'joinRoom']);
         Route::post('room/{roomId}/leave', [GameController::class, 'leaveRoom']);
         Route::post('session/{sessionId}/answer', [GameController::class, 'submitAnswer']);
+        Route::post('session/{sessionId}/next-question', [GameController::class, 'nextQuestion']);
         Route::post('session/{sessionId}/surrender', [GameController::class, 'surrender']);
     });
 });
