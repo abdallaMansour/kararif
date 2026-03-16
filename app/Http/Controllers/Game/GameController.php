@@ -21,6 +21,7 @@ use App\Models\Subcategory;
 use App\Services\FirebaseGameSyncService;
 use App\Services\GameService;
 use Illuminate\Http\JsonResponse;
+use App\Models\SessionAnswer;
 
 class GameController extends Controller
 {
@@ -489,6 +490,52 @@ class GameController extends Controller
             'finished' => $result['finished'],
             'sessionId' => (string) $session->id,
             'round' => $result['round'],
+        ]);
+    }
+
+    public function timeout(int $sessionId): JsonResponse
+    {
+        $session = GameSession::with('room')->find($sessionId);
+        if (!$session) {
+            return ApiResponse::error('الجلسة غير موجودة', 404);
+        }
+
+        if ($session->status !== 'playing') {
+            return ApiResponse::error('لا يمكن إنهاء الوقت في هذه الحالة', 400);
+        }
+
+        $timeLimitSeconds = 30;
+        if (!$session->question_started_at ||
+            $session->question_started_at->diffInSeconds(now()) < $timeLimitSeconds) {
+            return ApiResponse::error('لم ينته الوقت بعد', 400);
+        }
+
+        $room = $session->room()->with('roomPlayers')->first();
+        $leaders = $room->roomPlayers->where('is_leader', true);
+        $leaderIds = $leaders->pluck('id');
+
+        $questionIds = $session->question_ids ?? [];
+        $roundIndex = $session->current_round - 1;
+        $questionId = $questionIds[$roundIndex] ?? null;
+
+        $allLeadersAnswered = false;
+        if ($questionId && $leaderIds->count() > 0) {
+            $answeredLeaderIds = SessionAnswer::where('game_session_id', $session->id)
+                ->where('question_id', $questionId)
+                ->whereIn('room_player_id', $leaderIds)
+                ->pluck('room_player_id')
+                ->unique();
+
+            $allLeadersAnswered = $answeredLeaderIds->count() >= $leaderIds->count();
+        }
+
+        $session->update(['status' => 'paused']);
+        $this->firebaseSync->syncSessionPaused($session->fresh(), false);
+
+        return ApiResponse::success([
+            'paused' => true,
+            'sessionId' => (string) $session->id,
+            'reason' => $allLeadersAnswered ? 'all_leaders_answered' : 'timeout',
         ]);
     }
 
