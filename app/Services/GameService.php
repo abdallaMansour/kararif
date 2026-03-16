@@ -235,12 +235,39 @@ class GameService
             $roomPlayer->increment('score', $scoreDelta);
         }
 
+        // Determine if all team leaders have answered this question
+        $room = $session->room()->with('roomPlayers')->first();
+        $leaders = $room->roomPlayers->where('is_leader', true);
+        $leaderIds = $leaders->pluck('id');
+
+        $answeredLeaderIds = SessionAnswer::where('game_session_id', $session->id)
+            ->where('question_id', $questionId)
+            ->whereIn('room_player_id', $leaderIds)
+            ->pluck('room_player_id')
+            ->unique();
+
+        $allLeadersAnswered = $leaderIds->count() > 0
+            ? $answeredLeaderIds->count() >= $leaderIds->count()
+            : false;
+
+        // Check if question time (30 seconds) has elapsed
+        $timeLimitSeconds = 30;
+        $timedOut = $session->question_started_at
+            ? $session->question_started_at->diffInSeconds(now()) >= $timeLimitSeconds
+            : false;
+
         $nextRound = $session->current_round + 1;
         $totalQuestions = count($questionIds);
         $nextQuestionAvailable = $nextRound <= $totalQuestions;
 
-        $session->update(['status' => 'paused']);
-        $this->firebaseSync->syncSessionPaused($session->fresh(), $correct);
+        if ($allLeadersAnswered || $timedOut) {
+            // Pause the game and show stats / animations
+            $session->update(['status' => 'paused']);
+            $this->firebaseSync->syncSessionPaused($session->fresh(), $correct);
+        } else {
+            // Keep playing this question, just sync updated scores
+            $this->firebaseSync->syncScores($session->fresh());
+        }
 
         return [
             'correct' => $correct,
