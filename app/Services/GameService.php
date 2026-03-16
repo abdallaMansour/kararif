@@ -205,6 +205,47 @@ class GameService
             return ['correct' => false, 'scoreDelta' => 0, 'nextQuestion' => null];
         }
 
+        // Load room, stage, and players for life-points calculations
+        $session->load('room.subcategory.stage', 'room.roomPlayers');
+        $room = $session->room;
+        $stageType = $room->subcategory?->stage?->stage_type;
+        $isLifePointsStage = $stageType === \App\Models\Stage::TYPE_LIFE_POINTS;
+
+        // Prevent duplicate answers from the same leader for the same question
+        $existingAnswer = SessionAnswer::where('game_session_id', $session->id)
+            ->where('question_id', $questionId)
+            ->where('room_player_id', $roomPlayerId)
+            ->first();
+        if ($existingAnswer) {
+            return [
+                'correct' => $existingAnswer->correct,
+                'scoreDelta' => (int) $existingAnswer->score_delta,
+                'nextQuestionAvailable' => true,
+            ];
+        }
+
+        // Prevent eliminated teams from answering in life-points stages
+        if ($isLifePointsStage) {
+            $roomPlayerForTeam = RoomPlayer::find($roomPlayerId);
+            $teamId = $roomPlayerForTeam?->team_id;
+            if ($teamId !== null) {
+                $teamPlayerIds = $room->roomPlayers->where('team_id', $teamId)->pluck('id');
+                $wrongCountForTeam = SessionAnswer::where('game_session_id', $session->id)
+                    ->whereIn('room_player_id', $teamPlayerIds)
+                    ->where('correct', false)
+                    ->count();
+                $initialLives = 10;
+                $lifePoints = max(0, $initialLives - $wrongCountForTeam);
+                if ($lifePoints <= 0) {
+                    return [
+                        'correct' => false,
+                        'scoreDelta' => 0,
+                        'nextQuestionAvailable' => true,
+                    ];
+                }
+            }
+        }
+
         $correct = false;
         $scoreDelta = 0;
         if ($answerIndex === 1 && $question->is_correct_1) {
@@ -236,7 +277,6 @@ class GameService
         }
 
         // Determine if all team leaders have answered this question
-        $room = $session->room()->with('roomPlayers')->first();
         $leaders = $room->roomPlayers->where('is_leader', true);
         $leaderIds = $leaders->pluck('id');
 
@@ -286,7 +326,49 @@ class GameService
         $nextRound = $session->current_round + 1;
         $total = count($questionIds);
 
-        if ($nextRound > $total) {
+        // Load room, stage, and players for life-points calculations
+        $session->load('room.subcategory.stage', 'room.roomPlayers', 'sessionAnswers');
+        $room = $session->room;
+        $stageType = $room->subcategory?->stage?->stage_type;
+        $isLifePointsStage = $stageType === \App\Models\Stage::TYPE_LIFE_POINTS;
+
+        $winnerTeamIds = null;
+
+        if ($isLifePointsStage) {
+            // Compute life points per team based on wrong answers
+            $byTeam = $room->roomPlayers->groupBy('team_id');
+            $lifeByTeam = [];
+            foreach ($byTeam as $teamId => $players) {
+                $teamPlayerIds = $players->pluck('id');
+                $wrongCountForTeam = $session->sessionAnswers
+                    ->whereIn('room_player_id', $teamPlayerIds)
+                    ->where('correct', false)
+                    ->count();
+                $initialLives = 10;
+                $lifePoints = max(0, $initialLives - $wrongCountForTeam);
+                $lifeByTeam[(string) $teamId] = $lifePoints;
+            }
+
+            $aliveTeams = collect($lifeByTeam)->filter(fn ($life) => $life > 0);
+
+            // If only one team left alive, or no team alive, finish the session now
+            if ($aliveTeams->count() <= 1 || $nextRound > $total) {
+                $maxLife = $aliveTeams->count() > 0 ? $aliveTeams->max() : 0;
+                // Winners are teams with the highest life (allowing ties), even if 0
+                $winnerTeamIds = collect($lifeByTeam)
+                    ->filter(fn ($life) => $life === $maxLife)
+                    ->keys()
+                    ->values()
+                    ->all();
+
+                $session->update(['status' => 'finished', 'current_round' => min($nextRound, $total + 1)]);
+                $session->room->update(['status' => 'finished']);
+                $this->updatePointsForFinishedSession($session->fresh());
+                $this->firebaseSync->syncSessionEnd($session->fresh(), $winnerTeamIds);
+                return ['finished' => true, 'round' => null];
+            }
+        } elseif ($nextRound > $total) {
+            // Non life-points stage: finish when questions are exhausted
             $session->update(['status' => 'finished', 'current_round' => $nextRound]);
             $session->room->update(['status' => 'finished']);
             $this->updatePointsForFinishedSession($session->fresh());

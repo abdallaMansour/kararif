@@ -72,6 +72,8 @@ Route::prefix('game')->group(function () {
         Route::post('room/{roomId}/join', [GameController::class, 'joinRoom']);
         Route::post('room/{roomId}/leave', [GameController::class, 'leaveRoom']);
         Route::post('session/{sessionId}/answer', [GameController::class, 'submitAnswer']);
+        Route::post('session/{sessionId}/pause', [GameController::class, 'pause']);
+        Route::post('session/{sessionId}/resume', [GameController::class, 'resume']);
         Route::post('session/{sessionId}/timeout', [GameController::class, 'timeout']);
         Route::post('session/{sessionId}/next-question', [GameController::class, 'nextQuestion']);
         Route::post('session/{sessionId}/surrender', [GameController::class, 'surrender']);

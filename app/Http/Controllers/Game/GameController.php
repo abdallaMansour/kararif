@@ -493,6 +493,49 @@ class GameController extends Controller
         ]);
     }
 
+    public function pause(int $sessionId): JsonResponse
+    {
+        $session = GameSession::find($sessionId);
+        if (!$session) {
+            return ApiResponse::error('الجلسة غير موجودة', 404);
+        }
+        if ($session->status !== 'playing') {
+            return ApiResponse::error('لا يمكن إيقاف الجلسة مؤقتاً في هذه الحالة', 400);
+        }
+
+        $session->update(['status' => 'paused']);
+        $this->firebaseSync->syncSessionPaused($session->fresh(), false);
+
+        return ApiResponse::success([
+            'paused' => true,
+            'sessionId' => (string) $session->id,
+        ]);
+    }
+
+    public function resume(int $sessionId): JsonResponse
+    {
+        $session = GameSession::find($sessionId);
+        if (!$session) {
+            return ApiResponse::error('الجلسة غير موجودة', 404);
+        }
+        if ($session->status !== 'paused') {
+            return ApiResponse::error('الجلسة ليست في حالة الإيقاف المؤقت', 400);
+        }
+
+        $session->update([
+            'status' => 'playing',
+            'question_started_at' => now(),
+        ]);
+
+        $this->firebaseSync->syncSessionStart($session->fresh());
+
+        return ApiResponse::success([
+            'resumed' => true,
+            'sessionId' => (string) $session->id,
+            'round' => $session->current_round,
+        ]);
+    }
+
     public function timeout(int $sessionId): JsonResponse
     {
         $session = GameSession::with('room')->find($sessionId);
@@ -527,6 +570,27 @@ class GameController extends Controller
                 ->unique();
 
             $allLeadersAnswered = $answeredLeaderIds->count() >= $leaderIds->count();
+        }
+
+        // For life-points stages, treat missing answers as wrong (lose 1 life on timeout)
+        $stageType = $room->subcategory?->stage?->stage_type;
+        if ($questionId && $stageType === \App\Models\Stage::TYPE_LIFE_POINTS) {
+            foreach ($leaders as $leader) {
+                $alreadyAnswered = SessionAnswer::where('game_session_id', $session->id)
+                    ->where('question_id', $questionId)
+                    ->where('room_player_id', $leader->id)
+                    ->exists();
+                if (!$alreadyAnswered) {
+                    SessionAnswer::create([
+                        'game_session_id' => $session->id,
+                        'question_id' => $questionId,
+                        'room_player_id' => $leader->id,
+                        'answer_index' => 0,
+                        'correct' => false,
+                        'score_delta' => 0,
+                    ]);
+                }
+            }
         }
 
         $session->update(['status' => 'paused']);

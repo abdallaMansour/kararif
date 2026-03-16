@@ -343,11 +343,14 @@ class FirebaseGameSyncService
     private function buildTeamsDataWithStats(GameSession $session, bool $includeAnswerStats): array
     {
         $room = $session->room;
-        $room->load('roomPlayers.user', 'roomPlayers.adventurer');
+        $room->load('roomPlayers.user', 'roomPlayers.adventurer', 'subcategory.stage');
         $byTeam = $room->roomPlayers->groupBy('team_id');
 
+        $stageType = $room->subcategory?->stage?->stage_type;
+        $isLifePointsStage = $stageType === Stage::TYPE_LIFE_POINTS;
+
         $correctWrongByRoomPlayer = [];
-        if ($includeAnswerStats) {
+        if ($includeAnswerStats || $isLifePointsStage) {
             $answers = $session->sessionAnswers;
             foreach ($answers as $a) {
                 $id = $a->room_player_id;
@@ -374,7 +377,7 @@ class FirebaseGameSyncService
 
             $correctCount = 0;
             $wrongCount = 0;
-            if ($includeAnswerStats) {
+            if ($includeAnswerStats || $isLifePointsStage) {
                 foreach ($players as $rp) {
                     $stats = $correctWrongByRoomPlayer[$rp->id] ?? ['correct' => 0, 'wrong' => 0];
                     $correctCount += $stats['correct'];
@@ -392,6 +395,12 @@ class FirebaseGameSyncService
             if ($includeAnswerStats) {
                 $teamData['correctCount'] = $correctCount;
                 $teamData['wrongCount'] = $wrongCount;
+            }
+            if ($isLifePointsStage) {
+                $initialLives = 10;
+                $lifePoints = max(0, $initialLives - $wrongCount);
+                $teamData['lifePoints'] = $lifePoints;
+                $teamData['isEliminated'] = $lifePoints <= 0;
             }
             $teams[(string) $teamId] = $teamData;
         }
