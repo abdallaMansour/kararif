@@ -667,6 +667,29 @@ class GameController extends Controller
         return ApiResponse::success($data, null, 200);
     }
 
+    public function endSession(int $sessionId): JsonResponse
+    {
+        $session = GameSession::with('room')->find($sessionId);
+        if (!$session) {
+            return ApiResponse::error('الجلسة غير موجودة', 404);
+        }
+        if ($session->status === 'finished') {
+            return ApiResponse::error('انتهت الجلسة بالفعل', 400);
+        }
+
+        $session->update(['status' => 'finished']);
+        $session->room?->update(['status' => 'finished']);
+
+        // Let existing logic handle points/winners if needed
+        $this->gameService->updatePointsForFinishedSession($session->fresh());
+        $this->firebaseSync->syncSessionEnd($session->fresh());
+
+        return ApiResponse::success([
+            'ended' => true,
+            'sessionId' => (string) $session->id,
+        ]);
+    }
+
     public function getResult(int $sessionId): JsonResponse
     {
         $session = GameSession::with('room.roomPlayers.user', 'room.roomPlayers.adventurer')->find($sessionId);

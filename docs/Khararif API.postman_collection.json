@@ -726,6 +726,87 @@
           "response": []
         },
         {
+          "name": "Pause Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "Manually pause a playing session. Sets status=paused and syncs paused state to Firebase.",
+            "url": {
+              "raw": "{{base_url}}/api/game/session/1/pause",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "game",
+                "session",
+                "1",
+                "pause"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resume Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "Resume a paused session on the current round. Sets status=playing and restarts the question timer.",
+            "url": {
+              "raw": "{{base_url}}/api/game/session/1/resume",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "game",
+                "session",
+                "1",
+                "resume"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Timeout (Auto Pause)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "TV calls this after 30 seconds when the question timer ends. For life-points stages, missing answers are counted as wrong, then session is paused.",
+            "url": {
+              "raw": "{{base_url}}/api/game/session/1/timeout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "game",
+                "session",
+                "1",
+                "timeout"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Next Question",
           "request": {
             "method": "POST",
@@ -747,6 +828,33 @@
                 "session",
                 "1",
                 "next-question"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "End Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "Force-end the session and mark it as finished. Updates points and pushes final state to Firebase.",
+            "url": {
+              "raw": "{{base_url}}/api/game/session/1/end",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "game",
+                "session",
+                "1",
+                "end"
               ]
             }
           },
