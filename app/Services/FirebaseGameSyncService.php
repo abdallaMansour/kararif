@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\GameSession;
 use App\Models\Room;
+use App\Models\Stage;
 use App\Models\TvDisplay;
 use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Contract\Database;
@@ -264,40 +265,67 @@ class FirebaseGameSyncService
     private function buildStageData(Room $room): ?array
     {
         $subcategory = $room->subcategory;
-        if (!$subcategory || !$subcategory->use_stage || !$subcategory->stage_id) {
-            return null;
-        }
-        $stage = $subcategory->stage;
-        if (!$stage) {
+        if (!$subcategory) {
             return null;
         }
 
-        $stage->load('questionGroups');
+        // Case 1: subcategory is explicitly linked to a stage
+        if ($subcategory->use_stage && $subcategory->stage_id && $subcategory->stage) {
+            $stage = $subcategory->stage;
+            $stage->load('questionGroups');
 
-        $questionGroups = $stage->questionGroups->sortBy('sort_order')->values()->map(function ($g) {
+            $questionGroups = $stage->questionGroups->sortBy('sort_order')->values()->map(function ($g) {
+                return [
+                    'id' => (int) $g->id,
+                    'sort_order' => (int) $g->sort_order,
+                    'start_video' => $g->getFirstMediaUrl('start_video'),
+                    'end_video' => $g->getFirstMediaUrl('end_video'),
+                    'correct_answer_video' => $g->getFirstMediaUrl('correct_answer_video'),
+                    'wrong_answer_video' => $g->getFirstMediaUrl('wrong_answer_video'),
+                ];
+            })->all();
+
             return [
-                'id' => (int) $g->id,
-                'sort_order' => (int) $g->sort_order,
-                'start_video' => $g->getFirstMediaUrl('start_video'),
-                'end_video' => $g->getFirstMediaUrl('end_video'),
-                'correct_answer_video' => $g->getFirstMediaUrl('correct_answer_video'),
-                'wrong_answer_video' => $g->getFirstMediaUrl('wrong_answer_video'),
+                'id' => (int) $stage->id,
+                'name' => $stage->name,
+                'stage_type' => $stage->stage_type,
+                'question_groups_count' => (int) ($stage->question_groups_count ?? 0),
+                'number_of_questions' => (int) ($stage->number_of_questions ?? 0),
+                'life_points_per_question' => $stage->life_points_per_question !== null ? (float) $stage->life_points_per_question : null,
+                'start_video' => $stage->getFirstMediaUrl('start_video'),
+                'end_video' => $stage->getFirstMediaUrl('end_video'),
+                'lunch_video' => $stage->getFirstMediaUrl('lunch_video'),
+                'correct_answer_video' => $stage->getFirstMediaUrl('correct_answer_video'),
+                'wrong_answer_video' => $stage->getFirstMediaUrl('wrong_answer_video'),
+                'question_groups' => $questionGroups,
             ];
-        })->all();
+        }
+
+        // Case 2: no stage linked -> default virtual questions_group stage
+        $rounds = (int) ($room->rounds ?? 0);
 
         return [
-            'id' => (int) $stage->id,
-            'name' => $stage->name,
-            'stage_type' => $stage->stage_type,
-            'question_groups_count' => (int) ($stage->question_groups_count ?? 0),
-            'number_of_questions' => (int) ($stage->number_of_questions ?? 0),
-            'life_points_per_question' => $stage->life_points_per_question !== null ? (float) $stage->life_points_per_question : null,
-            'start_video' => $stage->getFirstMediaUrl('start_video'),
-            'end_video' => $stage->getFirstMediaUrl('end_video'),
-            'lunch_video' => $stage->getFirstMediaUrl('lunch_video'),
-            'correct_answer_video' => $stage->getFirstMediaUrl('correct_answer_video'),
-            'wrong_answer_video' => $stage->getFirstMediaUrl('wrong_answer_video'),
-            'question_groups' => $questionGroups,
+            'id' => null,
+            'name' => $subcategory->name,
+            'stage_type' => Stage::TYPE_QUESTIONS_GROUP,
+            'question_groups_count' => 1,
+            'number_of_questions' => $rounds,
+            'life_points_per_question' => null,
+            'start_video' => null,
+            'end_video' => null,
+            'lunch_video' => null,
+            'correct_answer_video' => null,
+            'wrong_answer_video' => null,
+            'question_groups' => [
+                [
+                    'id' => 1,
+                    'sort_order' => 0,
+                    'start_video' => null,
+                    'end_video' => null,
+                    'correct_answer_video' => null,
+                    'wrong_answer_video' => null,
+                ],
+            ],
         ];
     }
 
