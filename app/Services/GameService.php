@@ -296,7 +296,8 @@ class GameService
             })->values();
         }
 
-        $expectedTeams = (int) $room->teams;
+        // Use actual teams with players, not room.teams (can be wrong)
+        $expectedTeams = $room->roomPlayers->pluck('team_id')->filter()->unique()->count();
         $allTeamsAnswered = $expectedTeams > 0 && $answeredTeamIds->count() >= $expectedTeams;
 
         // Check if question time (30 seconds) has elapsed
