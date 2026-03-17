@@ -79,5 +79,6 @@ Route::prefix('game')->group(function () {
         Route::post('session/{sessionId}/next-question', [GameController::class, 'nextQuestion']);
         Route::post('session/{sessionId}/end', [GameController::class, 'endSession']);
         Route::post('session/{sessionId}/surrender', [GameController::class, 'surrender']);
+        Route::post('session/{sessionId}/start-question', [GameController::class, 'startQuestion']);
     });
 });

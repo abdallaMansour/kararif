@@ -536,6 +536,31 @@ class GameController extends Controller
         ]);
     }
 
+    public function startQuestion(int $sessionId): JsonResponse
+    {
+        $session = GameSession::find($sessionId);
+        if (!$session) {
+            return ApiResponse::error('الجلسة غير موجودة', 404);
+        }
+
+        if ($session->status !== 'playing') {
+            return ApiResponse::error('لا يمكن بدء السؤال في هذه الحالة', 400);
+        }
+
+        $result = $this->gameService->startCurrentQuestion($session);
+
+        if (!$result['ok']) {
+            return ApiResponse::error('لا يمكن بدء السؤال', 400);
+        }
+
+        return ApiResponse::success([
+            'started' => true,
+            'reason' => $result['reason'],
+            'sessionId' => (string) $session->id,
+            'round' => (int) $session->current_round,
+        ]);
+    }
+
     public function timeout(int $sessionId): JsonResponse
     {
         $session = GameSession::with('room')->find($sessionId);

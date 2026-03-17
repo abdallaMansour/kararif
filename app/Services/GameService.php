@@ -125,9 +125,10 @@ class GameService
 
     private function transitionSessionToPlaying(GameSession $session): GameSession
     {
+        // First time we go to playing: do NOT start the question timer yet.
+        // TV will explicitly start the first question after the beginning video.
         $session->update([
             'status' => 'playing',
-            'question_started_at' => now(),
         ]);
 
         $this->firebaseSync->syncSessionStart($session->fresh());
@@ -335,6 +336,27 @@ class GameService
             'scoreDelta' => $scoreDelta,
             'nextQuestionAvailable' => $nextQuestionAvailable,
         ];
+    }
+
+    public function startCurrentQuestion(GameSession $session): array
+    {
+        if ($session->status !== 'playing') {
+            return ['ok' => false, 'reason' => 'invalid_status'];
+        }
+
+        // If the timer is already started, do nothing (idempotent).
+        if ($session->question_started_at) {
+            return ['ok' => true, 'reason' => 'already_started'];
+        }
+
+        $session->update([
+            'question_started_at' => now(),
+        ]);
+
+        // Re-sync question + teams + stage, now with questionStartedAt set
+        $this->firebaseSync->syncSessionStart($session->fresh());
+
+        return ['ok' => true, 'reason' => 'started'];
     }
 
     public function advanceToNextQuestion(GameSession $session): array
