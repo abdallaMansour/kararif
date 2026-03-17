@@ -283,7 +283,11 @@ class GameService
 
         $answeredTeamIds = $answeredRoomPlayerIds->isEmpty()
             ? collect()
-            : RoomPlayer::whereIn('id', $answeredRoomPlayerIds)->pluck('team_id')->filter()->unique()->values();
+            : RoomPlayer::whereIn('id', $answeredRoomPlayerIds->toArray())
+                ->pluck('team_id')
+                ->filter()
+                ->unique()
+                ->values();
 
         if ($isLifePointsStage) {
             $answeredTeamIds = $answeredTeamIds->filter(function ($teamId) use ($room, $session) {
@@ -296,9 +300,16 @@ class GameService
             })->values();
         }
 
-        // Use actual teams with players, not room.teams (can be wrong)
-        $expectedTeams = $room->roomPlayers->pluck('team_id')->filter()->unique()->count();
-        $allTeamsAnswered = $expectedTeams > 0 && $answeredTeamIds->count() >= $expectedTeams;
+        // Fresh DB query for team count - avoid stale relation
+        $expectedTeams = $room->roomPlayers()->pluck('team_id')->filter()->unique()->count();
+        $answeredCount = $answeredTeamIds->count();
+
+        $allTeamsAnswered = $expectedTeams > 0 && $answeredCount >= $expectedTeams;
+
+        // Safeguard: if room has 2+ teams, never pause with only 1 answer
+        if ((int) $room->teams >= 2 && $answeredCount < 2) {
+            $allTeamsAnswered = false;
+        }
 
         // Check if question time (30 seconds) has elapsed
         $timeLimitSeconds = 30;
