@@ -64,11 +64,13 @@ class PaymentController extends Controller
         $amount = max(0, $amount);
 
         $currency = config('ziina.currency', config('services.ziina.currency', 'AED'));
+        $successUrl = config('ziina.success_url')
+            ?? rtrim(config('app.url'), '/') . '/api/payment/success?payment_intent_id={PAYMENT_INTENT_ID}';
         $ziina = app(ZiinaService::class);
         $intent = $ziina->createPaymentIntent(
             (float) $amount,
             $currency,
-            null,
+            $successUrl,
             null,
             null,
             $package->name
@@ -100,5 +102,22 @@ class PaymentController extends Controller
             'paymentId' => (string) $payment->id,
             'redirectUrl' => $redirectUrl,
         ], null, 200);
+    }
+
+    /**
+     * Success callback: Ziina redirects the user here after payment.
+     * Use this URL (with {PAYMENT_INTENT_ID} placeholder) as success_url when creating the intent.
+     * Credits sessions and redirects user to frontend success page.
+     */
+    public function success(): \Illuminate\Http\RedirectResponse
+    {
+        $paymentIntentId = request()->query('payment_intent_id');
+        if ($paymentIntentId) {
+            app(PaymentService::class)->completePaymentByExternalId((string) $paymentIntentId);
+        }
+
+        $redirectUrl = config('ziina.payment_success_redirect_url', config('services.ziina.payment_success_redirect_url', '/'));
+
+        return redirect()->away($redirectUrl);
     }
 }

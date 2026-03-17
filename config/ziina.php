@@ -9,7 +9,17 @@ return [
     */
     'api_base' => env('ZIINA_API_BASE', 'https://api-v2.ziina.com/api'),
     'api_key' => env('ZIINA_API_KEY'),
-    'success_url' => env('ZIINA_SUCCESS_URL', 'https://yourapp.com/payments/success'),
+    /*
+    | success_url: Where Ziina redirects after payment. Use {PAYMENT_INTENT_ID} placeholder.
+    | Default: backend callback so we credit sessions on redirect (fallback if webhook fails).
+    */
+    'success_url' => env('ZIINA_SUCCESS_URL'),
+
+    /*
+    | payment_success_redirect_url: Where our success callback redirects the user (frontend).
+    */
+    'payment_success_redirect_url' => env('ZIINA_PAYMENT_SUCCESS_REDIRECT_URL', 'https://yourapp.com/payments/success'),
+
     'cancel_url' => env('ZIINA_CANCEL_URL', 'https://yourapp.com/payments/cancel'),
     'currency' => env('ZIINA_CURRENCY', 'AED'),
     'mode' => env('ZIINA_MODE', 'sandbox'),
