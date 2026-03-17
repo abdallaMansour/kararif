@@ -276,19 +276,18 @@ class GameService
             $roomPlayer->increment('score', $scoreDelta);
         }
 
-        // Determine if all team leaders have answered this question
-        // Use fresh DB query to avoid stale relation data; in life-points mode exclude eliminated teams' leaders
-        $leaderIds = $room->roomPlayers()
-            ->where('is_leader', true)
-            ->pluck('id');
+        // Pause when every team has submitted an answer (team-based, not leader-based)
+        $answeredRoomPlayerIds = SessionAnswer::where('game_session_id', $session->id)
+            ->where('question_id', $questionId)
+            ->pluck('room_player_id');
+
+        $answeredTeamIds = $answeredRoomPlayerIds->isEmpty()
+            ? collect()
+            : RoomPlayer::whereIn('id', $answeredRoomPlayerIds)->pluck('team_id')->filter()->unique()->values();
 
         if ($isLifePointsStage) {
-            $leaderIds = $leaderIds->filter(function ($leaderId) use ($room, $session) {
-                $leader = $room->roomPlayers->firstWhere('id', $leaderId);
-                if (!$leader || $leader->team_id === null) {
-                    return true;
-                }
-                $teamPlayerIds = $room->roomPlayers->where('team_id', $leader->team_id)->pluck('id');
+            $answeredTeamIds = $answeredTeamIds->filter(function ($teamId) use ($room, $session) {
+                $teamPlayerIds = $room->roomPlayers->where('team_id', $teamId)->pluck('id');
                 $wrongCount = SessionAnswer::where('game_session_id', $session->id)
                     ->whereIn('room_player_id', $teamPlayerIds)
                     ->where('correct', false)
@@ -297,16 +296,8 @@ class GameService
             })->values();
         }
 
-        $leaderIds = $leaderIds->values();
-        $answeredLeaderIds = SessionAnswer::where('game_session_id', $session->id)
-            ->where('question_id', $questionId)
-            ->whereIn('room_player_id', $leaderIds->toArray())
-            ->pluck('room_player_id')
-            ->unique()
-            ->values();
-
-        $allLeadersAnswered = $leaderIds->isNotEmpty()
-            && $answeredLeaderIds->count() >= $leaderIds->count();
+        $expectedTeams = (int) $room->teams;
+        $allTeamsAnswered = $expectedTeams > 0 && $answeredTeamIds->count() >= $expectedTeams;
 
         // Check if question time (30 seconds) has elapsed
         $timeLimitSeconds = 30;
@@ -318,7 +309,7 @@ class GameService
         $totalQuestions = count($questionIds);
         $nextQuestionAvailable = $nextRound <= $totalQuestions;
 
-        if ($allLeadersAnswered || $timedOut) {
+        if ($allTeamsAnswered || $timedOut) {
             // Pause the game and show stats / animations
             $session->update(['status' => 'paused']);
             $this->firebaseSync->syncSessionPaused($session->fresh(), $correct);

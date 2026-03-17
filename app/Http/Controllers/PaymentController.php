@@ -64,8 +64,7 @@ class PaymentController extends Controller
         $amount = max(0, $amount);
 
         $currency = config('ziina.currency', config('services.ziina.currency', 'AED'));
-        $successUrl = config('ziina.success_url')
-            ?? rtrim(config('app.url'), '/') . '/api/payment/success?payment_intent_id={PAYMENT_INTENT_ID}';
+        $successUrl = config('ziina.success_url') ?: rtrim(config('app.url'), '/') . '/api/payment/success?payment_intent_id={PAYMENT_INTENT_ID}';
         $ziina = app(ZiinaService::class);
         $intent = $ziina->createPaymentIntent(
             (float) $amount,

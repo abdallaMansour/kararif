@@ -31,9 +31,14 @@ class ZiinaService
             return null;
         }
 
-        $successUrl = $successUrl ?? config('ziina.success_url', config('services.ziina.success_url'));
-        $cancelUrl = $cancelUrl ?? config('ziina.cancel_url', config('services.ziina.cancel_url'));
+        $successUrl = $successUrl ?: config('ziina.success_url') ?: rtrim(config('app.url'), '/') . '/api/payment/success?payment_intent_id={PAYMENT_INTENT_ID}';
+        $cancelUrl = $cancelUrl ?: config('ziina.cancel_url', config('services.ziina.cancel_url'));
         $test = $test || config('ziina.mode', config('services.ziina.mode', 'sandbox')) === 'sandbox';
+
+        if (empty($successUrl) || !str_contains($successUrl, '{PAYMENT_INTENT_ID}')) {
+            Log::warning('Ziina: success_url missing or invalid, using fallback', ['success_url' => $successUrl]);
+            $successUrl = rtrim(config('app.url'), '/') . '/api/payment/success?payment_intent_id={PAYMENT_INTENT_ID}';
+        }
 
         $payload = [
             'amount' => $amountInBaseUnits,
@@ -68,9 +73,16 @@ class ZiinaService
         }
 
         $data = $response->json();
+        $redirectUrl = $data['redirect_url'] ?? $data['redirectUrl'] ?? null;
+        if (empty($redirectUrl)) {
+            Log::warning('Ziina create payment_intent: no redirect_url in response', [
+                'keys' => array_keys($data ?? []),
+                'status' => $data['status'] ?? null,
+            ]);
+        }
         return [
             'id' => $data['id'] ?? null,
-            'redirect_url' => $data['redirect_url'] ?? null,
+            'redirect_url' => $redirectUrl,
             'status' => $data['status'] ?? null,
         ];
     }
