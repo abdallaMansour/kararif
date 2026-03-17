@@ -277,18 +277,36 @@ class GameService
         }
 
         // Determine if all team leaders have answered this question
-        $leaders = $room->roomPlayers->where('is_leader', true);
-        $leaderIds = $leaders->pluck('id');
+        // Use fresh DB query to avoid stale relation data; in life-points mode exclude eliminated teams' leaders
+        $leaderIds = $room->roomPlayers()
+            ->where('is_leader', true)
+            ->pluck('id');
 
+        if ($isLifePointsStage) {
+            $leaderIds = $leaderIds->filter(function ($leaderId) use ($room, $session) {
+                $leader = $room->roomPlayers->firstWhere('id', $leaderId);
+                if (!$leader || $leader->team_id === null) {
+                    return true;
+                }
+                $teamPlayerIds = $room->roomPlayers->where('team_id', $leader->team_id)->pluck('id');
+                $wrongCount = SessionAnswer::where('game_session_id', $session->id)
+                    ->whereIn('room_player_id', $teamPlayerIds)
+                    ->where('correct', false)
+                    ->count();
+                return max(0, 10 - $wrongCount) > 0;
+            })->values();
+        }
+
+        $leaderIds = $leaderIds->values();
         $answeredLeaderIds = SessionAnswer::where('game_session_id', $session->id)
             ->where('question_id', $questionId)
-            ->whereIn('room_player_id', $leaderIds)
+            ->whereIn('room_player_id', $leaderIds->toArray())
             ->pluck('room_player_id')
-            ->unique();
+            ->unique()
+            ->values();
 
-        $allLeadersAnswered = $leaderIds->count() > 0
-            ? $answeredLeaderIds->count() >= $leaderIds->count()
-            : false;
+        $allLeadersAnswered = $leaderIds->isNotEmpty()
+            && $answeredLeaderIds->count() >= $leaderIds->count();
 
         // Check if question time (30 seconds) has elapsed
         $timeLimitSeconds = 30;
