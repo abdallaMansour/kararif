@@ -447,7 +447,7 @@ class FirebaseGameSyncService
                 $teamData['wrongCount'] = $wrongCount;
             }
             if ($isLifePointsStage) {
-                $initialLives = 10;
+                $initialLives = 5;
                 $lifePoints = max(0, $initialLives - $wrongCount);
                 $teamData['lifePoints'] = $lifePoints;
                 $teamData['isEliminated'] = $lifePoints <= 0 || $isSurrendered;

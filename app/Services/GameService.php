@@ -371,7 +371,7 @@ class GameService
                     ->whereIn('room_player_id', $teamPlayerIds)
                     ->where('correct', false)
                     ->count();
-                $initialLives = 10;
+                $initialLives = 5;
                 $lifePoints = max(0, $initialLives - $wrongCountForTeam);
                 if ($lifePoints <= 0) {
                     return [
@@ -527,7 +527,7 @@ class GameService
                     ->whereIn('room_player_id', $teamPlayerIds)
                     ->where('correct', false)
                     ->count();
-                $initialLives = 10;
+                $initialLives = 5;
                 $lifePoints = max(0, $initialLives - $wrongCountForTeam);
                 $lifeByTeam[(string) $teamId] = $lifePoints;
             }

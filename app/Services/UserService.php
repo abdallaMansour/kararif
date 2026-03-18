@@ -103,6 +103,9 @@ class UserService
             'room.gameSessions' => fn ($q) => $q->where('status', 'finished')->latest()->limit(1),
         ])->get();
 
+        // Safety: avoid counting the same room twice for any reason.
+        $roomPlayers = $roomPlayers->unique('room_id')->values();
+
         $wins = 0;
         $losses = 0;
 
@@ -114,7 +117,15 @@ class UserService
             $byTeam = $rp->room->roomPlayers->groupBy('team_id')->map(fn ($players) => $players->sum('score'));
             $maxScore = $byTeam->max();
             $myTeamScore = $byTeam->get((string) $rp->team_id, 0);
-            if ($maxScore !== null && $myTeamScore >= $maxScore && $maxScore > 0) {
+
+            // If it's effectively a solo/one-team session, treat it as a win.
+            if ($byTeam->count() <= 1) {
+                $wins++;
+                continue;
+            }
+
+            // Win = my team has the highest score (ties count as win).
+            if ($maxScore !== null && $myTeamScore >= $maxScore) {
                 $wins++;
             } else {
                 $losses++;

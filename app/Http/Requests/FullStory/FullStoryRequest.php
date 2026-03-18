@@ -26,7 +26,8 @@ class FullStoryRequest extends FormRequest
             'audios' => ['nullable', 'required_if:type,1', 'array', 'max:5'],
             'audios.*' => ['file'],
             'videos' => ['nullable', 'required_if:type,2', 'array', 'max:10'],
-            'videos.*' => ['file', 'mimetypes:video/mp4,video/webm,video/ogg,video/quicktime', 'max:30720'],
+            // NOTE: max is in KB -> 51200 KB = 50 MB
+            'videos.*' => ['file', 'mimetypes:video/mp4,video/webm,video/ogg,video/quicktime', 'max:51200'],
         ];
     }
 
