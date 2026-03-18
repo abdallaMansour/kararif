@@ -759,7 +759,14 @@ class GameController extends Controller
         }
 
         // Two teams or fewer: session ends, non-surrendering team wins
-        $session->update(['status' => 'finished']);
+        // Persist surrendered team id as well, so Firebase `teams[*].surrendered` / `isEliminated` can be shown.
+        $session->update([
+            'status' => 'finished',
+            'surrendered_team_ids' => array_values(array_unique([
+                ...(is_array($session->surrendered_team_ids) ? $session->surrendered_team_ids : []),
+                (string) $surrenderingTeamId,
+            ])),
+        ]);
         $session->room?->update(['status' => 'finished']);
 
         $this->gameService->updatePointsForFinishedSession($session->fresh());
