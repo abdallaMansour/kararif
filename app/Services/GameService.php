@@ -159,9 +159,18 @@ class GameService
 
     public function getOrCreateSession(Room $room): GameSession
     {
-        $session = $room->gameSessions()->whereIn('status', ['waiting', 'playing', 'starting', 'paused'])->first();
+        // Use the latest session attempt; older "waiting" rows can exist and block regeneration.
+        $session = $room->gameSessions()
+            ->whereIn('status', ['waiting', 'playing', 'starting', 'paused'])
+            ->latest()
+            ->first();
+
         if ($session) {
-            return $session;
+            $existingQuestionIds = $session->question_ids ?? [];
+            if (is_array($existingQuestionIds) && !empty($existingQuestionIds)) {
+                return $session;
+            }
+            // If a stale session row exists but has no questions, re-initialize it below.
         }
 
         $totalQuestions = (int) ($room->questions_count ?? $room->rounds ?? 0);
@@ -185,16 +194,22 @@ class GameService
         $countdownSeconds = config('game.start_countdown_seconds', 5);
         $startTimerEndsAt = now()->addSeconds($countdownSeconds);
 
-        $session = $room->gameSessions()->create([
+        $payload = [
             'status' => 'starting',
             'started_at' => now(),
             'start_timer_ends_at' => $startTimerEndsAt,
             'question_started_at' => null,
             'question_ids' => $questionIds,
-        ]);
+        ];
+
+        if ($session) {
+            $session->update($payload);
+            $session = $session->fresh();
+        } else {
+            $session = $room->gameSessions()->create($payload);
+        }
 
         $room->update(['status' => 'playing']);
-
         $this->firebaseSync->syncSessionStarting($session);
 
         return $session;

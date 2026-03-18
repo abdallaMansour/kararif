@@ -312,14 +312,14 @@ class FirebaseGameSyncService
         $gameService = app(GameService::class);
         $currentRoundNumber = $session ? $gameService->getCurrentRoundNumber($session) : 1;
         $effectiveStageType = $gameService->getEffectiveStageType($room, $session, $currentRoundNumber);
-        $rounds = (int) ($room->rounds ?? 0);
+        $questionsCount = (int) ($room->questions_count ?? $room->rounds ?? 0);
 
         return [
             'id' => null,
             'name' => $subcategory->name,
             'stage_type' => $effectiveStageType,
             'question_groups_count' => 1,
-            'number_of_questions' => $rounds,
+            'number_of_questions' => $questionsCount,
             'life_points_per_question' => $effectiveStageType === Stage::TYPE_LIFE_POINTS ? 1 : null,
             'start_video' => null,
             'end_video' => null,
@@ -336,6 +336,41 @@ class FirebaseGameSyncService
                     'wrong_answer_video' => null,
                 ],
             ],
+        ];
+    }
+
+    private function buildRoundMeta(GameSession $session): array
+    {
+        $gameService = app(GameService::class);
+        $room = $session->room;
+
+        $roundNumber = $gameService->getCurrentRoundNumber($session);
+        [$startIndex, $endIndex] = $gameService->getRoundQuestionRange($session, $roundNumber);
+
+        $roundQuestionsCount = $endIndex >= $startIndex ? ($endIndex - $startIndex + 1) : 0;
+        $currentQuestionIndex = max(0, (int) $session->current_round - 1);
+        $currentQuestionInRound = $roundQuestionsCount > 0
+            ? ($currentQuestionIndex - $startIndex + 1)
+            : 0;
+
+        $roundType = $gameService->getEffectiveStageType($room, $session, $roundNumber);
+
+        return [
+            // Round number is 1-based.
+            'roundNumber' => (int) $roundNumber,
+            // Round type for UI switching (questions_group vs life_points).
+            'roundType' => $roundType,
+            // Global indices inside `question_ids` (0-based).
+            'roundStartQuestionIndex' => (int) $startIndex,
+            'roundEndQuestionIndex' => (int) $endIndex,
+            // Convenience for rendering (1-based).
+            'roundStartQuestionNumber' => (int) $startIndex + 1,
+            'roundEndQuestionNumber' => (int) $endIndex + 1,
+            'roundQuestionsCount' => (int) $roundQuestionsCount,
+            'currentQuestionInRound' => (int) $currentQuestionInRound,
+            // Indicators for round boundary.
+            'isRoundStart' => $currentQuestionInRound === 1,
+            'isRoundEnd' => $roundQuestionsCount > 0 && $currentQuestionInRound === $roundQuestionsCount,
         ];
     }
 
