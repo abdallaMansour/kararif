@@ -117,7 +117,21 @@ class GameController extends Controller
         $teams = (int) $request->input('teams', 2);
         $playersPerTeam = (int) $request->input('players', 2);
         $totalPlayers = $playersPerTeam * $teams;
-        $rounds = (int) ($request->input('questionsCount') ?? $request->input('rounds', 5));
+
+        // IMPORTANT:
+        // - `rounds` is the number of rounds (split of the full questions list)
+        // - `questionsCount` is the total number of questions in the session
+        $questionsCountInput = $request->input('questionsCount');
+        $roundsCountInput = $request->input('rounds');
+
+        if ($questionsCountInput !== null) {
+            $questionsCount = (int) $questionsCountInput;
+            $rounds = (int) ($roundsCountInput ?? 1);
+        } else {
+            // Legacy fallback: previous code used `rounds` as total questions.
+            $questionsCount = (int) ($roundsCountInput ?? 5);
+            $rounds = 1;
+        }
 
         $roomData = [
             'code' => $code,
@@ -126,6 +140,7 @@ class GameController extends Controller
             'subcategory_id' => $request->input('subCategoryId'),
             'title' => $request->input('title'),
             'rounds' => $rounds,
+            'questions_count' => $questionsCount,
             'teams' => $teams,
             'players' => $totalPlayers,
             'expires_at' => now()->addHours(24),

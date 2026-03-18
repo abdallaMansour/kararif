@@ -164,12 +164,18 @@ class GameService
             return $session;
         }
 
+        $totalQuestions = (int) ($room->questions_count ?? $room->rounds ?? 0);
+        if ($totalQuestions <= 0) {
+            // Safety fallback: avoid generating an invalid session.
+            $totalQuestions = (int) ($room->rounds ?? 0);
+        }
+
         $questionIds = Question::where('type_id', $room->type_id)
             ->where('category_id', $room->category_id)
             ->where('subcategory_id', $room->subcategory_id)
             ->where('status', true)
             ->inRandomOrder()
-            ->limit($room->rounds)
+            ->limit($totalQuestions)
             ->pluck('id')
             ->values()
             ->toArray();

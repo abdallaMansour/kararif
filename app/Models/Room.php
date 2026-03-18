@@ -18,6 +18,7 @@ class Room extends Model
         'created_by',
         'title',
         'rounds',
+        'questions_count',
         'teams',
         'players',
         'status',

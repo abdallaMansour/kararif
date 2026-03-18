@@ -63,6 +63,7 @@ class FirebaseGameSyncService
                 'category_id' => (int) $room->category_id,
                 'subcategory_id' => (int) $room->subcategory_id,
                 'rounds' => (int) $room->rounds,
+                'questionsCount' => (int) ($room->questions_count ?? $room->rounds ?? 0),
                 'teams' => $teams,
                 'maxPlayers' => (int) $room->players,
                 'joinedCount' => $room->roomPlayers->count(),
@@ -132,6 +133,7 @@ class FirebaseGameSyncService
             $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
             $teams = $this->buildTeamsData($session);
             $stage = $this->buildStageData($session->room, $session);
+            $round = $this->buildRoundMeta($session);
 
             $data = [
                 'roomId' => (string) $session->room_id,
@@ -143,6 +145,7 @@ class FirebaseGameSyncService
                     : null,
                 'remainingQuestionsCount' => count($session->question_ids ?? []),
                 'question' => null,
+                'round' => $round,
                 'teams' => $teams,
                 'stage' => $stage,
             ];
@@ -167,6 +170,7 @@ class FirebaseGameSyncService
 
             $questionIds = $session->question_ids ?? [];
             $remainingCount = max(0, count($questionIds) - $session->current_round);
+            $round = $this->buildRoundMeta($session);
 
             $data = [
                 'roomId' => (string) $session->room_id,
@@ -176,6 +180,7 @@ class FirebaseGameSyncService
                 'remainingQuestionsCount' => $remainingCount,
                 'questionStartedAt' => (int) round(microtime(true) * 1000),
                 'question' => $question,
+                'round' => $round,
                 'teams' => $teams,
                 'stage' => $stage,
             ];
@@ -199,12 +204,14 @@ class FirebaseGameSyncService
             $stage = $this->buildStageData($session->room, $session);
             $questionIds = $session->question_ids ?? [];
             $remainingCount = max(0, count($questionIds) - $session->current_round);
+            $round = $this->buildRoundMeta($session);
 
             $db->getReference('sessions/' . $session->id)->update([
                 'currentRound' => (int) $session->current_round,
                 'remainingQuestionsCount' => $remainingCount,
                 'questionStartedAt' => (int) round(microtime(true) * 1000),
                 'question' => $question,
+                'round' => $round,
                 'teams' => $teams,
                 'stage' => $stage,
             ]);
@@ -428,6 +435,7 @@ class FirebaseGameSyncService
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsDataWithStats($session, true);
             $stage = $this->buildStageData($session->room, $session);
+            $round = $this->buildRoundMeta($session);
 
             $questionIds = $session->question_ids ?? [];
             $remainingCount = max(0, count($questionIds) - $session->current_round);
@@ -443,6 +451,7 @@ class FirebaseGameSyncService
                 'remainingQuestionsCount' => $remainingCount,
                 'question' => $question,
                 'lastAnswerCorrect' => $lastAnswerCorrect,
+                'round' => $round,
                 'teams' => $teams,
                 'stats' => [
                     'totalCorrect' => $totalCorrect,
