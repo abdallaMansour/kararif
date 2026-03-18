@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Users;
 
 use App\Helpers\RankHelper;
+use App\Services\UserService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -43,10 +44,7 @@ class UserResource extends JsonResource
                 'discount_percent' => ($this->rank_discount_uses_left ?? 0) > 0 ? (int) ($this->rank_discount_percent ?? 0) : null,
                 'uses_left' => (int) ($this->rank_discount_uses_left ?? 0),
             ],
-            'stats' => [
-                'wins' => 0,
-                'losses' => 0,
-            ],
+            'stats' => app(UserService::class)->getWinsLosses($this->resource),
         ];
     }
 }

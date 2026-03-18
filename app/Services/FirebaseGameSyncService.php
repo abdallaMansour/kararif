@@ -131,7 +131,7 @@ class FirebaseGameSyncService
         try {
             $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
             $teams = $this->buildTeamsData($session);
-            $stage = $this->buildStageData($session->room);
+            $stage = $this->buildStageData($session->room, $session);
 
             $data = [
                 'roomId' => (string) $session->room_id,
@@ -163,7 +163,7 @@ class FirebaseGameSyncService
             $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsData($session);
-            $stage = $this->buildStageData($session->room);
+            $stage = $this->buildStageData($session->room, $session);
 
             $questionIds = $session->question_ids ?? [];
             $remainingCount = max(0, count($questionIds) - $session->current_round);
@@ -196,7 +196,7 @@ class FirebaseGameSyncService
             $session->load('room.subcategory.stage.questionGroups');
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsData($session);
-            $stage = $this->buildStageData($session->room);
+            $stage = $this->buildStageData($session->room, $session);
             $questionIds = $session->question_ids ?? [];
             $remainingCount = max(0, count($questionIds) - $session->current_round);
 
@@ -222,7 +222,7 @@ class FirebaseGameSyncService
         try {
             $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
             $teams = $this->buildTeamsData($session);
-            $stage = $this->buildStageData($session->room);
+            $stage = $this->buildStageData($session->room, $session);
             $db->getReference('sessions/' . $session->id)->update(['teams' => $teams, 'stage' => $stage]);
         } catch (\Throwable $e) {
             Log::warning('Firebase syncScores failed', ['session_id' => $session->id, 'error' => $e->getMessage()]);
@@ -238,7 +238,7 @@ class FirebaseGameSyncService
         try {
             $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
             $teams = $this->buildTeamsData($session);
-            $stage = $this->buildStageData($session->room);
+            $stage = $this->buildStageData($session->room, $session);
 
             $data = [
                 'status' => $session->status,
@@ -257,12 +257,12 @@ class FirebaseGameSyncService
         }
     }
 
-    public function getStageDataForRoom(Room $room): ?array
+    public function getStageDataForRoom(Room $room, ?GameSession $session = null): ?array
     {
-        return $this->buildStageData($room);
+        return $this->buildStageData($room, $session);
     }
 
-    private function buildStageData(Room $room): ?array
+    private function buildStageData(Room $room, ?GameSession $session = null): ?array
     {
         $subcategory = $room->subcategory;
         if (!$subcategory) {
@@ -301,16 +301,19 @@ class FirebaseGameSyncService
             ];
         }
 
-        // Case 2: no stage linked -> default virtual questions_group stage
+        // Case 2: no stage linked -> virtual stage with effective type (alternates by round / creator session count)
+        $gameService = app(GameService::class);
+        $currentRoundNumber = $session ? $gameService->getCurrentRoundNumber($session) : 1;
+        $effectiveStageType = $gameService->getEffectiveStageType($room, $session, $currentRoundNumber);
         $rounds = (int) ($room->rounds ?? 0);
 
         return [
             'id' => null,
             'name' => $subcategory->name,
-            'stage_type' => Stage::TYPE_QUESTIONS_GROUP,
+            'stage_type' => $effectiveStageType,
             'question_groups_count' => 1,
             'number_of_questions' => $rounds,
-            'life_points_per_question' => null,
+            'life_points_per_question' => $effectiveStageType === Stage::TYPE_LIFE_POINTS ? 1 : null,
             'start_video' => null,
             'end_video' => null,
             'lunch_video' => null,
@@ -346,7 +349,8 @@ class FirebaseGameSyncService
         $room->load('roomPlayers.user', 'roomPlayers.adventurer', 'subcategory.stage');
         $byTeam = $room->roomPlayers->groupBy('team_id');
 
-        $stageType = $room->subcategory?->stage?->stage_type;
+        $gameService = app(GameService::class);
+        $stageType = $gameService->getEffectiveStageType($room, $session, $gameService->getCurrentRoundNumber($session));
         $isLifePointsStage = $stageType === Stage::TYPE_LIFE_POINTS;
 
         $correctWrongByRoomPlayer = [];
@@ -385,12 +389,16 @@ class FirebaseGameSyncService
                 }
             }
 
+            $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
+            $isSurrendered = in_array((string) $teamId, $surrenderedTeamIds, true);
+
             $teamData = [
                 'id' => (string) $teamId,
                 'name' => ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId,
                 'score' => (int) $players->sum('score'),
                 'teamCode' => 'K' . $teamId,
                 'players' => $playerList,
+                'surrendered' => $isSurrendered,
             ];
             if ($includeAnswerStats) {
                 $teamData['correctCount'] = $correctCount;
@@ -400,7 +408,9 @@ class FirebaseGameSyncService
                 $initialLives = 10;
                 $lifePoints = max(0, $initialLives - $wrongCount);
                 $teamData['lifePoints'] = $lifePoints;
-                $teamData['isEliminated'] = $lifePoints <= 0;
+                $teamData['isEliminated'] = $lifePoints <= 0 || $isSurrendered;
+            } else {
+                $teamData['isEliminated'] = $isSurrendered;
             }
             $teams[(string) $teamId] = $teamData;
         }
@@ -417,7 +427,7 @@ class FirebaseGameSyncService
             $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups', 'sessionAnswers');
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsDataWithStats($session, true);
-            $stage = $this->buildStageData($session->room);
+            $stage = $this->buildStageData($session->room, $session);
 
             $questionIds = $session->question_ids ?? [];
             $remainingCount = max(0, count($questionIds) - $session->current_round);

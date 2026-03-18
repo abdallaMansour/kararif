@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Adventurer;
+use App\Models\RoomPlayer;
 use App\Models\User;
 use App\Utils\ImageUpload;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -75,5 +77,50 @@ class UserService
 
         $user->refresh();
         return $user;
+    }
+
+    /**
+     * Returns wins and losses count for a user/adventurer based on finished game sessions.
+     * Win = player's team had the highest score in that session; otherwise loss.
+     *
+     * @param User|Adventurer $user
+     * @return array{wins: int, losses: int}
+     */
+    public function getWinsLosses(User|Adventurer $user): array
+    {
+        $query = RoomPlayer::whereHas('room', function ($q) {
+            $q->whereHas('gameSessions', fn ($s) => $s->where('status', 'finished'));
+        });
+
+        if ($user instanceof Adventurer) {
+            $query->where('adventurer_id', $user->id);
+        } else {
+            $query->where('user_id', $user->id);
+        }
+
+        $roomPlayers = $query->with([
+            'room.roomPlayers',
+            'room.gameSessions' => fn ($q) => $q->where('status', 'finished')->latest()->limit(1),
+        ])->get();
+
+        $wins = 0;
+        $losses = 0;
+
+        foreach ($roomPlayers as $rp) {
+            $session = $rp->room->gameSessions->first();
+            if (!$session) {
+                continue;
+            }
+            $byTeam = $rp->room->roomPlayers->groupBy('team_id')->map(fn ($players) => $players->sum('score'));
+            $maxScore = $byTeam->max();
+            $myTeamScore = $byTeam->get((string) $rp->team_id, 0);
+            if ($maxScore !== null && $myTeamScore >= $maxScore && $maxScore > 0) {
+                $wins++;
+            } else {
+                $losses++;
+            }
+        }
+
+        return ['wins' => $wins, 'losses' => $losses];
     }
 }

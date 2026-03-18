@@ -139,7 +139,21 @@ class GameController extends Controller
 
         $user->decrement('available_sessions');
 
+        // Creator joins immediately as team 1 leader
+        $creatorPlayerData = [
+            'room_id' => $room->id,
+            'team_id' => 1,
+            'is_leader' => true,
+        ];
+        if ($user instanceof Adventurer) {
+            $creatorPlayerData['adventurer_id'] = $user->id;
+        } else {
+            $creatorPlayerData['user_id'] = $user->id;
+        }
+        RoomPlayer::create($creatorPlayerData);
+
         $this->firebaseSync->syncRoom($room);
+        $this->firebaseSync->syncRoomPlayers($room->fresh());
 
         $teamsData = [];
         for ($i = 1; $i <= $teams; $i++) {
@@ -423,7 +437,7 @@ class GameController extends Controller
             'questionStartedAt' => $session->question_started_at?->timestamp ? (int) ($session->question_started_at->timestamp * 1000) : null,
             'startTimerEndsAt' => $session->start_timer_ends_at?->timestamp ? (int) ($session->start_timer_ends_at->timestamp * 1000) : null,
             'teams' => $teams,
-            'stage' => $this->firebaseSync->getStageDataForRoom($session->room),
+            'stage' => $this->firebaseSync->getStageDataForRoom($session->room, $session),
         ];
         if ($session->status === 'paused') {
             $lastAnswer = $session->sessionAnswers()->latest('id')->first();
@@ -579,7 +593,10 @@ class GameController extends Controller
         }
 
         $room = $session->room()->with('roomPlayers')->first();
-        $leaders = $room->roomPlayers->where('is_leader', true);
+        $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
+        $leaders = $room->roomPlayers->where('is_leader', true)->reject(
+            fn ($rp) => in_array((string) $rp->team_id, $surrenderedTeamIds, true)
+        );
         $leaderIds = $leaders->pluck('id');
 
         $questionIds = $session->question_ids ?? [];
@@ -597,8 +614,8 @@ class GameController extends Controller
             $allLeadersAnswered = $answeredLeaderIds->count() >= $leaderIds->count();
         }
 
-        // For life-points stages, treat missing answers as wrong (lose 1 life on timeout)
-        $stageType = $room->subcategory?->stage?->stage_type;
+        // For life-points stages, treat missing answers as wrong (lose 1 life on timeout); skip surrendered teams
+        $stageType = $this->gameService->getEffectiveStageType($room, $session, $this->gameService->getCurrentRoundNumber($session));
         if ($questionId && $stageType === \App\Models\Stage::TYPE_LIFE_POINTS) {
             foreach ($leaders as $leader) {
                 $alreadyAnswered = SessionAnswer::where('game_session_id', $session->id)
@@ -630,7 +647,7 @@ class GameController extends Controller
 
     public function surrender(int $sessionId): JsonResponse
     {
-        $session = GameSession::find($sessionId);
+        $session = GameSession::with('room.roomPlayers')->find($sessionId);
         if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
@@ -648,16 +665,31 @@ class GameController extends Controller
 
         $user->increment('surrender_count');
 
-        // When any player surrenders, the whole team loses and the session ends.
         $surrenderingTeamId = $roomPlayer->team_id;
+        $distinctTeamCount = $session->room->roomPlayers->pluck('team_id')->unique()->filter()->count();
 
-        // Mark session and room as finished
+        if ($distinctTeamCount > 2) {
+            // Multi-team: mark this team as surrendered; others continue
+            $surrenderedIds = $session->surrendered_team_ids ?? [];
+            $surrenderedIds[] = (string) $surrenderingTeamId;
+            $surrenderedIds = array_values(array_unique($surrenderedIds));
+            $session->update(['surrendered_team_ids' => $surrenderedIds]);
+            $this->firebaseSync->syncScores($session->fresh());
+
+            return ApiResponse::success([
+                'sessionId' => (string) $session->id,
+                'endedBySurrender' => false,
+                'surrenderingTeamId' => (string) $surrenderingTeamId,
+                'message' => 'تم استسلام فريقك. تستمر الفرق الأخرى في اللعب.',
+            ], null, 200);
+        }
+
+        // Two teams or fewer: session ends, non-surrendering team wins
         $session->update(['status' => 'finished']);
         $session->room?->update(['status' => 'finished']);
 
         $this->gameService->updatePointsForFinishedSession($session->fresh());
 
-        // Build scores similar to getResult()
         $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
         $byTeam = $session->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
             $first = $players->first();
@@ -671,7 +703,6 @@ class GameController extends Controller
             ];
         })->values()->all();
 
-        // All teams except the surrendering team are considered winners
         $winnerIds = collect($byTeam)
             ->pluck('teamId')
             ->reject(fn ($id) => (int) $id === (int) $surrenderingTeamId)

@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "0b930eb7-af54-4824-9a8e-dcce5bdcf9ed",
     "name": "Khararif API",
-    "description": "App: auth, user (profile, avatar, balance, games), game (question-types/categories/subcategories with counts, rooms, sessions), content, payment (packages, initiate, coupons/apply). Dashboard: login, types/categories/subcategories/questions/avatars/packages/coupons CRUD. Response shapes: types include categories_count; categories include type_name, questions_count; subcategories include category_name, questions_count; questions include type_name.",
+    "description": "App: auth, user (profile with stats.wins/losses/surrender_count, avatar, balance, games), game (create-room with rounds/questionsCount, creator auto-joins as team 1; leave/exit before session; surrender: 2 teams=end game, 3+ teams=team eliminated, others continue; Firebase teams[].surrendered). Content, payment. Dashboard: login, CRUD. Profile stats and surrender_count are returned correctly from GET /api/user/profile.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "30751441"
   },
@@ -556,6 +556,7 @@
         {
           "name": "Create Room",
           "request": {
+            "description": "Creates a room and joins the creator immediately as team 1 leader. Body: questionType, mainCategoryId, subCategoryId, title (optional), questionsCount or rounds (e.g. questionsCount=20, rounds=2 => 10 questions per round), teams, players.",
             "method": "POST",
             "header": [
               {
@@ -575,7 +576,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"questionType\": 5,\n  \"mainCategoryId\": 5,\n  \"subCategoryId\": 4,\n  \"title\": \"غرفتي\",\n  \"questionsCount\": 5,\n  \"teams\": 2,\n  \"players\": 4\n}"
+              "raw": "{\n  \"questionType\": 5,\n  \"mainCategoryId\": 5,\n  \"subCategoryId\": 4,\n  \"title\": \"غرفتي\",\n  \"questionsCount\": 20,\n  \"rounds\": 2,\n  \"teams\": 2,\n  \"players\": 4\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/game/create-room",
@@ -648,6 +649,7 @@
         {
           "name": "Leave Room",
           "request": {
+            "description": "Leave the room before the session starts (room status must be 'waiting'). After game start, use Surrender instead.",
             "method": "POST",
             "header": [
               {
@@ -666,6 +668,33 @@
                 "room",
                 "3",
                 "leave"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Exit Room",
+          "request": {
+            "description": "Alias for Leave Room. Use to exit the room before the session starts (same as POST room/{roomId}/leave).",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/game/room/3/exit",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "game",
+                "room",
+                "3",
+                "exit"
               ]
             }
           },
@@ -884,6 +913,7 @@
         {
           "name": "Surrender",
           "request": {
+            "description": "Two teams: session ends, non-surrendering team wins. More than two teams: surrendering team is marked eliminated (surrendered_team_ids on session, teams[].surrendered in Firebase); other teams continue until session ends normally.",
             "method": "POST",
             "header": [
               {
