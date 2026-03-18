@@ -386,9 +386,6 @@ class GameController extends Controller
         if (!$room) {
             return ApiResponse::error('الغرفة غير موجودة', 404);
         }
-        if ($room->status !== 'waiting') {
-            return ApiResponse::error('لا يمكن المغادرة بعد بدء اللعبة. استخدم الاستسلام لإنهاء المغامرة.', 400);
-        }
 
         $user = auth()->user();
         $roomPlayer = $user instanceof Adventurer
@@ -397,6 +394,68 @@ class GameController extends Controller
 
         if (!$roomPlayer) {
             return ApiResponse::error('أنت غير مشارك في هذه الغرفة', 403);
+        }
+
+        // Allow "exit & kick all" only before the session is actually playing on TV.
+        // This covers the case where a session row exists (status=starting) but not all players joined TV yet.
+        $activeSession = $room->gameSessions()
+            ->whereIn('status', ['waiting', 'starting', 'playing', 'paused'])
+            ->latest()
+            ->first();
+
+        $allPlayersJoinedTv = $room->roomPlayers()->count() > 0
+            && $room->roomPlayers()->whereNull('tv_view_joined_at')->count() === 0;
+
+        $creatorId = $room->created_by ?? null;
+        $creatorAdventurerId = $room->created_by_adventurer_id ?? null;
+        $isCreator = ($user instanceof Adventurer)
+            ? ($creatorAdventurerId !== null && (int) $creatorAdventurerId === (int) $user->id)
+            : ($creatorId !== null && (int) $creatorId === (int) $user->id);
+
+        $canKickAll = $isCreator
+            && $activeSession
+            && in_array($activeSession->status, ['waiting', 'starting'], true)
+            && !$allPlayersJoinedTv;
+
+        // Default behavior: allow leaving only while room is waiting.
+        if ($room->status !== 'waiting' && !$canKickAll) {
+            return ApiResponse::error('لا يمكن المغادرة بعد بدء اللعبة. استخدم الاستسلام لإنهاء المغامرة.', 400);
+        }
+
+        if ($canKickAll) {
+            // Kick everyone and invalidate the room since the session hasn't started on TV yet.
+            $room->roomPlayers()->delete();
+
+            if ($activeSession) {
+                $activeSession->update(['status' => 'finished']);
+                $this->firebaseSync->syncSessionEnd($activeSession->fresh());
+            }
+
+            $room->update([
+                'status' => 'finished',
+                'expires_at' => now(),
+            ]);
+
+            // Unlink any linked TV display to avoid leaving it attached to a dead room.
+            $display = TvDisplay::where('room_id', $room->id)->where('status', TvDisplay::STATUS_LINKED)->first();
+            if ($display) {
+                $display->update([
+                    'room_id' => null,
+                    'status' => TvDisplay::STATUS_WAITING,
+                    'expires_at' => now()->addMinutes(15),
+                ]);
+                $this->firebaseSync->syncTvDisplay($display->fresh());
+            }
+
+            $this->firebaseSync->syncRoom($room->fresh());
+            $this->firebaseSync->syncRoomPlayers($room->fresh());
+
+            return ApiResponse::success([
+                'left' => true,
+                'roomId' => (string) $room->id,
+                'kickedAll' => true,
+                'message' => 'تم إنهاء الغرفة وإخراج جميع اللاعبين قبل بدء الجلسة على التلفزيون',
+            ]);
         }
 
         $roomPlayer->delete();
