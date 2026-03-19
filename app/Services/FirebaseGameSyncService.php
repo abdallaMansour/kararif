@@ -271,12 +271,13 @@ class FirebaseGameSyncService
 
     private function buildStageData(Room $room, ?GameSession $session = null): ?array
     {
+        $room->loadMissing('subcategory.stage');
         $subcategory = $room->subcategory;
         if (!$subcategory) {
             return null;
         }
 
-        // Case 1: subcategory is explicitly linked to a stage
+        // Case 1: subcategory is explicitly linked to a stage — return stage with video links
         if ($subcategory->use_stage && $subcategory->stage_id && $subcategory->stage) {
             $stage = $subcategory->stage;
             $stage->load('questionGroups');
