@@ -44,8 +44,8 @@ class QuestionRequest extends FormRequest
             $rules['voice'] = ['nullable', 'file', 'mimetypes:audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm'];
         }
         if ($kind === Question::KIND_VIDEO) {
-            // NOTE: max is in KB -> 51200 KB = 50 MB
-            $rules['video'] = ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/ogg,video/quicktime', 'max:51200'];
+            // NOTE: max is in KB -> 71680 KB = 70 MB
+            $rules['video'] = ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/ogg,video/quicktime', 'max:71680'];
         }
 
         return $rules;

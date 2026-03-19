@@ -30,6 +30,7 @@ class ContactUsResource extends JsonResource
             'source' => $this->source ?? null,
             'sourceLabel' => $sourceLabels[$this->source ?? ''] ?? ($this->source ?? '—'),
             'is_read' => $this->is_read ?? false,
+            'created_at' => $this->created_at?->toIso8601String(),
         ];
     }
 }
