@@ -31,6 +31,10 @@ class AppLoginController extends Controller
             'phone' => $user->phone,
             'avatar' => $user->avatarRelation ? ['id' => (string) $user->avatarRelation->id, 'name' => $user->avatarRelation->name, 'image' => $user->avatarRelation->image_url] : null,
             'badge' => null,
+            'country' => [
+                'label' => $user->country_label ?? null,
+                'code' => $user->country_code ?? null,
+            ],
         ];
 
         return ApiResponse::success([

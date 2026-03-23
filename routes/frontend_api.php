@@ -8,6 +8,9 @@ use App\Http\Controllers\User\UserController;
 use App\Http\Controllers\Game\GameController;
 use App\Http\Controllers\Game\TvDisplayController;
 
+// Countries (public, for registration/filter dropdowns)
+Route::get('countries', [\App\Http\Controllers\CountryController::class, 'index']);
+
 // Auth (frontend/app paths)
 Route::prefix('auth')->group(function () {
     // App/adventurer login: ApiResponse shape

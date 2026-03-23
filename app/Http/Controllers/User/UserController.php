@@ -5,6 +5,7 @@ namespace App\Http\Controllers\User;
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Users\AssignAvatarRequest;
+use Illuminate\Support\Facades\DB;
 use App\Http\Requests\Users\ChangeImageRequest;
 use App\Http\Requests\Users\ChangePasswordRequest;
 use App\Http\Requests\Users\ChangeUserInfoRequest;
@@ -107,12 +108,37 @@ class UserController extends Controller
         $user = auth()->guard('sanctum')->user();
         $limit = (int) request('limit', 10);
         $page = (int) request('page', 1);
+        $countryCodeFilter = request('country_code');
 
         $roomPlayerQuery = $user instanceof \App\Models\Adventurer
             ? RoomPlayer::where('adventurer_id', $user->id)
             : RoomPlayer::where('user_id', $user->id);
+        $roomPlayerQuery
+            ->whereHas('room', fn ($q) => $q->whereHas('gameSessions', fn ($s) => $s->where('status', 'finished')));
+
+        if ($countryCodeFilter) {
+            $roomPlayerQuery->whereExists(function ($q) use ($countryCodeFilter) {
+                $q->select(DB::raw(1))
+                    ->from('room_players as opp')
+                    ->whereColumn('opp.room_id', 'room_players.room_id')
+                    ->whereColumn('opp.id', '!=', 'room_players.id')
+                    ->where(function ($sub) use ($countryCodeFilter) {
+                        $sub->whereExists(function ($ue) use ($countryCodeFilter) {
+                            $ue->select(DB::raw(1))
+                                ->from('users')
+                                ->whereColumn('users.id', 'opp.user_id')
+                                ->where('users.country_code', $countryCodeFilter);
+                        })->orWhereExists(function ($ae) use ($countryCodeFilter) {
+                            $ae->select(DB::raw(1))
+                                ->from('adventurers')
+                                ->whereColumn('adventurers.id', 'opp.adventurer_id')
+                                ->where('adventurers.country_code', $countryCodeFilter);
+                        });
+                    });
+            });
+        }
+
         $roomPlayers = $roomPlayerQuery
-            ->whereHas('room', fn ($q) => $q->whereHas('gameSessions', fn ($s) => $s->where('status', 'finished')))
             ->with(['room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.gameSessions' => fn ($q) => $q->where('status', 'finished')])
             ->orderByDesc('joined_at')
             ->paginate($limit, ['*'], 'page', $page);
@@ -137,7 +163,12 @@ class UserController extends Controller
                 $result = $myTeamScore >= $maxScore ? 'win' : 'loss';
             }
             $opponent = $rp->room->roomPlayers->where('id', '!=', $rp->id)->first();
-            $opponentName = ($opponent->adventurer ?? $opponent->user)?->name ?? null;
+            $opponentEntity = $opponent?->adventurer ?? $opponent?->user;
+            $opponentName = $opponentEntity?->name ?? null;
+            $opponentCountry = $opponentEntity ? [
+                'label' => $opponentEntity->country_label ?? null,
+                'code' => $opponentEntity->country_code ?? null,
+            ] : null;
             $rankLabel = match ($userRank) {
                 1 => 'أول',
                 2 => 'ثاني',
@@ -153,6 +184,7 @@ class UserController extends Controller
                 'userRank' => $rankLabel,
                 'score' => $myScore,
                 'opponent' => $opponentName,
+                'opponentCountry' => $opponentCountry,
             ];
         })->values();
 

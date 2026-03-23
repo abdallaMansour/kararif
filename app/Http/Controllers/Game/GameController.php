@@ -223,14 +223,21 @@ class GameController extends Controller
             ],
             'teams' => $teamCodes,
             'stage' => $this->firebaseSync->getStageDataForRoom($room),
-            'players' => $room->roomPlayers->map(fn ($rp) => [
-                'playerId' => (string) $rp->id,
-                'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
-                'userName' => ($rp->adventurer ?? $rp->user)?->name ?? 'Player',
-                'teamId' => (string) $rp->team_id,
-                'teamCode' => 'K' . $rp->team_id,
-                'isLeader' => (bool) $rp->is_leader,
-            ])->values()->all(),
+            'players' => $room->roomPlayers->map(function ($rp) {
+                $entity = $rp->adventurer ?? $rp->user;
+                return [
+                    'playerId' => (string) $rp->id,
+                    'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
+                    'userName' => $entity?->name ?? 'Player',
+                    'country' => $entity ? [
+                        'label' => $entity->country_label ?? null,
+                        'code' => $entity->country_code ?? null,
+                    ] : null,
+                    'teamId' => (string) $rp->team_id,
+                    'teamCode' => 'K' . $rp->team_id,
+                    'isLeader' => (bool) $rp->is_leader,
+                ];
+            })->values()->all(),
         ];
         return ApiResponse::success($data);
     }
