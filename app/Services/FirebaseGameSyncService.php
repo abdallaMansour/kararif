@@ -309,9 +309,41 @@ class FirebaseGameSyncService
             ];
         }
 
-        // Case 2: no stage linked -> virtual stage with effective type (alternates by round / creator session count)
+        // Case 2: no stage linked -> use random stage per round (from round_stage_ids) if available
         $gameService = app(GameService::class);
         $currentRoundNumber = $session ? $gameService->getCurrentRoundNumber($session) : 1;
+        $stage = $gameService->getEffectiveStageForRound($room, $session, $currentRoundNumber);
+
+        if ($stage) {
+            $stage->load('questionGroups');
+            $questionGroups = $stage->questionGroups->sortBy('sort_order')->values()->map(function ($g) {
+                return [
+                    'id' => (int) $g->id,
+                    'sort_order' => (int) $g->sort_order,
+                    'start_video' => $g->getFirstMediaUrl('start_video'),
+                    'end_video' => $g->getFirstMediaUrl('end_video'),
+                    'correct_answer_video' => $g->getFirstMediaUrl('correct_answer_video'),
+                    'wrong_answer_video' => $g->getFirstMediaUrl('wrong_answer_video'),
+                ];
+            })->all();
+
+            return [
+                'id' => (int) $stage->id,
+                'name' => $stage->name,
+                'stage_type' => $stage->stage_type,
+                'question_groups_count' => (int) ($stage->question_groups_count ?? 0),
+                'number_of_questions' => (int) ($stage->number_of_questions ?? 0),
+                'life_points_per_question' => $stage->life_points_per_question !== null ? (float) $stage->life_points_per_question : null,
+                'start_video' => $stage->getFirstMediaUrl('start_video'),
+                'end_video' => $stage->getFirstMediaUrl('end_video'),
+                'lunch_video' => $stage->getFirstMediaUrl('lunch_video'),
+                'correct_answer_video' => $stage->getFirstMediaUrl('correct_answer_video'),
+                'wrong_answer_video' => $stage->getFirstMediaUrl('wrong_answer_video'),
+                'question_groups' => $questionGroups,
+            ];
+        }
+
+        // Fallback when no stages exist in DB: virtual stage
         $effectiveStageType = $gameService->getEffectiveStageType($room, $session, $currentRoundNumber);
         $questionsCount = (int) ($room->questions_count ?? $room->rounds ?? 0);
 

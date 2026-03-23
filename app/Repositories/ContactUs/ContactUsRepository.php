@@ -44,9 +44,11 @@ class ContactUsRepository
             ]);
             DB::commit();
 
-            $mainEmail = Setting::where('key', 'email')->value('value');
-            if ($mainEmail) {
-                Mail::to($mainEmail)->send(new ContactMessageMail($contact));
+            $adminEmail = config('mail.contact_admin_email')
+                ?? config('mail.from.address')
+                ?? config('mail.mailers.smtp.username');
+            if ($adminEmail) {
+                Mail::to($adminEmail)->send(new ContactMessageMail($contact));
             }
 
             return response()->json(['success' => true, 'message' => 'تم استلام رسالتك وسنتواصل معك قريباً']);

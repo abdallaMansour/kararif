@@ -416,6 +416,48 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Get Scoreboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Leaderboard of adventurers by lifetime_score. Query: per_page, country_code (SA, AE, EG, or 'all').",
+            "url": {
+              "raw": "{{base_url}}/api/scoreboard?per_page=50&country_code=SA",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "scoreboard"
+              ],
+              "query": [
+                {"key": "per_page", "value": "50"},
+                {"key": "country_code", "value": "SA"}
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Countries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "List of countries (code, label) for registration and filters.",
+            "url": {
+              "raw": "{{base_url}}/api/countries",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "countries"
+              ]
+            }
+          },
+          "response": []
         }
       ],
       "auth": {
@@ -1174,6 +1216,7 @@
           "request": {
             "method": "GET",
             "header": [],
+            "description": "Returns leaderboard of adventurers ordered by lifetime_score DESC. Query: per_page (default 50), country_code (e.g. SA, AE, EG, or 'all' for no filter).",
             "url": {
               "raw": "{{base_url}}/api/scoreboard?per_page=50&country_code=SA",
               "host": [
@@ -1186,6 +1229,25 @@
               "query": [
                 {"key": "per_page", "value": "50"},
                 {"key": "country_code", "value": "SA"}
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Countries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Returns list of countries (code, label) for registration dropdowns and filters.",
+            "url": {
+              "raw": "{{base_url}}/api/countries",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "countries"
               ]
             }
           },

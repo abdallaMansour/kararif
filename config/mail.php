@@ -105,6 +105,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Contact Form Admin Email (recipient for /api/contact messages)
+    |--------------------------------------------------------------------------
+    | Fallback: MAIL_FROM_ADDRESS, then MAIL_USERNAME.
+    */
+    'contact_admin_email' => env('CONTACT_ADMIN_EMAIL') ?? env('MAIL_FROM_ADDRESS') ?? env('MAIL_USERNAME'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Markdown Mail Settings
     |--------------------------------------------------------------------------
     |

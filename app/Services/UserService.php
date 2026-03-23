@@ -100,7 +100,7 @@ class UserService
 
         $roomPlayers = $query->with([
             'room.roomPlayers',
-            'room.gameSessions' => fn ($q) => $q->where('status', 'finished')->latest()->limit(1),
+            'room.gameSessions' => fn ($q) => $q->where('status', 'finished')->latest('id')->limit(1),
         ])->get();
 
         // Safety: avoid counting the same room twice for any reason.
@@ -114,18 +114,38 @@ class UserService
             if (!$session) {
                 continue;
             }
-            $byTeam = $rp->room->roomPlayers->groupBy('team_id')->map(fn ($players) => $players->sum('score'));
-            $maxScore = $byTeam->max();
-            $myTeamScore = $byTeam->get((string) $rp->team_id, 0);
+            $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
 
-            // If it's effectively a solo/one-team session, treat it as a win.
-            if ($byTeam->count() <= 1) {
+            // Exclude surrendered teams from ranking (they lost)
+            $activeTeamScores = $rp->room->roomPlayers
+                ->groupBy('team_id')
+                ->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
+                ->map(fn ($players) => $players->sum('score'));
+
+            if (in_array((string) $rp->team_id, $surrenderedTeamIds, true)) {
+                $losses++;
+                continue;
+            }
+
+            if ($activeTeamScores->count() <= 1) {
                 $wins++;
                 continue;
             }
 
-            // Win = my team has the highest score (ties count as win).
-            if ($maxScore !== null && $myTeamScore >= $maxScore) {
+            // Win = first place only; rank by score (ties for first both win)
+            $sortedByScore = $activeTeamScores->sortByDesc(fn ($s) => $s);
+            $prevScore = null;
+            $rank = 0;
+            $teamRanks = [];
+            foreach ($sortedByScore as $tid => $score) {
+                if ($prevScore === null || $score < $prevScore) {
+                    $rank++;
+                }
+                $teamRanks[(string) $tid] = $rank;
+                $prevScore = $score;
+            }
+            $myRank = $teamRanks[(string) $rp->team_id] ?? $rank + 1;
+            if ($myRank === 1) {
                 $wins++;
             } else {
                 $losses++;

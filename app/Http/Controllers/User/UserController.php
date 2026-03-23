@@ -139,28 +139,53 @@ class UserController extends Controller
         }
 
         $roomPlayers = $roomPlayerQuery
-            ->with(['room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.gameSessions' => fn ($q) => $q->where('status', 'finished')])
+            ->with([
+                'room.roomPlayers.user',
+                'room.roomPlayers.adventurer',
+                'room.gameSessions' => fn ($q) => $q->where('status', 'finished')->latest('id'),
+            ])
             ->orderByDesc('joined_at')
             ->paginate($limit, ['*'], 'page', $page);
 
         $resultFilter = request('result'); // win|loss
         $rankFilter = request('rank'); // 1|2|3
         $games = collect($roomPlayers->items())->map(function (RoomPlayer $rp) {
-            $session = $rp->room->gameSessions->first();
+            $session = $rp->room->gameSessions->sortByDesc('id')->first();
+            $surrenderedTeamIds = array_map('strval', $session?->surrendered_team_ids ?? []);
+
             $roomName = $rp->room->title ?: $rp->room->type?->name ?: ($rp->room->category?->name ?? 'مغامرة');
             $myScore = $rp->score;
-            $playersByScore = $rp->room->roomPlayers->sortByDesc('score')->values();
-            $myRank = $playersByScore->search(fn ($p) => $p->id === $rp->id) + 1;
             $myTeamId = $rp->team_id;
-            $teamScores = $rp->room->roomPlayers->groupBy('team_id')->map(fn ($pls) => $pls->sum('score'));
-            $sortedTeams = $teamScores->sortByDesc(fn ($s) => $s)->keys()->values();
-            $teamRank = $sortedTeams->search($myTeamId) + 1;
+
+            // Exclude surrendered teams from ranking (they lost by surrendering)
+            $activeTeamScores = $rp->room->roomPlayers
+                ->groupBy('team_id')
+                ->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
+                ->map(fn ($pls) => $pls->sum('score'));
+
+            // Rank teams by score descending; teams with same score share the same rank
+            $sortedByScore = $activeTeamScores->sortByDesc(fn ($s) => $s);
+            $prevScore = null;
+            $rank = 0;
+            $teamRanks = [];
+            foreach ($sortedByScore as $tid => $score) {
+                if ($prevScore === null || $score < $prevScore) {
+                    $rank++;
+                }
+                $teamRanks[$tid] = $rank;
+                $prevScore = $score;
+            }
+            $teamRank = $teamRanks[$myTeamId] ?? $rank + 1;
             $userRank = $teamRank;
+
+            // Win only for first place; ties for first both win
             $result = 'draw';
-            if ($teamScores->count() > 1) {
-                $maxScore = $teamScores->max();
-                $myTeamScore = $teamScores->get($myTeamId, 0);
-                $result = $myTeamScore >= $maxScore ? 'win' : 'loss';
+            if (in_array((string) $myTeamId, $surrenderedTeamIds, true)) {
+                $result = 'loss';
+            } elseif ($activeTeamScores->count() > 1) {
+                $result = $teamRank === 1 ? 'win' : 'loss';
+            } elseif ($activeTeamScores->count() === 1) {
+                $result = 'win';
             }
             $opponent = $rp->room->roomPlayers->where('id', '!=', $rp->id)->first();
             $opponentEntity = $opponent?->adventurer ?? $opponent?->user;

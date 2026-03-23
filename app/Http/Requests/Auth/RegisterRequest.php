@@ -5,6 +5,7 @@ namespace App\Http\Requests\Auth;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Validation\Rule;
 
 class RegisterRequest extends FormRequest
 {
@@ -19,7 +20,7 @@ class RegisterRequest extends FormRequest
             'fullName' => 'required|string|max:255',
             'username' => 'nullable|string|max:255|unique:adventurers,username',
             'email' => 'required|email|unique:adventurers,email',
-            'phone' => 'nullable|string|max:20|unique:adventurers,phone',
+            'phone' => ['nullable', 'string', 'max:20', Rule::unique('adventurers', 'phone')->whereNotNull('phone')],
             'password' => 'required|string|size:4|confirmed',
             'countryLabel' => 'nullable|string|max:255',
             'countryCode' => 'nullable|string|max:10',

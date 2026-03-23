@@ -139,8 +139,8 @@ class GameService
 
     /**
      * Effective stage type for the room (and optional current round).
-     * When subcategory has no linked stage, alternates between questions_group and life_points by round,
-     * with round 1 type determined by creator's previous finished session count for this subcategory.
+     * When subcategory has no linked stage: uses random stage per round (round_stage_ids),
+     * or falls back to alternating questions_group/life_points if no stages exist in DB.
      */
     public function getEffectiveStageType(Room $room, ?GameSession $session = null, ?int $currentRoundNumber = null): string
     {
@@ -151,10 +151,61 @@ class GameService
         }
 
         $roundNumber = $currentRoundNumber ?? ($session ? $this->getCurrentRoundNumber($session) : 1);
+        $stage = $this->getEffectiveStageForRound($room, $session, $roundNumber);
+        if ($stage) {
+            return $stage->stage_type;
+        }
+
+        // Fallback when no stages exist in DB: alternate by round
         $creatorCount = $this->getCreatorFinishedSessionsCountForSubcategory($room, $session);
         $startWithQuestionsGroup = ($creatorCount % 2) === 0;
         $typeIndex = ($startWithQuestionsGroup ? 0 : 1) + ($roundNumber - 1);
         return ($typeIndex % 2) === 0 ? Stage::TYPE_QUESTIONS_GROUP : Stage::TYPE_LIFE_POINTS;
+    }
+
+    /**
+     * When subcategory has no linked stage: returns the Stage model for the given round.
+     * Uses round_stage_ids from session (random stage per round). Returns null if no stages exist.
+     */
+    public function getEffectiveStageForRound(Room $room, ?GameSession $session, int $roundNumber): ?Stage
+    {
+        $room->loadMissing('subcategory.stage');
+        $subcategory = $room->subcategory;
+        if ($subcategory && $subcategory->use_stage && $subcategory->stage_id && $subcategory->stage) {
+            return $subcategory->stage;
+        }
+
+        $roundStageIds = $session?->round_stage_ids ?? [];
+        $stageId = $roundStageIds[(string) $roundNumber] ?? $roundStageIds[$roundNumber] ?? null;
+        if ($stageId) {
+            return Stage::find($stageId);
+        }
+        return null;
+    }
+
+    /**
+     * Compute random stage IDs for each round when subcategory has no linked stage.
+     * Returns associative array: ["1" => stageId, "2" => stageId, ...]
+     */
+    public function computeRoundStageIds(Room $room): ?array
+    {
+        $room->loadMissing('subcategory.stage');
+        $subcategory = $room->subcategory;
+        if ($subcategory && $subcategory->use_stage && $subcategory->stage_id) {
+            return null;
+        }
+
+        $roundsCount = max(1, (int) ($room->rounds ?? 1));
+        $stageIds = Stage::where('status', true)->pluck('id')->toArray();
+        if (empty($stageIds)) {
+            return null;
+        }
+
+        $result = [];
+        for ($r = 1; $r <= $roundsCount; $r++) {
+            $result[(string) $r] = $stageIds[array_rand($stageIds)];
+        }
+        return $result;
     }
 
     public function getOrCreateSession(Room $room): GameSession
@@ -194,12 +245,15 @@ class GameService
         $countdownSeconds = config('game.start_countdown_seconds', 5);
         $startTimerEndsAt = now()->addSeconds($countdownSeconds);
 
+        $roundStageIds = $this->computeRoundStageIds($room);
+
         $payload = [
             'status' => 'starting',
             'started_at' => now(),
             'start_timer_ends_at' => $startTimerEndsAt,
             'question_started_at' => null,
             'question_ids' => $questionIds,
+            'round_stage_ids' => $roundStageIds,
         ];
 
         if ($session) {
