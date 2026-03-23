@@ -109,14 +109,6 @@ class GameController extends Controller
     public function createRoom(CreateRoomRequest $request): JsonResponse
     {
         $user = auth()->user();
-        if (($user->available_sessions ?? 0) < 1) {
-            return ApiResponse::error('لا توجد جلسات لعبة متاحة. يرجى شراء حزمة للاستمرار.', 403);
-        }
-
-        $code = $this->gameService->generateRoomCode();
-        $teams = (int) $request->input('teams', 2);
-        $playersPerTeam = (int) $request->input('players', 2);
-        $totalPlayers = $playersPerTeam * $teams;
 
         // IMPORTANT:
         // - `rounds` is the number of rounds (split of the full questions list)
@@ -132,6 +124,16 @@ class GameController extends Controller
             $questionsCount = (int) ($roundsCountInput ?? 5);
             $rounds = 1;
         }
+
+        $sessionCost = max(1, $rounds);
+        if (($user->available_sessions ?? 0) < $sessionCost) {
+            return ApiResponse::error('لا توجد جلسات لعبة متاحة. كل جولة إضافية تحتاج جلسة واحدة. يرجى شراء حزمة للاستمرار.', 403);
+        }
+
+        $code = $this->gameService->generateRoomCode();
+        $teams = (int) $request->input('teams', 2);
+        $playersPerTeam = (int) $request->input('players', 2);
+        $totalPlayers = $playersPerTeam * $teams;
 
         $roomData = [
             'code' => $code,
@@ -152,7 +154,7 @@ class GameController extends Controller
         }
         $room = Room::create($roomData);
 
-        $user->decrement('available_sessions');
+        $user->decrement('available_sessions', $sessionCost);
 
         // Creator joins immediately as team 1 leader
         $creatorPlayerData = [
