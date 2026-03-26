@@ -11,14 +11,17 @@ class Room extends Model
 {
     protected $fillable = [
         'code',
+        'is_custom',
         'type_id',
         'created_by_adventurer_id',
         'category_id',
         'subcategory_id',
+        'custom_category_id',
         'created_by',
         'title',
         'rounds',
         'questions_count',
+        'life_points',
         'teams',
         'players',
         'status',
@@ -27,6 +30,7 @@ class Room extends Model
 
     protected $casts = [
         'expires_at' => 'datetime',
+        'is_custom' => 'boolean',
     ];
 
     public function type(): BelongsTo
@@ -42,6 +46,11 @@ class Room extends Model
     public function subcategory(): BelongsTo
     {
         return $this->belongsTo(Subcategory::class);
+    }
+
+    public function customCategory(): BelongsTo
+    {
+        return $this->belongsTo(CustomCategory::class, 'custom_category_id');
     }
 
     public function creator(): BelongsTo

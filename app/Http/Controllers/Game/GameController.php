@@ -6,6 +6,7 @@ use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Game\ValidateCodeRequest;
 use App\Http\Requests\Game\CreateRoomRequest;
+use App\Http\Requests\Game\CreateCustomRoomRequest;
 use App\Http\Requests\Game\JoinRoomRequest;
 use App\Http\Requests\Game\SubmitAnswerRequest;
 use App\Http\Requests\Game\LinkTvRequest;
@@ -17,7 +18,10 @@ use App\Models\TvDisplay;
 use App\Models\Type;
 use App\Models\User;
 use App\Models\Category;
+use App\Models\CustomCategory;
+use App\Models\CustomQuestion;
 use App\Models\Subcategory;
+use App\Models\Stage;
 use App\Services\FirebaseGameSyncService;
 use App\Services\GameService;
 use Illuminate\Http\JsonResponse;
@@ -188,6 +192,109 @@ class GameController extends Controller
         ], null, 201);
     }
 
+    public function createCustomRoom(CreateCustomRoomRequest $request): JsonResponse
+    {
+        $user = auth()->user();
+        $category = CustomCategory::ownedBy($user)->find((int) $request->input('customCategoryId'));
+        if (!$category) {
+            return ApiResponse::error('Custom category not found for this owner.', 422);
+        }
+
+        $availableQuestions = CustomQuestion::ownedBy($user)
+            ->where('custom_category_id', $category->id)
+            ->where('status', true)
+            ->count();
+        if ($availableQuestions <= 0) {
+            return ApiResponse::error('This custom category has no active questions.', 422);
+        }
+
+        $questionsCountInput = $request->input('questionsCount');
+        $roundsCountInput = $request->input('rounds');
+        if ($questionsCountInput !== null) {
+            $questionsCount = (int) $questionsCountInput;
+            $rounds = (int) ($roundsCountInput ?? 1);
+        } else {
+            $questionsCount = (int) ($roundsCountInput ?? 5);
+            $rounds = 1;
+        }
+        $questionsCount = max(1, min($questionsCount, $availableQuestions));
+
+        $sessionCost = max(1, $rounds);
+        if (($user->available_sessions ?? 0) < $sessionCost) {
+            return ApiResponse::error('لا توجد جلسات لعبة متاحة. كل جولة إضافية تحتاج جلسة واحدة. يرجى شراء حزمة للاستمرار.', 403);
+        }
+
+        $code = $this->gameService->generateRoomCode();
+        $teams = (int) $request->input('teams', 2);
+        $playersPerTeam = (int) $request->input('players', 2);
+        $totalPlayers = $playersPerTeam * $teams;
+        $lifePoints = (int) $request->input('life_points', 5);
+
+        $fallbackTypeId = Type::where('status', true)->value('id');
+        $fallbackCategoryId = Category::where('status', true)->value('id');
+        $fallbackSubcategoryId = Subcategory::where('status', true)->value('id');
+        if (!$fallbackTypeId || !$fallbackCategoryId || !$fallbackSubcategoryId) {
+            return ApiResponse::error('Base game setup is incomplete for room creation.', 500);
+        }
+
+        $roomData = [
+            'code' => $code,
+            'is_custom' => true,
+            'custom_category_id' => $category->id,
+            'type_id' => $fallbackTypeId,
+            'category_id' => $fallbackCategoryId,
+            'subcategory_id' => $fallbackSubcategoryId,
+            'title' => $request->input('title', $category->name),
+            'rounds' => $rounds,
+            'questions_count' => $questionsCount,
+            'life_points' => $lifePoints,
+            'teams' => $teams,
+            'players' => $totalPlayers,
+            'expires_at' => now()->addHours(24),
+        ];
+        if ($user instanceof Adventurer) {
+            $roomData['created_by_adventurer_id'] = $user->id;
+        } else {
+            $roomData['created_by'] = $user->id;
+        }
+        $room = Room::create($roomData);
+        $user->decrement('available_sessions', $sessionCost);
+
+        $creatorPlayerData = [
+            'room_id' => $room->id,
+            'team_id' => 1,
+            'is_leader' => true,
+        ];
+        if ($user instanceof Adventurer) {
+            $creatorPlayerData['adventurer_id'] = $user->id;
+        } else {
+            $creatorPlayerData['user_id'] = $user->id;
+        }
+        RoomPlayer::create($creatorPlayerData);
+
+        $this->firebaseSync->syncRoom($room->fresh());
+        $this->firebaseSync->syncRoomPlayers($room->fresh());
+
+        $teamsData = [];
+        for ($i = 1; $i <= $teams; $i++) {
+            $teamsData[] = [
+                'teamId' => (string) $i,
+                'teamCode' => 'K' . $i,
+            ];
+        }
+
+        return ApiResponse::success([
+            'roomId' => (string) $room->id,
+            'code' => $room->code,
+            'isCustom' => true,
+            'customCategoryId' => (string) $category->id,
+            'lifePoints' => (int) $room->life_points,
+            'selectedQuestionsCount' => (int) $room->questions_count,
+            'expiresAt' => $room->expires_at?->toIso8601String(),
+            'teams' => $teamsData,
+        ], null, 201);
+    }
+
     public function getRoom(int $roomId): JsonResponse
     {
         $room = Room::withCount('roomPlayers')
@@ -242,6 +349,69 @@ class GameController extends Controller
             })->values()->all(),
         ];
         return ApiResponse::success($data);
+    }
+
+    public function getCustomRoom(int $roomId): JsonResponse
+    {
+        $room = Room::withCount('roomPlayers')
+            ->with([
+                'customCategory',
+                'roomPlayers.user',
+                'roomPlayers.adventurer',
+                'gameSessions' => fn ($q) => $q->whereIn('status', ['waiting', 'playing', 'starting', 'paused'])->latest()->limit(1),
+            ])
+            ->where('is_custom', true)
+            ->find($roomId);
+
+        if (!$room) {
+            return ApiResponse::error('الغرفة غير موجودة', 404);
+        }
+
+        $activeSession = $room->gameSessions->first();
+        $selectedQuestionsCount = $activeSession
+            ? count($activeSession->question_ids ?? [])
+            : (int) ($room->questions_count ?? 0);
+        $teams = (int) $room->teams;
+        $teamCodes = [];
+        for ($i = 1; $i <= $teams; $i++) {
+            $teamCodes[] = [
+                'teamId' => (string) $i,
+                'teamCode' => 'K' . $i,
+            ];
+        }
+
+        return ApiResponse::success([
+            'roomId' => (string) $room->id,
+            'code' => $room->code,
+            'status' => $room->status,
+            'isCustom' => true,
+            'customCategoryId' => (string) $room->custom_category_id,
+            'customCategoryName' => $room->customCategory?->name,
+            'sessionId' => $activeSession ? (string) $activeSession->id : null,
+            'joinedCount' => $room->room_players_count ?? $room->roomPlayers()->count(),
+            'selectedQuestionsCount' => (int) $selectedQuestionsCount,
+            'settings' => [
+                'gameTitle' => $room->title ?? $room->customCategory?->name ?? '',
+                'rounds' => (int) $room->rounds,
+                'teams' => $teams,
+                'players' => (int) $room->players,
+                'playersPerTeam' => $teams > 0 ? (int) ($room->players / $teams) : 0,
+                'lifePoints' => (int) ($room->life_points ?? 5),
+            ],
+            'teams' => $teamCodes,
+            'stage' => $this->firebaseSync->getStageDataForRoom($room, $activeSession),
+            'players' => $room->roomPlayers->map(function ($rp) {
+                $entity = $rp->adventurer ?? $rp->user;
+                return [
+                    'playerId' => (string) $rp->id,
+                    'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
+                    'userName' => $entity?->name ?? 'Player',
+                    'teamId' => (string) $rp->team_id,
+                    'teamCode' => 'K' . $rp->team_id,
+                    'isLeader' => (bool) $rp->is_leader,
+                ];
+            })->values()->all(),
+        ]);
     }
 
     public function linkTv(LinkTvRequest $request, int $roomId): JsonResponse
@@ -685,11 +855,13 @@ class GameController extends Controller
         $questionIds = $session->question_ids ?? [];
         $roundIndex = $session->current_round - 1;
         $questionId = $questionIds[$roundIndex] ?? null;
+        $isCustomRoom = (bool) $session->room?->is_custom;
+        $questionKey = $isCustomRoom ? 'custom_question_id' : 'question_id';
 
         $allLeadersAnswered = false;
         if ($questionId && $leaderIds->count() > 0) {
             $answeredLeaderIds = SessionAnswer::where('game_session_id', $session->id)
-                ->where('question_id', $questionId)
+                ->where($questionKey, $questionId)
                 ->whereIn('room_player_id', $leaderIds)
                 ->pluck('room_player_id')
                 ->unique();
@@ -702,13 +874,14 @@ class GameController extends Controller
         if ($questionId && $stageType === \App\Models\Stage::TYPE_LIFE_POINTS) {
             foreach ($leaders as $leader) {
                 $alreadyAnswered = SessionAnswer::where('game_session_id', $session->id)
-                    ->where('question_id', $questionId)
+                    ->where($questionKey, $questionId)
                     ->where('room_player_id', $leader->id)
                     ->exists();
                 if (!$alreadyAnswered) {
                     SessionAnswer::create([
                         'game_session_id' => $session->id,
-                        'question_id' => $questionId,
+                        'question_id' => $isCustomRoom ? null : $questionId,
+                        'custom_question_id' => $isCustomRoom ? $questionId : null,
                         'room_player_id' => $leader->id,
                         'answer_index' => 0,
                         'correct' => false,

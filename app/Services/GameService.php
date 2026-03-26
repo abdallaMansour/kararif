@@ -7,6 +7,7 @@ use App\Models\RoomPlayer;
 use App\Models\GameSession;
 use App\Models\SessionAnswer;
 use App\Models\Question;
+use App\Models\CustomQuestion;
 use App\Models\Stage;
 use App\Models\TvDisplay;
 
@@ -144,6 +145,10 @@ class GameService
      */
     public function getEffectiveStageType(Room $room, ?GameSession $session = null, ?int $currentRoundNumber = null): string
     {
+        if ((bool) $room->is_custom) {
+            return Stage::TYPE_LIFE_POINTS;
+        }
+
         $room->loadMissing('subcategory.stage');
         $subcategory = $room->subcategory;
         if ($subcategory && $subcategory->use_stage && $subcategory->stage_id && $subcategory->stage) {
@@ -169,6 +174,15 @@ class GameService
      */
     public function getEffectiveStageForRound(Room $room, ?GameSession $session, int $roundNumber): ?Stage
     {
+        if ((bool) $room->is_custom) {
+            $roundStageIds = $session?->round_stage_ids ?? [];
+            $stageId = $roundStageIds[(string) $roundNumber] ?? $roundStageIds[$roundNumber] ?? null;
+            if ($stageId) {
+                return Stage::find($stageId);
+            }
+            return null;
+        }
+
         $room->loadMissing('subcategory.stage');
         $subcategory = $room->subcategory;
         if ($subcategory && $subcategory->use_stage && $subcategory->stage_id && $subcategory->stage) {
@@ -189,6 +203,20 @@ class GameService
      */
     public function computeRoundStageIds(Room $room): ?array
     {
+        if ((bool) $room->is_custom) {
+            $roundsCount = max(1, (int) ($room->rounds ?? 1));
+            $stageIds = Stage::where('status', true)->pluck('id')->toArray();
+            if (empty($stageIds)) {
+                return null;
+            }
+
+            $result = [];
+            for ($r = 1; $r <= $roundsCount; $r++) {
+                $result[(string) $r] = $stageIds[array_rand($stageIds)];
+            }
+            return $result;
+        }
+
         $room->loadMissing('subcategory.stage');
         $subcategory = $room->subcategory;
         if ($subcategory && $subcategory->use_stage && $subcategory->stage_id) {
@@ -230,15 +258,27 @@ class GameService
             $totalQuestions = (int) ($room->rounds ?? 0);
         }
 
-        $questionIds = Question::where('type_id', $room->type_id)
-            ->where('category_id', $room->category_id)
-            ->where('subcategory_id', $room->subcategory_id)
-            ->where('status', true)
-            ->inRandomOrder()
-            ->limit($totalQuestions)
-            ->pluck('id')
-            ->values()
-            ->toArray();
+        if ((bool) $room->is_custom) {
+            $questionIds = CustomQuestion::query()
+                ->where('custom_category_id', $room->custom_category_id)
+                ->where('status', true)
+                ->where('question_kind', CustomQuestion::KIND_NORMAL)
+                ->inRandomOrder()
+                ->limit($totalQuestions)
+                ->pluck('id')
+                ->values()
+                ->toArray();
+        } else {
+            $questionIds = Question::where('type_id', $room->type_id)
+                ->where('category_id', $room->category_id)
+                ->where('subcategory_id', $room->subcategory_id)
+                ->where('status', true)
+                ->inRandomOrder()
+                ->limit($totalQuestions)
+                ->pluck('id')
+                ->values()
+                ->toArray();
+        }
 
         shuffle($questionIds);
 
@@ -325,7 +365,9 @@ class GameService
         if (!isset($questionIds[$index])) {
             return null;
         }
-        $question = Question::find($questionIds[$index]);
+        $question = (bool) $session->room?->is_custom
+            ? CustomQuestion::find($questionIds[$index])
+            : Question::find($questionIds[$index]);
         if (!$question) {
             return null;
         }
@@ -344,9 +386,7 @@ class GameService
             'title' => $question->name,
             'text' => $question->name,
             'question_kind' => $question->question_kind ?? 'normal',
-            'word_data' => $question->question_kind === Question::KIND_WORDS
-                ? ($question->word_data ?? [])
-                : null,
+            'word_data' => null,
             'correctAnswerId' => $correctId,
             'answers' => [
                 ['id' => 'o1', 'text' => $question->answer_1, 'shape' => $shapes[0]],
@@ -360,14 +400,14 @@ class GameService
                 ['id' => 'o3', 'text' => $question->answer_3, 'shape' => $shapes[2]],
                 ['id' => 'o4', 'text' => $question->answer_4, 'shape' => $shapes[3]],
             ],
-            'image' => $question->getMediaUrlOrNull('image'),
-            'voice' => $question->getMediaUrlOrNull('voice'),
-            'video' => $question->getMediaUrlOrNull('video'),
-            'start_video' => $question->getMediaUrlOrNull('start_video'),
-            'lunch_video' => $question->getMediaUrlOrNull('lunch_video'),
-            'question_video' => $question->getMediaUrlOrNull('question_video'),
-            'correct_answer_video' => $question->getMediaUrlOrNull('correct_answer_video'),
-            'wrong_answer_video' => $question->getMediaUrlOrNull('wrong_answer_video'),
+            'image' => method_exists($question, 'getMediaUrlOrNull') ? $question->getMediaUrlOrNull('image') : null,
+            'voice' => method_exists($question, 'getMediaUrlOrNull') ? $question->getMediaUrlOrNull('voice') : null,
+            'video' => method_exists($question, 'getMediaUrlOrNull') ? $question->getMediaUrlOrNull('video') : null,
+            'start_video' => method_exists($question, 'getMediaUrlOrNull') ? $question->getMediaUrlOrNull('start_video') : null,
+            'lunch_video' => method_exists($question, 'getMediaUrlOrNull') ? $question->getMediaUrlOrNull('lunch_video') : null,
+            'question_video' => method_exists($question, 'getMediaUrlOrNull') ? $question->getMediaUrlOrNull('question_video') : null,
+            'correct_answer_video' => method_exists($question, 'getMediaUrlOrNull') ? $question->getMediaUrlOrNull('correct_answer_video') : null,
+            'wrong_answer_video' => method_exists($question, 'getMediaUrlOrNull') ? $question->getMediaUrlOrNull('wrong_answer_video') : null,
         ];
     }
 
@@ -380,10 +420,14 @@ class GameService
         }
 
         $questionId = $questionIds[$roundIndex];
-        $question = Question::find($questionId);
+        $question = (bool) $session->room?->is_custom
+            ? CustomQuestion::find($questionId)
+            : Question::find($questionId);
         if (!$question) {
             return ['correct' => false, 'scoreDelta' => 0, 'nextQuestion' => null];
         }
+        $isCustomRoom = (bool) $session->room?->is_custom;
+        $questionKey = $isCustomRoom ? 'custom_question_id' : 'question_id';
 
         // Load room, stage, and players for life-points calculations
         $session->load('room.subcategory.stage', 'room.roomPlayers');
@@ -393,7 +437,7 @@ class GameService
 
         // Prevent duplicate answers from the same leader for the same question
         $existingAnswer = SessionAnswer::where('game_session_id', $session->id)
-            ->where('question_id', $questionId)
+            ->where($questionKey, $questionId)
             ->where('room_player_id', $roomPlayerId)
             ->first();
         if ($existingAnswer) {
@@ -425,7 +469,7 @@ class GameService
                     ->whereIn('room_player_id', $teamPlayerIds)
                     ->where('correct', false)
                     ->count();
-                $initialLives = 5;
+                $initialLives = max(1, (int) ($room->life_points ?? 5));
                 $lifePoints = max(0, $initialLives - $wrongCountForTeam);
                 if ($lifePoints <= 0) {
                     return [
@@ -455,7 +499,8 @@ class GameService
 
         SessionAnswer::create([
             'game_session_id' => $session->id,
-            'question_id' => $questionId,
+            'question_id' => $isCustomRoom ? null : $questionId,
+            'custom_question_id' => $isCustomRoom ? $questionId : null,
             'room_player_id' => $roomPlayerId,
             'answer_index' => $answerIndex,
             'correct' => $correct,
@@ -469,7 +514,7 @@ class GameService
 
         // Pause when every team has submitted an answer (team-based, not leader-based)
         $answeredRoomPlayerIds = SessionAnswer::where('game_session_id', $session->id)
-            ->where('question_id', $questionId)
+            ->where($questionKey, $questionId)
             ->pluck('room_player_id');
 
         $answeredTeamIds = $answeredRoomPlayerIds->isEmpty()
@@ -487,7 +532,8 @@ class GameService
                     ->whereIn('room_player_id', $teamPlayerIds)
                     ->where('correct', false)
                     ->count();
-                return max(0, 10 - $wrongCount) > 0;
+                $initialLives = max(1, (int) ($room->life_points ?? 5));
+                return max(0, $initialLives - $wrongCount) > 0;
             })->values();
         }
 
@@ -581,7 +627,7 @@ class GameService
                     ->whereIn('room_player_id', $teamPlayerIds)
                     ->where('correct', false)
                     ->count();
-                $initialLives = 5;
+                $initialLives = max(1, (int) ($room->life_points ?? 5));
                 $lifePoints = max(0, $initialLives - $wrongCountForTeam);
                 $lifeByTeam[(string) $teamId] = $lifePoints;
             }

@@ -7,6 +7,8 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\User\UserController;
 use App\Http\Controllers\Game\GameController;
 use App\Http\Controllers\Game\TvDisplayController;
+use App\Http\Controllers\Game\CustomCategoryController;
+use App\Http\Controllers\Game\CustomQuestionController;
 
 // Countries (public, for registration/filter dropdowns)
 Route::get('countries', [\App\Http\Controllers\CountryController::class, 'index']);
@@ -64,6 +66,7 @@ Route::prefix('game')->group(function () {
     Route::get('room/{roomId}', [GameController::class, 'getRoom']);
     Route::get('session/{sessionId}', [GameController::class, 'getSession']);
     Route::get('session/{sessionId}/result', [GameController::class, 'getResult']);
+    Route::get('custom-room/{roomId}', [GameController::class, 'getCustomRoom']);
 
     // TV display (no auth)
     Route::post('tv/code', [TvDisplayController::class, 'getOrCreateCode']);
@@ -71,7 +74,21 @@ Route::prefix('game')->group(function () {
     Route::get('tv/display/{displayId}', [TvDisplayController::class, 'getDisplayStatus']);
 
     Route::middleware('auth:sanctum')->group(function () {
+        Route::get('custom-categories', [CustomCategoryController::class, 'index']);
+        Route::get('custom-categories/{id}', [CustomCategoryController::class, 'show']);
+        Route::post('custom-categories', [CustomCategoryController::class, 'store']);
+        Route::patch('custom-categories/{id}', [CustomCategoryController::class, 'update']);
+        Route::delete('custom-categories/{id}', [CustomCategoryController::class, 'destroy']);
+
+        Route::get('custom-questions', [CustomQuestionController::class, 'index']);
+        Route::get('custom-questions/{id}', [CustomQuestionController::class, 'show']);
+        Route::post('custom-questions', [CustomQuestionController::class, 'store']);
+        Route::patch('custom-questions/{id}', [CustomQuestionController::class, 'update']);
+        Route::patch('custom-questions/{id}/assign-category', [CustomQuestionController::class, 'assignCategory']);
+        Route::delete('custom-questions/{id}', [CustomQuestionController::class, 'destroy']);
+
         Route::post('create-room', [GameController::class, 'createRoom']);
+        Route::post('create-custom-room', [GameController::class, 'createCustomRoom']);
         Route::post('room/{roomId}/link-tv', [GameController::class, 'linkTv']);
         Route::post('room/{roomId}/join', [GameController::class, 'joinRoom']);
         Route::post('room/{roomId}/leave', [GameController::class, 'leaveRoom']);

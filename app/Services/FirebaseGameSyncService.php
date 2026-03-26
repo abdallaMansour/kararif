@@ -43,7 +43,7 @@ class FirebaseGameSyncService
         }
         Log::info('Firebase syncRoom starting', ['room_id' => $room->id]);
         try {
-            $room->load(['type', 'category', 'subcategory', 'roomPlayers.user', 'roomPlayers.adventurer']);
+            $room->load(['type', 'category', 'subcategory', 'customCategory', 'roomPlayers.user', 'roomPlayers.adventurer']);
             $teams = (int) $room->teams;
             $players = $room->roomPlayers->keyBy('id')->map(fn ($rp) => [
                 'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
@@ -58,12 +58,17 @@ class FirebaseGameSyncService
                 'roomId' => (string) $room->id,
                 'code' => $room->code,
                 'status' => $room->status,
+                'isCustom' => (bool) $room->is_custom,
                 'tvDisplayId' => $tvDisplay ? (string) $tvDisplay->id : null,
                 'type_id' => (int) $room->type_id,
                 'category_id' => (int) $room->category_id,
                 'subcategory_id' => (int) $room->subcategory_id,
+                'custom_category_id' => $room->custom_category_id ? (int) $room->custom_category_id : null,
+                'custom_category_name' => $room->customCategory?->name,
                 'rounds' => (int) $room->rounds,
                 'questionsCount' => (int) ($room->questions_count ?? $room->rounds ?? 0),
+                'selectedQuestionsCount' => (int) ($room->questions_count ?? 0),
+                'lifePoints' => (int) ($room->life_points ?? 5),
                 'teams' => $teams,
                 'maxPlayers' => (int) $room->players,
                 'joinedCount' => $room->roomPlayers->count(),
@@ -138,6 +143,9 @@ class FirebaseGameSyncService
             $data = [
                 'roomId' => (string) $session->room_id,
                 'sessionId' => (string) $session->id,
+                'isCustom' => (bool) $session->room->is_custom,
+                'selectedQuestionsCount' => (int) ($session->room->questions_count ?? 0),
+                'lifePoints' => (int) ($session->room->life_points ?? 5),
                 'status' => 'starting',
                 'currentRound' => 0,
                 'startTimerEndsAt' => $session->start_timer_ends_at
@@ -175,6 +183,9 @@ class FirebaseGameSyncService
             $data = [
                 'roomId' => (string) $session->room_id,
                 'sessionId' => (string) $session->id,
+                'isCustom' => (bool) $session->room->is_custom,
+                'selectedQuestionsCount' => (int) ($session->room->questions_count ?? 0),
+                'lifePoints' => (int) ($session->room->life_points ?? 5),
                 'status' => $session->status,
                 'currentRound' => (int) $session->current_round,
                 'remainingQuestionsCount' => $remainingCount,
@@ -249,6 +260,9 @@ class FirebaseGameSyncService
 
             $data = [
                 'status' => $session->status,
+                'isCustom' => (bool) $session->room->is_custom,
+                'selectedQuestionsCount' => (int) ($session->room->questions_count ?? 0),
+                'lifePoints' => (int) ($session->room->life_points ?? 5),
                 'remainingQuestionsCount' => 0,
                 'teams' => $teams,
                 'stage' => $stage,
@@ -271,6 +285,57 @@ class FirebaseGameSyncService
 
     private function buildStageData(Room $room, ?GameSession $session = null): ?array
     {
+        if ((bool) $room->is_custom) {
+            $gameService = app(GameService::class);
+            $currentRoundNumber = $session ? $gameService->getCurrentRoundNumber($session) : 1;
+            $stage = $gameService->getEffectiveStageForRound($room, $session, $currentRoundNumber);
+            if ($stage) {
+                $stage->load('questionGroups');
+                $questionGroups = $stage->questionGroups->sortBy('sort_order')->values()->map(function ($g) {
+                    return [
+                        'id' => (int) $g->id,
+                        'sort_order' => (int) $g->sort_order,
+                        'start_video' => $g->getFirstMediaUrl('start_video'),
+                        'end_video' => $g->getFirstMediaUrl('end_video'),
+                        'correct_answer_video' => $g->getFirstMediaUrl('correct_answer_video'),
+                        'wrong_answer_video' => $g->getFirstMediaUrl('wrong_answer_video'),
+                    ];
+                })->all();
+
+                return [
+                    'id' => (int) $stage->id,
+                    'name' => $stage->name,
+                    'stage_type' => Stage::TYPE_LIFE_POINTS,
+                    'selected_stage_type' => $stage->stage_type,
+                    'question_groups_count' => (int) ($stage->question_groups_count ?? 0),
+                    'number_of_questions' => (int) ($room->questions_count ?? 0),
+                    'life_points_per_question' => (float) ($room->life_points ?? 5),
+                    'start_video' => $stage->getFirstMediaUrl('start_video'),
+                    'end_video' => $stage->getFirstMediaUrl('end_video'),
+                    'lunch_video' => $stage->getFirstMediaUrl('lunch_video'),
+                    'correct_answer_video' => $stage->getFirstMediaUrl('correct_answer_video'),
+                    'wrong_answer_video' => $stage->getFirstMediaUrl('wrong_answer_video'),
+                    'question_groups' => $questionGroups,
+                ];
+            }
+
+            return [
+                'id' => null,
+                'name' => $room->customCategory?->name ?? 'Custom',
+                'stage_type' => Stage::TYPE_LIFE_POINTS,
+                'selected_stage_type' => null,
+                'question_groups_count' => 1,
+                'number_of_questions' => (int) ($room->questions_count ?? 0),
+                'life_points_per_question' => (float) ($room->life_points ?? 5),
+                'start_video' => null,
+                'end_video' => null,
+                'lunch_video' => null,
+                'correct_answer_video' => null,
+                'wrong_answer_video' => null,
+                'question_groups' => [],
+            ];
+        }
+
         $room->loadMissing('subcategory.stage');
         $subcategory = $room->subcategory;
         if (!$subcategory) {
@@ -386,7 +451,9 @@ class FirebaseGameSyncService
             ? ($currentQuestionIndex - $startIndex + 1)
             : 0;
 
-        $roundType = $gameService->getEffectiveStageType($room, $session, $roundNumber);
+        $roundType = (bool) $room->is_custom
+            ? Stage::TYPE_LIFE_POINTS
+            : $gameService->getEffectiveStageType($room, $session, $roundNumber);
 
         return [
             // Round number is 1-based.
@@ -480,7 +547,7 @@ class FirebaseGameSyncService
                 $teamData['wrongCount'] = $wrongCount;
             }
             if ($isLifePointsStage) {
-                $initialLives = 5;
+                $initialLives = max(1, (int) ($room->life_points ?? 5));
                 $lifePoints = max(0, $initialLives - $wrongCount);
                 $teamData['lifePoints'] = $lifePoints;
                 $teamData['isEliminated'] = $lifePoints <= 0 || $isSurrendered;
@@ -514,6 +581,9 @@ class FirebaseGameSyncService
             $data = [
                 'roomId' => (string) $session->room_id,
                 'sessionId' => (string) $session->id,
+                'isCustom' => (bool) $session->room->is_custom,
+                'selectedQuestionsCount' => (int) ($session->room->questions_count ?? 0),
+                'lifePoints' => (int) ($session->room->life_points ?? 5),
                 'status' => 'paused',
                 'currentRound' => (int) $session->current_round,
                 'remainingQuestionsCount' => $remainingCount,

@@ -3,6 +3,9 @@
 namespace App\Http\Resources\Users;
 
 use App\Helpers\RankHelper;
+use App\Models\Adventurer;
+use App\Models\CustomCategory;
+use App\Models\CustomQuestion;
 use App\Services\UserService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -22,6 +25,16 @@ class UserResource extends JsonResource
             'name' => $avatarRelation->name,
             'image' => $avatarRelation->image_url,
         ] : null;
+
+        $customCategoriesCountQuery = CustomCategory::query();
+        $customQuestionsCountQuery = CustomQuestion::query();
+        if ($this->resource instanceof Adventurer) {
+            $customCategoriesCountQuery->where('owner_adventurer_id', $this->id);
+            $customQuestionsCountQuery->where('owner_adventurer_id', $this->id);
+        } else {
+            $customCategoriesCountQuery->where('owner_user_id', $this->id);
+            $customQuestionsCountQuery->where('owner_user_id', $this->id);
+        }
 
         return [
             'id' => $this->id,
@@ -44,6 +57,8 @@ class UserResource extends JsonResource
                 'discount_percent' => ($this->rank_discount_uses_left ?? 0) > 0 ? (int) ($this->rank_discount_percent ?? 0) : null,
                 'uses_left' => (int) ($this->rank_discount_uses_left ?? 0),
             ],
+            'custom_categories_count' => (int) $customCategoriesCountQuery->count(),
+            'custom_questions_count' => (int) $customQuestionsCountQuery->count(),
             'stats' => app(UserService::class)->getWinsLosses($this->resource),
         ];
     }
