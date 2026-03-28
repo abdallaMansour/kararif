@@ -11,6 +11,14 @@ use Illuminate\Http\JsonResponse;
 
 class CustomCategoryController extends Controller
 {
+    /**
+     * List categories owned by the authenticated player (same as index; explicit route GET /game/my-custom-categories).
+     */
+    public function getMine(): JsonResponse
+    {
+        return $this->index();
+    }
+
     public function index(): JsonResponse
     {
         $user = auth()->user();

@@ -74,6 +74,9 @@ Route::prefix('game')->group(function () {
     Route::get('tv/display/{displayId}', [TvDisplayController::class, 'getDisplayStatus']);
 
     Route::middleware('auth:sanctum')->group(function () {
+        Route::get('my-custom-categories', [CustomCategoryController::class, 'getMine']);
+        Route::get('my-custom-questions', [CustomQuestionController::class, 'getMine']);
+
         Route::get('custom-categories', [CustomCategoryController::class, 'index']);
         Route::get('custom-categories/{id}', [CustomCategoryController::class, 'show']);
         Route::post('custom-categories', [CustomCategoryController::class, 'store']);

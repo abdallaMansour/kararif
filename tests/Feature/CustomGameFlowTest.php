@@ -91,4 +91,51 @@ class CustomGameFlowTest extends TestCase
         $detailsResponse = $this->getJson("/api/game/custom-room/{$roomId}");
         $detailsResponse->assertOk()->assertJsonPath('data.selectedQuestionsCount', 1);
     }
+
+    public function test_my_custom_getters_require_auth_and_return_only_own_data(): void
+    {
+        $this->getJson('/api/game/my-custom-categories')->assertUnauthorized();
+        $this->getJson('/api/game/my-custom-questions')->assertUnauthorized();
+
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        CustomCategory::create([
+            'owner_user_id' => $user->id,
+            'name' => 'Mine',
+            'status' => true,
+        ]);
+        CustomCategory::create([
+            'owner_user_id' => $other->id,
+            'name' => 'Theirs',
+            'status' => true,
+        ]);
+
+        $mineCat = CustomCategory::where('owner_user_id', $user->id)->first();
+        CustomQuestion::create([
+            'owner_user_id' => $user->id,
+            'custom_category_id' => $mineCat->id,
+            'name' => 'Q1',
+            'question_kind' => 'normal',
+            'answer_1' => 'a',
+            'is_correct_1' => true,
+            'answer_2' => 'b',
+            'is_correct_2' => false,
+            'answer_3' => 'c',
+            'is_correct_3' => false,
+            'answer_4' => 'd',
+            'is_correct_4' => false,
+            'status' => true,
+        ]);
+
+        $cats = $this->getJson('/api/game/my-custom-categories');
+        $cats->assertOk();
+        $this->assertCount(1, $cats->json('data'));
+        $this->assertSame('Mine', $cats->json('data.0.name'));
+
+        $qs = $this->getJson('/api/game/my-custom-questions');
+        $qs->assertOk();
+        $this->assertCount(1, $qs->json('data'));
+    }
 }

@@ -13,6 +13,14 @@ use Illuminate\Http\JsonResponse;
 
 class CustomQuestionController extends Controller
 {
+    /**
+     * List questions owned by the authenticated player (same as index; explicit route GET /game/my-custom-questions).
+     */
+    public function getMine(): JsonResponse
+    {
+        return $this->index();
+    }
+
     public function index(): JsonResponse
     {
         $user = auth()->user();

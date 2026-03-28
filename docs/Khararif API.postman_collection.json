@@ -635,156 +635,227 @@
           "response": []
         },
         {
-          "name": "Create Custom Category",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
+          "name": "Custom game flow",
+          "description": "Player-owned custom categories and questions (Bearer token required for mutating and my-* getters). List endpoints return only resources owned by the authenticated user or adventurer.",
+          "item": [
+            {
+              "name": "Get My Custom Categories",
+              "request": {
+                "description": "Returns all custom categories for the authenticated player only. Requires Authorization: Bearer {{token}}.",
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/game/my-custom-categories",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "my-custom-categories"
+                  ]
+                }
               },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"أسئلة العائلة\",\n  \"status\": true\n}"
+              "response": []
             },
-            "url": {
-              "raw": "{{base_url}}/api/game/custom-categories",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "game",
-                "custom-categories"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Create Custom Question",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
+            {
+              "name": "Get My Custom Questions",
+              "request": {
+                "description": "Returns all custom questions for the authenticated player only. Optional query: customCategoryId to filter by category. Requires Authorization: Bearer {{token}}.",
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/game/my-custom-questions?customCategoryId=",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "my-custom-questions"
+                  ],
+                  "query": [
+                    {
+                      "key": "customCategoryId",
+                      "value": "",
+                      "description": "Optional: filter by custom category id"
+                    }
+                  ]
+                }
               },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"عاصمة فرنسا؟\",\n  \"answer_1\": \"باريس\",\n  \"is_correct_1\": true,\n  \"answer_2\": \"روما\",\n  \"is_correct_2\": false,\n  \"answer_3\": \"مدريد\",\n  \"is_correct_3\": false,\n  \"answer_4\": \"لندن\",\n  \"is_correct_4\": false\n}"
+              "response": []
             },
-            "url": {
-              "raw": "{{base_url}}/api/game/custom-questions",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "game",
-                "custom-questions"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Assign Custom Question Category",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
+            {
+              "name": "Create Custom Category",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"أسئلة العائلة\",\n  \"status\": true\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-categories",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-categories"
+                  ]
+                }
               },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"custom_category_id\": 1\n}"
+              "response": []
             },
-            "url": {
-              "raw": "{{base_url}}/api/game/custom-questions/1/assign-category",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "game",
-                "custom-questions",
-                "1",
-                "assign-category"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Create Custom Room",
-          "request": {
-            "description": "Creates a custom room using player's own custom category. Game mode is always life points. life_points is optional and defaults to 5.",
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
+            {
+              "name": "Create Custom Question",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"عاصمة فرنسا؟\",\n  \"answer_1\": \"باريس\",\n  \"is_correct_1\": true,\n  \"answer_2\": \"روما\",\n  \"is_correct_2\": false,\n  \"answer_3\": \"مدريد\",\n  \"is_correct_3\": false,\n  \"answer_4\": \"لندن\",\n  \"is_correct_4\": false\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-questions",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-questions"
+                  ]
+                }
               },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"customCategoryId\": 1,\n  \"title\": \"جلسة الأصدقاء\",\n  \"questionsCount\": 10,\n  \"rounds\": 2,\n  \"teams\": 2,\n  \"players\": 4,\n  \"life_points\": 5\n}"
+              "response": []
             },
-            "url": {
-              "raw": "{{base_url}}/api/game/create-custom-room",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "game",
-                "create-custom-room"
-              ]
+            {
+              "name": "Assign Custom Question Category",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"custom_category_id\": 1\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-questions/1/assign-category",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-questions",
+                    "1",
+                    "assign-category"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Custom Room",
+              "request": {
+                "description": "Creates a custom room using player's own custom category. Game mode is always life points. life_points is optional and defaults to 5.",
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customCategoryId\": 1,\n  \"title\": \"جلسة الأصدقاء\",\n  \"questionsCount\": 10,\n  \"rounds\": 2,\n  \"teams\": 2,\n  \"players\": 4,\n  \"life_points\": 5\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/game/create-custom-room",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "create-custom-room"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Custom Room Details",
+              "request": {
+                "description": "Returns custom room details including selectedQuestionsCount.",
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-room/3",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-room",
+                    "3"
+                  ]
+                }
+              },
+              "response": []
             }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Custom Room Details",
-          "request": {
-            "description": "Returns custom room details including selectedQuestionsCount.",
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/api/game/custom-room/3",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "game",
-                "custom-room",
-                "3"
-              ]
-            }
-          },
-          "response": []
+          ]
         },
         {
           "name": "Get Room",
