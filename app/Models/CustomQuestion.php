@@ -33,6 +33,7 @@ class CustomQuestion extends Model
         'is_correct_3' => 'boolean',
         'is_correct_4' => 'boolean',
         'status' => 'boolean',
+        'usage_count' => 'integer',
     ];
 
     public function ownerUser(): BelongsTo
@@ -53,19 +54,6 @@ class CustomQuestion extends Model
     public function sessionAnswers(): HasMany
     {
         return $this->hasMany(SessionAnswer::class, 'custom_question_id');
-    }
-
-    /**
-     * Distinct finished sessions where this custom question had at least one recorded answer.
-     */
-    public static function finishedSessionUsageCount(int $customQuestionId): int
-    {
-        return (int) SessionAnswer::query()
-            ->join('game_sessions', 'game_sessions.id', '=', 'session_answers.game_session_id')
-            ->where('session_answers.custom_question_id', $customQuestionId)
-            ->where('game_sessions.status', 'finished')
-            ->selectRaw('count(distinct session_answers.game_session_id) as aggregate')
-            ->value('aggregate');
     }
 
     public function scopeOwnedBy($query, $authUser)

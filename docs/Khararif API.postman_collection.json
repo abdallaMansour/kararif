@@ -636,7 +636,7 @@
         },
         {
           "name": "Custom game flow",
-          "description": "Player-owned custom categories and questions (Bearer token required for mutating and my-* getters). Includes full CRUD: list/show/create/update/delete for custom-categories and custom-questions, plus my-custom-* list aliases, create-custom-room, and custom-room details. List endpoints return only resources owned by the authenticated user or adventurer. POST custom-questions requires custom_category_id. Category lists include usage_count (finished custom-room sessions). Question lists include usage_count (finished sessions with an answer for that question) and category_usage_count (same as category usage). GET custom-questions/{id} includes usage_count.",
+          "description": "Player-owned custom categories and questions (Bearer token required for mutating and my-* getters). Includes full CRUD: list/show/create/update/delete for custom-categories and custom-questions, plus my-custom-* list aliases, create-custom-room, and custom-room details. List endpoints return only resources owned by the authenticated user or adventurer. POST custom-questions requires custom_category_id. Category lists include usage_count (stored; incremented once per finished custom-room session). Question lists include usage_count (stored; incremented once per finished session for each question id in that session's schedule) and category_usage_count (the category's stored usage_count). GET custom-questions/{id} includes usage_count and category_usage_count when the category is loaded.",
           "item": [
             {
               "name": "Get My Custom Categories",

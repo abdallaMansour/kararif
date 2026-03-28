@@ -24,7 +24,6 @@ class CustomCategoryController extends Controller
         $user = auth()->user();
         $items = CustomCategory::ownedBy($user)
             ->withCount('questions')
-            ->withCount(['finishedCustomSessions as usage_count'])
             ->orderByDesc('id')
             ->get()
             ->map(fn (CustomCategory $category) => [
@@ -46,10 +45,9 @@ class CustomCategoryController extends Controller
         $user = auth()->user();
         $category = CustomCategory::ownedBy($user)
             ->withCount('questions')
-            ->withCount(['finishedCustomSessions as usage_count'])
             ->find($id);
 
-        if (!$category) {
+        if (! $category) {
             return ApiResponse::error('Custom category not found.', 404);
         }
 
@@ -81,6 +79,7 @@ class CustomCategoryController extends Controller
             'id' => (string) $category->id,
             'name' => $category->name,
             'status' => (bool) $category->status,
+            'usage_count' => (int) ($category->usage_count ?? 0),
         ], null, 201);
     }
 
@@ -89,7 +88,7 @@ class CustomCategoryController extends Controller
         $user = auth()->user();
         $category = CustomCategory::ownedBy($user)->find($id);
 
-        if (!$category) {
+        if (! $category) {
             return ApiResponse::error('Custom category not found.', 404);
         }
 
@@ -99,6 +98,7 @@ class CustomCategoryController extends Controller
             'id' => (string) $category->id,
             'name' => $category->name,
             'status' => (bool) $category->status,
+            'usage_count' => (int) ($category->usage_count ?? 0),
         ]);
     }
 
@@ -107,7 +107,7 @@ class CustomCategoryController extends Controller
         $user = auth()->user();
         $category = CustomCategory::ownedBy($user)->find($id);
 
-        if (!$category) {
+        if (! $category) {
             return ApiResponse::error('Custom category not found.', 404);
         }
 

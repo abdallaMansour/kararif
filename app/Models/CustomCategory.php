@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class CustomCategory extends Model
 {
@@ -18,6 +17,7 @@ class CustomCategory extends Model
 
     protected $casts = [
         'status' => 'boolean',
+        'usage_count' => 'integer',
     ];
 
     public function ownerUser(): BelongsTo
@@ -33,22 +33,6 @@ class CustomCategory extends Model
     public function questions(): HasMany
     {
         return $this->hasMany(CustomQuestion::class, 'custom_category_id');
-    }
-
-    /**
-     * Finished game sessions played in a custom room for this category (usage count).
-     */
-    public function finishedCustomSessions(): HasManyThrough
-    {
-        return $this->hasManyThrough(
-            GameSession::class,
-            Room::class,
-            'custom_category_id',
-            'room_id',
-            'id',
-            'id'
-        )->where('rooms.is_custom', true)
-            ->where('game_sessions.status', 'finished');
     }
 
     public function scopeOwnedBy($query, $authUser)
