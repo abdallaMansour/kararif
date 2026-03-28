@@ -108,7 +108,10 @@ class CustomGameFlowTest extends TestCase
             'teams' => 2,
             'players' => 2,
         ]);
-        $createResponse->assertCreated();
+        $createResponse->assertCreated()
+            ->assertJsonPath('data.joined', true)
+            ->assertJsonPath('data.teamCode', 'K1')
+            ->assertJsonPath('data.isLeader', true);
         $roomId = (int) $createResponse->json('data.roomId');
 
         $detailsResponse = $this->getJson("/api/game/custom-room/{$roomId}");
