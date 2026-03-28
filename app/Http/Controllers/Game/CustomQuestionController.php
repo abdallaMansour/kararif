@@ -8,6 +8,8 @@ use App\Http\Requests\Game\CustomQuestionRequest;
 use App\Models\Adventurer;
 use App\Models\CustomCategory;
 use App\Models\CustomQuestion;
+use App\Models\GameSession;
+use App\Models\SessionAnswer;
 use Illuminate\Http\JsonResponse;
 
 class CustomQuestionController extends Controller
@@ -23,11 +25,28 @@ class CustomQuestionController extends Controller
     public function index(): JsonResponse
     {
         $user = auth()->user();
-        $query = CustomQuestion::ownedBy($user)->with('category');
+        $query = CustomQuestion::query()
+            ->select('custom_questions.*')
+            ->ownedBy($user)
+            ->with('category');
 
         if (request()->has('customCategoryId')) {
             $query->where('custom_category_id', request('customCategoryId'));
         }
+
+        $query->addSelect([
+            'usage_count' => SessionAnswer::query()
+                ->join('game_sessions', 'game_sessions.id', '=', 'session_answers.game_session_id')
+                ->whereColumn('session_answers.custom_question_id', 'custom_questions.id')
+                ->where('game_sessions.status', 'finished')
+                ->selectRaw('count(distinct session_answers.game_session_id)'),
+            'category_usage_count' => GameSession::query()
+                ->join('rooms', 'rooms.id', '=', 'game_sessions.room_id')
+                ->whereColumn('rooms.custom_category_id', 'custom_questions.custom_category_id')
+                ->where('rooms.is_custom', true)
+                ->where('game_sessions.status', 'finished')
+                ->selectRaw('count(*)'),
+        ]);
 
         $items = $query->orderByDesc('id')
             ->get()
@@ -115,7 +134,7 @@ class CustomQuestionController extends Controller
 
     private function serializeQuestion(CustomQuestion $question): array
     {
-        return [
+        $data = [
             'id' => (string) $question->id,
             'custom_category_id' => $question->custom_category_id ? (string) $question->custom_category_id : null,
             'custom_category_name' => $question->category?->name,
@@ -130,5 +149,16 @@ class CustomQuestionController extends Controller
             ],
             'created_at' => $question->created_at?->toIso8601String(),
         ];
+
+        $attrs = $question->getAttributes();
+        $data['usage_count'] = array_key_exists('usage_count', $attrs)
+            ? (int) $question->usage_count
+            : CustomQuestion::finishedSessionUsageCount((int) $question->id);
+
+        if (array_key_exists('category_usage_count', $attrs)) {
+            $data['category_usage_count'] = (int) $question->category_usage_count;
+        }
+
+        return $data;
     }
 }

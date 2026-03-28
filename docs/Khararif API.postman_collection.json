@@ -636,7 +636,7 @@
         },
         {
           "name": "Custom game flow",
-          "description": "Player-owned custom categories and questions (Bearer token required for mutating and my-* getters). List endpoints return only resources owned by the authenticated user or adventurer. Custom questions are always created with a custom_category_id (no separate assign step).",
+          "description": "Player-owned custom categories and questions (Bearer token required for mutating and my-* getters). Includes full CRUD: list/show/create/update/delete for custom-categories and custom-questions, plus my-custom-* list aliases, create-custom-room, and custom-room details. List endpoints return only resources owned by the authenticated user or adventurer. POST custom-questions requires custom_category_id. Category lists include usage_count (finished custom-room sessions). Question lists include usage_count (finished sessions with an answer for that question) and category_usage_count (same as category usage). GET custom-questions/{id} includes usage_count.",
           "item": [
             {
               "name": "Get My Custom Categories",
@@ -736,6 +736,129 @@
               "response": []
             },
             {
+              "name": "List Custom Categories",
+              "request": {
+                "description": "Same payload as Get My Custom Categories; alternate path GET /custom-categories (auth).",
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-categories",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-categories"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Custom Category by ID",
+              "request": {
+                "description": "Returns one category if it belongs to the authenticated user.",
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-categories/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-categories",
+                    "1"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Custom Category",
+              "request": {
+                "description": "name is required. status optional boolean.",
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"أسئلة العائلة (محدث)\",\n  \"status\": true\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-categories/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-categories",
+                    "1"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Custom Category",
+              "request": {
+                "description": "Deletes the category (ensure no conflicting FKs if your DB restricts).",
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-categories/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-categories",
+                    "1"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
               "name": "Create Custom Question",
               "request": {
                 "description": "Requires custom_category_id (must be a category owned by the Bearer user). You may use customCategoryId instead of custom_category_id.",
@@ -763,6 +886,135 @@
                     "api",
                     "game",
                     "custom-questions"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Custom Questions",
+              "request": {
+                "description": "Same as Get My Custom Questions; path GET /custom-questions. Optional query customCategoryId.",
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-questions?customCategoryId=",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-questions"
+                  ],
+                  "query": [
+                    {
+                      "key": "customCategoryId",
+                      "value": "",
+                      "description": "Optional filter"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Custom Question by ID",
+              "request": {
+                "description": "Returns one question if it belongs to the authenticated user.",
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-questions/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-questions",
+                    "1"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Custom Question",
+              "request": {
+                "description": "Partial PATCH: send only fields to change. custom_category_id optional to move question to another owned category. If updating any answer field, send all four answers and exactly one is_correct true.",
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"عاصمة ألمانيا؟\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-questions/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-questions",
+                    "1"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Custom Question",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-questions/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-questions",
+                    "1"
                   ]
                 }
               },

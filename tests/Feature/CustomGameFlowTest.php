@@ -41,6 +41,13 @@ class CustomGameFlowTest extends TestCase
         ]);
         $questionResponse->assertCreated()
             ->assertJsonPath('data.custom_category_id', (string) $categoryId);
+        $this->assertArrayHasKey('usage_count', $questionResponse->json('data'));
+        $this->assertSame(0, $questionResponse->json('data.usage_count'));
+
+        $questionId = (int) $questionResponse->json('data.id');
+        $showResponse = $this->getJson("/api/game/custom-questions/{$questionId}");
+        $showResponse->assertOk()
+            ->assertJsonPath('data.usage_count', 0);
     }
 
     public function test_create_custom_question_without_category_returns_unprocessable(): void
@@ -149,9 +156,15 @@ class CustomGameFlowTest extends TestCase
         $cats->assertOk();
         $this->assertCount(1, $cats->json('data'));
         $this->assertSame('Mine', $cats->json('data.0.name'));
+        $this->assertArrayHasKey('usage_count', $cats->json('data.0'));
+        $this->assertSame(0, $cats->json('data.0.usage_count'));
 
         $qs = $this->getJson('/api/game/my-custom-questions');
         $qs->assertOk();
         $this->assertCount(1, $qs->json('data'));
+        $this->assertArrayHasKey('usage_count', $qs->json('data.0'));
+        $this->assertArrayHasKey('category_usage_count', $qs->json('data.0'));
+        $this->assertSame(0, $qs->json('data.0.usage_count'));
+        $this->assertSame(0, $qs->json('data.0.category_usage_count'));
     }
 }

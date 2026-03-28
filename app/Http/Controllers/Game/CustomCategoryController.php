@@ -24,6 +24,7 @@ class CustomCategoryController extends Controller
         $user = auth()->user();
         $items = CustomCategory::ownedBy($user)
             ->withCount('questions')
+            ->withCount(['finishedCustomSessions as usage_count'])
             ->orderByDesc('id')
             ->get()
             ->map(fn (CustomCategory $category) => [
@@ -31,6 +32,7 @@ class CustomCategoryController extends Controller
                 'name' => $category->name,
                 'status' => (bool) $category->status,
                 'questions_count' => (int) ($category->questions_count ?? 0),
+                'usage_count' => (int) ($category->usage_count ?? 0),
                 'created_at' => $category->created_at?->toIso8601String(),
             ])
             ->values()
@@ -44,6 +46,7 @@ class CustomCategoryController extends Controller
         $user = auth()->user();
         $category = CustomCategory::ownedBy($user)
             ->withCount('questions')
+            ->withCount(['finishedCustomSessions as usage_count'])
             ->find($id);
 
         if (!$category) {
@@ -55,6 +58,7 @@ class CustomCategoryController extends Controller
             'name' => $category->name,
             'status' => (bool) $category->status,
             'questions_count' => (int) ($category->questions_count ?? 0),
+            'usage_count' => (int) ($category->usage_count ?? 0),
             'created_at' => $category->created_at?->toIso8601String(),
         ]);
     }
