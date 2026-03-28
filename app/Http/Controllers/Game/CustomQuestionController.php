@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Game;
 
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Game\AssignCustomQuestionCategoryRequest;
 use App\Http\Requests\Game\CustomQuestionRequest;
 use App\Models\Adventurer;
 use App\Models\CustomCategory;
@@ -46,7 +45,7 @@ class CustomQuestionController extends Controller
             ->with('category')
             ->find($id);
 
-        if (!$question) {
+        if (! $question) {
             return ApiResponse::error('Custom question not found.', 404);
         }
 
@@ -60,11 +59,9 @@ class CustomQuestionController extends Controller
         $payload['question_kind'] = CustomQuestion::KIND_NORMAL;
         $payload['status'] = (bool) ($payload['status'] ?? true);
 
-        if (!empty($payload['custom_category_id'])) {
-            $category = CustomCategory::ownedBy($user)->find($payload['custom_category_id']);
-            if (!$category) {
-                return ApiResponse::error('Custom category not found for this owner.', 422);
-            }
+        $category = CustomCategory::ownedBy($user)->find($payload['custom_category_id']);
+        if (! $category) {
+            return ApiResponse::error('Custom category not found for this owner.', 422);
         }
 
         if ($user instanceof Adventurer) {
@@ -83,16 +80,16 @@ class CustomQuestionController extends Controller
     {
         $user = auth()->user();
         $question = CustomQuestion::ownedBy($user)->find($id);
-        if (!$question) {
+        if (! $question) {
             return ApiResponse::error('Custom question not found.', 404);
         }
 
         $payload = $request->validated();
         $payload['question_kind'] = CustomQuestion::KIND_NORMAL;
 
-        if (array_key_exists('custom_category_id', $payload) && $payload['custom_category_id']) {
+        if (array_key_exists('custom_category_id', $payload)) {
             $category = CustomCategory::ownedBy($user)->find($payload['custom_category_id']);
-            if (!$category) {
+            if (! $category) {
                 return ApiResponse::error('Custom category not found for this owner.', 422);
             }
         }
@@ -103,31 +100,11 @@ class CustomQuestionController extends Controller
         return ApiResponse::success($this->serializeQuestion($question));
     }
 
-    public function assignCategory(AssignCustomQuestionCategoryRequest $request, int $id): JsonResponse
-    {
-        $user = auth()->user();
-        $question = CustomQuestion::ownedBy($user)->find($id);
-        if (!$question) {
-            return ApiResponse::error('Custom question not found.', 404);
-        }
-
-        $categoryId = (int) $request->input('custom_category_id');
-        $category = CustomCategory::ownedBy($user)->find($categoryId);
-        if (!$category) {
-            return ApiResponse::error('Custom category not found for this owner.', 422);
-        }
-
-        $question->update(['custom_category_id' => $category->id]);
-        $question->load('category');
-
-        return ApiResponse::success($this->serializeQuestion($question));
-    }
-
     public function destroy(int $id): JsonResponse
     {
         $user = auth()->user();
         $question = CustomQuestion::ownedBy($user)->find($id);
-        if (!$question) {
+        if (! $question) {
             return ApiResponse::error('Custom question not found.', 404);
         }
 

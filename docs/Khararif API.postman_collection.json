@@ -636,7 +636,7 @@
         },
         {
           "name": "Custom game flow",
-          "description": "Player-owned custom categories and questions (Bearer token required for mutating and my-* getters). List endpoints return only resources owned by the authenticated user or adventurer.",
+          "description": "Player-owned custom categories and questions (Bearer token required for mutating and my-* getters). List endpoints return only resources owned by the authenticated user or adventurer. Custom questions are always created with a custom_category_id (no separate assign step).",
           "item": [
             {
               "name": "Get My Custom Categories",
@@ -738,6 +738,7 @@
             {
               "name": "Create Custom Question",
               "request": {
+                "description": "Requires custom_category_id (must be a category owned by the Bearer user). You may use customCategoryId instead of custom_category_id.",
                 "method": "POST",
                 "header": [
                   {
@@ -751,7 +752,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"عاصمة فرنسا؟\",\n  \"answer_1\": \"باريس\",\n  \"is_correct_1\": true,\n  \"answer_2\": \"روما\",\n  \"is_correct_2\": false,\n  \"answer_3\": \"مدريد\",\n  \"is_correct_3\": false,\n  \"answer_4\": \"لندن\",\n  \"is_correct_4\": false\n}"
+                  "raw": "{\n  \"custom_category_id\": 1,\n  \"name\": \"عاصمة فرنسا؟\",\n  \"answer_1\": \"باريس\",\n  \"is_correct_1\": true,\n  \"answer_2\": \"روما\",\n  \"is_correct_2\": false,\n  \"answer_3\": \"مدريد\",\n  \"is_correct_3\": false,\n  \"answer_4\": \"لندن\",\n  \"is_correct_4\": false\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/api/game/custom-questions",
@@ -762,40 +763,6 @@
                     "api",
                     "game",
                     "custom-questions"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Assign Custom Question Category",
-              "request": {
-                "method": "PATCH",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{token}}"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"custom_category_id\": 1\n}"
-                },
-                "url": {
-                  "raw": "{{base_url}}/api/game/custom-questions/1/assign-category",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "game",
-                    "custom-questions",
-                    "1",
-                    "assign-category"
                   ]
                 }
               },

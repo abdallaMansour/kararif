@@ -16,7 +16,7 @@ class CustomGameFlowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_user_can_create_and_assign_custom_question_to_owned_category(): void
+    public function test_user_can_create_custom_question_with_owned_category(): void
     {
         $user = User::factory()->create(['available_sessions' => 10]);
         Sanctum::actingAs($user);
@@ -28,6 +28,7 @@ class CustomGameFlowTest extends TestCase
         $categoryId = (int) $categoryResponse->json('data.id');
 
         $questionResponse = $this->postJson('/api/game/custom-questions', [
+            'custom_category_id' => $categoryId,
             'name' => '2 + 2 = ?',
             'answer_1' => '3',
             'is_correct_1' => false,
@@ -38,13 +39,28 @@ class CustomGameFlowTest extends TestCase
             'answer_4' => '6',
             'is_correct_4' => false,
         ]);
-        $questionResponse->assertCreated();
-        $questionId = (int) $questionResponse->json('data.id');
+        $questionResponse->assertCreated()
+            ->assertJsonPath('data.custom_category_id', (string) $categoryId);
+    }
 
-        $assignResponse = $this->patchJson("/api/game/custom-questions/{$questionId}/assign-category", [
-            'custom_category_id' => $categoryId,
+    public function test_create_custom_question_without_category_returns_unprocessable(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson('/api/game/custom-questions', [
+            'name' => 'No category',
+            'answer_1' => 'a',
+            'is_correct_1' => true,
+            'answer_2' => 'b',
+            'is_correct_2' => false,
+            'answer_3' => 'c',
+            'is_correct_3' => false,
+            'answer_4' => 'd',
+            'is_correct_4' => false,
         ]);
-        $assignResponse->assertOk()->assertJsonPath('data.custom_category_id', (string) $categoryId);
+
+        $response->assertUnprocessable();
     }
 
     public function test_custom_room_details_returns_selected_questions_count(): void

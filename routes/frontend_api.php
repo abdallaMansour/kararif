@@ -87,7 +87,6 @@ Route::prefix('game')->group(function () {
         Route::get('custom-questions/{id}', [CustomQuestionController::class, 'show']);
         Route::post('custom-questions', [CustomQuestionController::class, 'store']);
         Route::patch('custom-questions/{id}', [CustomQuestionController::class, 'update']);
-        Route::patch('custom-questions/{id}/assign-category', [CustomQuestionController::class, 'assignCategory']);
         Route::delete('custom-questions/{id}', [CustomQuestionController::class, 'destroy']);
 
         Route::post('create-room', [GameController::class, 'createRoom']);
