@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\GameSession;
 use App\Models\Room;
+use App\Models\RoomPlayer;
 use App\Models\Stage;
 use App\Models\TvDisplay;
 use Illuminate\Support\Facades\Log;
@@ -43,11 +44,12 @@ class FirebaseGameSyncService
         }
         Log::info('Firebase syncRoom starting', ['room_id' => $room->id]);
         try {
-            $room->load(['type', 'category', 'subcategory', 'customCategory', 'roomPlayers.user', 'roomPlayers.adventurer']);
+            $room->load(['type', 'category', 'subcategory', 'customCategory', 'roomPlayers.user.avatarRelation', 'roomPlayers.adventurer.avatarRelation']);
             $teams = (int) $room->teams;
             $players = $room->roomPlayers->keyBy('id')->map(fn ($rp) => [
                 'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
                 'userName' => ($rp->adventurer ?? $rp->user)?->name ?? 'Player',
+                'avatarUrl' => $this->avatarUrlForRoomPlayer($rp),
                 'teamId' => (string) $rp->team_id,
                 'teamCode' => 'K' . $rp->team_id,
                 'isLeader' => (bool) $rp->is_leader,
@@ -135,7 +137,7 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
+            $session->load('room.roomPlayers.user.avatarRelation', 'room.roomPlayers.adventurer.avatarRelation', 'room.subcategory.stage.questionGroups');
             $teams = $this->buildTeamsData($session);
             $stage = $this->buildStageData($session->room, $session);
             $round = $this->buildRoundMeta($session);
@@ -171,7 +173,7 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
+            $session->load('room.roomPlayers.user.avatarRelation', 'room.roomPlayers.adventurer.avatarRelation', 'room.subcategory.stage.questionGroups');
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsData($session);
             $stage = $this->buildStageData($session->room, $session);
@@ -238,7 +240,7 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
+            $session->load('room.roomPlayers.user.avatarRelation', 'room.roomPlayers.adventurer.avatarRelation', 'room.subcategory.stage.questionGroups');
             $teams = $this->buildTeamsData($session);
             $stage = $this->buildStageData($session->room, $session);
             $db->getReference('sessions/' . $session->id)->update(['teams' => $teams, 'stage' => $stage]);
@@ -254,7 +256,7 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups');
+            $session->load('room.roomPlayers.user.avatarRelation', 'room.roomPlayers.adventurer.avatarRelation', 'room.subcategory.stage.questionGroups');
             $teams = $this->buildTeamsData($session);
             $stage = $this->buildStageData($session->room, $session);
 
@@ -488,7 +490,7 @@ class FirebaseGameSyncService
     private function buildTeamsDataWithStats(GameSession $session, bool $includeAnswerStats): array
     {
         $room = $session->room;
-        $room->load('roomPlayers.user', 'roomPlayers.adventurer', 'subcategory.stage');
+        $room->load('roomPlayers.user.avatarRelation', 'roomPlayers.adventurer.avatarRelation', 'subcategory.stage');
         $byTeam = $room->roomPlayers->groupBy('team_id');
 
         $gameService = app(GameService::class);
@@ -517,6 +519,7 @@ class FirebaseGameSyncService
             $playerList = $players->map(fn ($rp) => [
                 'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
                 'userName' => ($rp->adventurer ?? $rp->user)?->name ?? 'Player',
+                'avatarUrl' => $this->avatarUrlForRoomPlayer($rp),
                 'isLeader' => (bool) $rp->is_leader,
                 'tvViewJoined' => $rp->tv_view_joined_at !== null,
             ])->values()->all();
@@ -566,7 +569,7 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups', 'sessionAnswers');
+            $session->load('room.roomPlayers.user.avatarRelation', 'room.roomPlayers.adventurer.avatarRelation', 'room.subcategory.stage.questionGroups', 'sessionAnswers');
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsDataWithStats($session, true);
             $stage = $this->buildStageData($session->room, $session);
@@ -604,5 +607,19 @@ class FirebaseGameSyncService
         } catch (\Throwable $e) {
             Log::warning('Firebase syncSessionPaused failed', ['session_id' => $session->id, 'error' => $e->getMessage()]);
         }
+    }
+
+    private function avatarUrlForRoomPlayer(RoomPlayer $rp): ?string
+    {
+        $entity = $rp->adventurer ?? $rp->user;
+        if (! $entity) {
+            return null;
+        }
+        $avatar = $entity->avatarRelation ?? null;
+        if ($avatar && $avatar->image_url) {
+            return $avatar->image_url;
+        }
+
+        return null;
     }
 }

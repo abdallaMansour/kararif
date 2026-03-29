@@ -140,6 +140,9 @@ class UserController extends Controller
 
         $roomPlayers = $roomPlayerQuery
             ->with([
+                'room.type',
+                'room.category',
+                'room.customCategory',
                 'room.roomPlayers.user',
                 'room.roomPlayers.adventurer',
                 'room.gameSessions' => fn ($q) => $q->where('status', 'finished')->latest('id'),
@@ -147,46 +150,38 @@ class UserController extends Controller
             ->orderByDesc('joined_at')
             ->paginate($limit, ['*'], 'page', $page);
 
-        $resultFilter = request('result'); // win|loss
+        $resultFilter = request('result'); // win|loss|draw
         $rankFilter = request('rank'); // 1|2|3
         $games = collect($roomPlayers->items())->map(function (RoomPlayer $rp) {
             $session = $rp->room->gameSessions->sortByDesc('id')->first();
-            $surrenderedTeamIds = array_map('strval', $session?->surrendered_team_ids ?? []);
 
+            $isCustom = (bool) $rp->room->is_custom;
             $roomName = $rp->room->title ?: $rp->room->type?->name ?: ($rp->room->category?->name ?? 'مغامرة');
+            $categoryLabel = $isCustom
+                ? ($rp->room->customCategory?->name ?? $rp->room->title ?? $rp->room->type?->name)
+                : ($rp->room->category?->name ?? $rp->room->type?->name);
             $myScore = $rp->score;
-            $myTeamId = $rp->team_id;
 
-            // Exclude surrendered teams from ranking (they lost by surrendering)
-            $activeTeamScores = $rp->room->roomPlayers
-                ->groupBy('team_id')
-                ->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
-                ->map(fn ($pls) => $pls->sum('score'));
-
-            // Rank teams by score descending; teams with same score share the same rank
-            $sortedByScore = $activeTeamScores->sortByDesc(fn ($s) => $s);
-            $prevScore = null;
-            $rank = 0;
-            $teamRanks = [];
-            foreach ($sortedByScore as $tid => $score) {
-                if ($prevScore === null || $score < $prevScore) {
-                    $rank++;
-                }
-                $teamRanks[$tid] = $rank;
-                $prevScore = $score;
+            if (! $session) {
+                return [
+                    'id' => (string) $rp->room_id,
+                    'date' => $rp->joined_at?->toIso8601String(),
+                    'roomName' => $roomName,
+                    'category' => $categoryLabel,
+                    'isCustom' => $isCustom,
+                    'customCategoryId' => $isCustom && $rp->room->custom_category_id
+                        ? (string) $rp->room->custom_category_id
+                        : null,
+                    'customCategoryName' => $isCustom ? ($rp->room->customCategory?->name) : null,
+                    'result' => 'loss',
+                    'userRank' => null,
+                    'score' => $myScore,
+                    'opponent' => null,
+                    'opponentCountry' => null,
+                ];
             }
-            $teamRank = $teamRanks[$myTeamId] ?? $rank + 1;
-            $userRank = $teamRank;
 
-            // Win only for first place; ties for first both win
-            $result = 'draw';
-            if (in_array((string) $myTeamId, $surrenderedTeamIds, true)) {
-                $result = 'loss';
-            } elseif ($activeTeamScores->count() > 1) {
-                $result = $teamRank === 1 ? 'win' : 'loss';
-            } elseif ($activeTeamScores->count() === 1) {
-                $result = 'win';
-            }
+            $outcome = $this->userService->classifyFinishedSessionForPlayer($rp->room, $session, $rp);
             $opponent = $rp->room->roomPlayers->where('id', '!=', $rp->id)->first();
             $opponentEntity = $opponent?->adventurer ?? $opponent?->user;
             $opponentName = $opponentEntity?->name ?? null;
@@ -194,26 +189,26 @@ class UserController extends Controller
                 'label' => $opponentEntity->country_label ?? null,
                 'code' => $opponentEntity->country_code ?? null,
             ] : null;
-            $rankLabel = match ($userRank) {
-                1 => 'أول',
-                2 => 'ثاني',
-                3 => 'ثالث',
-                default => null,
-            };
+
             return [
-                'id' => (string) ($session?->id ?? $rp->room_id),
+                'id' => (string) ($session->id ?? $rp->room_id),
                 'date' => $rp->joined_at?->toIso8601String(),
                 'roomName' => $roomName,
-                'category' => $rp->room->category?->name ?? $rp->room->type?->name,
-                'result' => $result,
-                'userRank' => $rankLabel,
+                'category' => $categoryLabel,
+                'isCustom' => $isCustom,
+                'customCategoryId' => $isCustom && $rp->room->custom_category_id
+                    ? (string) $rp->room->custom_category_id
+                    : null,
+                'customCategoryName' => $isCustom ? ($rp->room->customCategory?->name) : null,
+                'result' => $outcome['result'],
+                'userRank' => $outcome['rankLabel'],
                 'score' => $myScore,
                 'opponent' => $opponentName,
                 'opponentCountry' => $opponentCountry,
             ];
         })->values();
 
-        if ($resultFilter && in_array($resultFilter, ['win', 'loss'], true)) {
+        if ($resultFilter && in_array($resultFilter, ['win', 'loss', 'draw'], true)) {
             $games = $games->where('result', $resultFilter)->values();
         }
         if ($rankFilter && in_array($rankFilter, ['1', '2', '3'], true)) {

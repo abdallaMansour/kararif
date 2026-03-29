@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Adventurer;
+use App\Models\GameSession;
+use App\Models\Room;
 use App\Models\RoomPlayer;
 use App\Models\User;
 use App\Utils\ImageUpload;
@@ -80,11 +82,66 @@ class UserService
     }
 
     /**
-     * Returns wins and losses count for a user/adventurer based on finished game sessions.
-     * Win = player's team had the highest score in that session; otherwise loss.
+     * Score-based outcome for a player after a finished session.
+     *
+     * @return array{result: 'win'|'loss'|'draw', rankLabel: string|null}
+     */
+    public function classifyFinishedSessionForPlayer(Room $room, GameSession $session, RoomPlayer $rp): array
+    {
+        $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
+
+        $activeTeamScores = $room->roomPlayers
+            ->groupBy('team_id')
+            ->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
+            ->map(fn ($players) => $players->sum('score'));
+
+        if (in_array((string) $rp->team_id, $surrenderedTeamIds, true)) {
+            return ['result' => 'loss', 'rankLabel' => null];
+        }
+
+        if ($activeTeamScores->count() <= 1) {
+            return ['result' => 'win', 'rankLabel' => 'أول'];
+        }
+
+        $maxScore = $activeTeamScores->max();
+        $teamsSharingTopScore = $activeTeamScores->filter(fn ($s) => $s === $maxScore);
+        $myTeamScore = $activeTeamScores[(string) $rp->team_id] ?? null;
+
+        if ($teamsSharingTopScore->count() > 1 && $myTeamScore === $maxScore) {
+            return ['result' => 'draw', 'rankLabel' => null];
+        }
+
+        $sortedByScore = $activeTeamScores->sortByDesc(fn ($s) => $s);
+        $prevScore = null;
+        $rank = 0;
+        $teamRanks = [];
+        foreach ($sortedByScore as $tid => $score) {
+            if ($prevScore === null || $score < $prevScore) {
+                $rank++;
+            }
+            $teamRanks[(string) $tid] = $rank;
+            $prevScore = $score;
+        }
+        $myRank = $teamRanks[(string) $rp->team_id] ?? $rank + 1;
+        $rankLabel = match ($myRank) {
+            1 => 'أول',
+            2 => 'ثاني',
+            3 => 'ثالث',
+            default => null,
+        };
+
+        return [
+            'result' => $myRank === 1 ? 'win' : 'loss',
+            'rankLabel' => $rankLabel,
+        ];
+    }
+
+    /**
+     * Returns wins, losses, and draws for a user/adventurer based on finished game sessions.
+     * Draw = tie for first place (same top team score among active teams).
      *
      * @param User|Adventurer $user
-     * @return array{wins: int, losses: int}
+     * @return array{wins: int, losses: int, draws: int}
      */
     public function getWinsLosses(User|Adventurer $user): array
     {
@@ -108,50 +165,22 @@ class UserService
 
         $wins = 0;
         $losses = 0;
+        $draws = 0;
 
         foreach ($roomPlayers as $rp) {
             $session = $rp->room->gameSessions->first();
-            if (!$session) {
-                continue;
-            }
-            $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
-
-            // Exclude surrendered teams from ranking (they lost)
-            $activeTeamScores = $rp->room->roomPlayers
-                ->groupBy('team_id')
-                ->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
-                ->map(fn ($players) => $players->sum('score'));
-
-            if (in_array((string) $rp->team_id, $surrenderedTeamIds, true)) {
-                $losses++;
+            if (! $session) {
                 continue;
             }
 
-            if ($activeTeamScores->count() <= 1) {
-                $wins++;
-                continue;
-            }
-
-            // Win = first place only; rank by score (ties for first both win)
-            $sortedByScore = $activeTeamScores->sortByDesc(fn ($s) => $s);
-            $prevScore = null;
-            $rank = 0;
-            $teamRanks = [];
-            foreach ($sortedByScore as $tid => $score) {
-                if ($prevScore === null || $score < $prevScore) {
-                    $rank++;
-                }
-                $teamRanks[(string) $tid] = $rank;
-                $prevScore = $score;
-            }
-            $myRank = $teamRanks[(string) $rp->team_id] ?? $rank + 1;
-            if ($myRank === 1) {
-                $wins++;
-            } else {
-                $losses++;
-            }
+            $outcome = $this->classifyFinishedSessionForPlayer($rp->room, $session, $rp);
+            match ($outcome['result']) {
+                'win' => $wins++,
+                'loss' => $losses++,
+                'draw' => $draws++,
+            };
         }
 
-        return ['wins' => $wins, 'losses' => $losses];
+        return ['wins' => $wins, 'losses' => $losses, 'draws' => $draws];
     }
 }

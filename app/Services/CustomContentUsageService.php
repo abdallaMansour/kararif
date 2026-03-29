@@ -10,9 +10,24 @@ use Illuminate\Support\Facades\DB;
 class CustomContentUsageService
 {
     /**
-     * When a custom-room session finishes: bump category usage once and each scheduled custom question once.
+     * Custom room: increment category usage once when the session moves to playing (session start).
      */
-    public function recordFinishedCustomSession(GameSession $session): void
+    public function recordCustomCategorySessionStart(GameSession $session): void
+    {
+        $session->loadMissing('room');
+        $room = $session->room;
+
+        if (! $room || ! $room->is_custom || ! $room->custom_category_id) {
+            return;
+        }
+
+        CustomCategory::whereKey((int) $room->custom_category_id)->increment('usage_count');
+    }
+
+    /**
+     * Custom room: increment usage for the custom question currently shown (session.current_round).
+     */
+    public function recordCustomQuestionShown(GameSession $session): void
     {
         $session->loadMissing('room');
         $room = $session->room;
@@ -24,22 +39,24 @@ class CustomContentUsageService
         $categoryId = (int) $room->custom_category_id;
         $questionIds = $session->question_ids ?? [];
         if (! is_array($questionIds)) {
-            $questionIds = [];
+            return;
         }
 
-        DB::transaction(function () use ($categoryId, $questionIds) {
-            CustomCategory::whereKey($categoryId)->increment('usage_count');
+        $idx = (int) $session->current_round - 1;
+        if (! isset($questionIds[$idx])) {
+            return;
+        }
 
-            foreach ($questionIds as $rawId) {
-                $qid = (int) $rawId;
-                if ($qid <= 0) {
-                    continue;
-                }
-                CustomQuestion::query()
-                    ->whereKey($qid)
-                    ->where('custom_category_id', $categoryId)
-                    ->increment('usage_count');
-            }
+        $qid = (int) $questionIds[$idx];
+        if ($qid <= 0) {
+            return;
+        }
+
+        DB::transaction(function () use ($categoryId, $qid) {
+            CustomQuestion::query()
+                ->whereKey($qid)
+                ->where('custom_category_id', $categoryId)
+                ->increment('usage_count');
         });
     }
 }

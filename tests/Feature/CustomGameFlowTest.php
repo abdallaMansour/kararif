@@ -5,9 +5,13 @@ namespace Tests\Feature;
 use App\Models\Category;
 use App\Models\CustomCategory;
 use App\Models\CustomQuestion;
+use App\Models\GameSession;
+use App\Models\Room;
+use App\Models\RoomPlayer;
 use App\Models\Subcategory;
 use App\Models\Type;
 use App\Models\User;
+use App\Services\GameService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -169,5 +173,101 @@ class CustomGameFlowTest extends TestCase
         $this->assertArrayHasKey('category_usage_count', $qs->json('data.0'));
         $this->assertSame(0, $qs->json('data.0.usage_count'));
         $this->assertSame(0, $qs->json('data.0.category_usage_count'));
+    }
+
+    public function test_custom_session_records_category_usage_on_start_and_question_usage_when_shown_then_finishes_without_next_question(): void
+    {
+        $user1 = User::factory()->create();
+        $user2 = User::factory()->create();
+
+        $type = Type::create(['name' => 'Fallback Type', 'status' => true]);
+        $category = Category::create(['type_id' => $type->id, 'name' => 'Fallback Category', 'status' => true]);
+        $subcategory = Subcategory::create(['category_id' => $category->id, 'name' => 'Fallback Subcategory', 'status' => true, 'use_stage' => false]);
+
+        $customCategory = CustomCategory::create([
+            'owner_user_id' => $user1->id,
+            'name' => 'Usage Cat',
+            'status' => true,
+        ]);
+
+        $question = CustomQuestion::create([
+            'owner_user_id' => $user1->id,
+            'custom_category_id' => $customCategory->id,
+            'name' => 'One question',
+            'question_kind' => 'normal',
+            'answer_1' => 'Yes',
+            'is_correct_1' => true,
+            'answer_2' => 'No',
+            'is_correct_2' => false,
+            'answer_3' => 'Maybe',
+            'is_correct_3' => false,
+            'answer_4' => 'Skip',
+            'is_correct_4' => false,
+            'status' => true,
+        ]);
+
+        $room = Room::create([
+            'code' => '111111',
+            'is_custom' => true,
+            'custom_category_id' => $customCategory->id,
+            'type_id' => $type->id,
+            'category_id' => $category->id,
+            'subcategory_id' => $subcategory->id,
+            'title' => 'Custom',
+            'rounds' => 1,
+            'questions_count' => 1,
+            'life_points' => 5,
+            'teams' => 2,
+            'players' => 2,
+            'status' => 'playing',
+            'expires_at' => now()->addHour(),
+            'created_by' => $user1->id,
+        ]);
+
+        $leader1 = RoomPlayer::create([
+            'room_id' => $room->id,
+            'user_id' => $user1->id,
+            'team_id' => 1,
+            'is_leader' => true,
+        ]);
+        $leader2 = RoomPlayer::create([
+            'room_id' => $room->id,
+            'user_id' => $user2->id,
+            'team_id' => 2,
+            'is_leader' => true,
+        ]);
+
+        $session = GameSession::create([
+            'room_id' => $room->id,
+            'current_round' => 1,
+            'status' => 'starting',
+            'started_at' => now(),
+            'start_timer_ends_at' => now()->subSecond(),
+            'question_started_at' => null,
+            'question_ids' => [$question->id],
+            'surrendered_team_ids' => [],
+        ]);
+
+        $gameService = app(GameService::class);
+        $session = $gameService->ensureSessionPlaying($session->fresh());
+        $this->assertSame('playing', $session->status);
+        $this->assertTrue($gameService->startCurrentQuestion($session->fresh())['ok']);
+
+        $customCategory->refresh();
+        $question->refresh();
+        $this->assertSame(1, (int) $customCategory->usage_count);
+        $this->assertSame(1, (int) $question->usage_count);
+
+        $gameService->submitAnswer($session->fresh(), $leader1->id, 1);
+        $this->assertSame('playing', $session->fresh()->status);
+
+        $gameService->submitAnswer($session->fresh(), $leader2->id, 1);
+        $this->assertSame('finished', $session->fresh()->status);
+        $this->assertSame('finished', $room->fresh()->status);
+
+        $customCategory->refresh();
+        $question->refresh();
+        $this->assertSame(1, (int) $customCategory->usage_count);
+        $this->assertSame(1, (int) $question->usage_count);
     }
 }

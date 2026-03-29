@@ -14,7 +14,8 @@ use App\Models\TvDisplay;
 class GameService
 {
     public function __construct(
-        protected FirebaseGameSyncService $firebaseSync
+        protected FirebaseGameSyncService $firebaseSync,
+        protected CustomContentUsageService $customContentUsage
     ) {}
     public function generateRoomCode(): string
     {
@@ -346,13 +347,19 @@ class GameService
     {
         // First time we go to playing: do NOT start the question timer yet.
         // TV will explicitly start the first question after the beginning video.
+        $wasStarting = $session->status === 'starting';
         $session->update([
             'status' => 'playing',
         ]);
 
-        $this->firebaseSync->syncSessionStart($session->fresh());
+        $fresh = $session->fresh();
+        if ($wasStarting) {
+            $this->customContentUsage->recordCustomCategorySessionStart($fresh);
+        }
 
-        return $session->fresh();
+        $this->firebaseSync->syncSessionStart($fresh);
+
+        return $fresh->fresh();
     }
 
     public function getCurrentQuestion(GameSession $session): ?array
@@ -565,6 +572,8 @@ class GameService
             // Pause the game and show stats / animations
             $session->update(['status' => 'paused']);
             $this->firebaseSync->syncSessionPaused($session->fresh(), $correct);
+            // If this was the last question, finish without requiring a separate nextQuestion call (TV often skips it).
+            $this->advanceFinishedSessionIfLastQuestion($session->fresh());
         } else {
             // Keep playing this question, just sync updated scores
             $this->firebaseSync->syncScores($session->fresh());
@@ -575,6 +584,23 @@ class GameService
             'scoreDelta' => $scoreDelta,
             'nextQuestionAvailable' => $nextQuestionAvailable,
         ];
+    }
+
+    /**
+     * When the final question just paused, advance immediately so status becomes finished and custom usage is recorded.
+     * Intermediate rounds still rely on POST .../next-question after TV animations.
+     */
+    public function advanceFinishedSessionIfLastQuestion(GameSession $session): void
+    {
+        if ($session->status !== 'paused') {
+            return;
+        }
+        $questionIds = $session->question_ids ?? [];
+        $nextRound = (int) $session->current_round + 1;
+        if ($nextRound <= count($questionIds)) {
+            return;
+        }
+        $this->advanceToNextQuestion($session->fresh());
     }
 
     public function startCurrentQuestion(GameSession $session): array
@@ -592,8 +618,11 @@ class GameService
             'question_started_at' => now(),
         ]);
 
+        $started = $session->fresh();
+        $this->customContentUsage->recordCustomQuestionShown($started);
+
         // Re-sync question + teams + stage, now with questionStartedAt set
-        $this->firebaseSync->syncSessionStart($session->fresh());
+        $this->firebaseSync->syncSessionStart($started);
 
         return ['ok' => true, 'reason' => 'started'];
     }
@@ -679,7 +708,9 @@ class GameService
             'current_round' => $nextRound,
             'question_started_at' => now(),
         ]);
-        $this->firebaseSync->syncSessionStart($session->fresh());
+        $advanced = $session->fresh();
+        $this->customContentUsage->recordCustomQuestionShown($advanced);
+        $this->firebaseSync->syncSessionStart($advanced);
         return ['finished' => false, 'round' => $nextRound];
     }
 
@@ -689,14 +720,21 @@ class GameService
         $teamScores = $session->room->roomPlayers->groupBy('team_id')
             ->map(fn ($players) => $players->sum('score'));
         $maxScore = $teamScores->max();
-        $winnerTeamIds = $teamScores->filter(fn ($s) => $s >= $maxScore)->keys();
+        $teamsAtMaxScore = $teamScores->filter(fn ($s) => $s === $maxScore);
 
         foreach ($session->room->roomPlayers as $rp) {
             $player = $rp->adventurer ?? $rp->user;
-            if (!$player) {
+            if (! $player) {
                 continue;
             }
-            $delta = $winnerTeamIds->contains((string) $rp->team_id) ? 1 : -1;
+            $teamScore = $teamScores[(string) $rp->team_id] ?? 0;
+
+            // Tie for first: no +1/-1 swing; lower teams still lose a point.
+            if ($teamsAtMaxScore->count() > 1) {
+                $delta = $teamScore === $maxScore ? 0 : -1;
+            } else {
+                $delta = $teamScore === $maxScore ? 1 : -1;
+            }
             $player->increment('points', $delta);
         }
     }

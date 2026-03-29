@@ -883,9 +883,13 @@ class GameController extends Controller
 
         $session->update(['status' => 'paused']);
         $this->firebaseSync->syncSessionPaused($session->fresh(), false);
+        $this->gameService->advanceFinishedSessionIfLastQuestion($session->fresh());
+
+        $session = $session->fresh();
 
         return ApiResponse::success([
-            'paused' => true,
+            'paused' => $session->status === 'paused',
+            'finished' => $session->status === 'finished',
             'sessionId' => (string) $session->id,
             'reason' => $allLeadersAnswered ? 'all_leaders_answered' : 'timeout',
         ]);
