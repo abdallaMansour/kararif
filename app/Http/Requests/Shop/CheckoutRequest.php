@@ -20,6 +20,8 @@ class CheckoutRequest extends FormRequest
             'delivery.emirate' => ['required', 'string', 'max:120'],
             'delivery.area' => ['required', 'string', 'max:120'],
             'delivery.detail' => ['required', 'string', 'max:1000'],
+            'success_url' => ['nullable', 'url', 'max:1000'],
+            'cancel_url' => ['nullable', 'url', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'exists:shop_products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100'],
@@ -31,7 +33,9 @@ class CheckoutRequest extends FormRequest
         $clean = fn (?string $value): ?string => $value === null ? null : trim(strip_tags($value));
 
         $customer = (array) $this->input('customer', []);
-        $delivery = (array) $this->input('delivery', []);
+        // Accept both "delivery" and "address" payload keys.
+        $deliveryInput = $this->input('delivery', $this->input('address', []));
+        $delivery = (array) $deliveryInput;
 
         $this->merge([
             'customer' => [
@@ -44,6 +48,8 @@ class CheckoutRequest extends FormRequest
                 'area' => $clean($delivery['area'] ?? null),
                 'detail' => $clean($delivery['detail'] ?? null),
             ],
+            'success_url' => $clean($this->input('success_url')),
+            'cancel_url' => $clean($this->input('cancel_url')),
         ]);
     }
 }

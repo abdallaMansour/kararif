@@ -21,24 +21,24 @@ class ShopOrderController extends Controller
 
     public function checkout(CheckoutRequest $request): JsonResponse
     {
+        $validated = $request->validated();
+
         try {
-            $order = $this->shopOrderService->createPendingOrder($request->validated());
+            $order = $this->shopOrderService->createPendingOrder($validated);
         } catch (\InvalidArgumentException $exception) {
             return ApiResponse::error($exception->getMessage(), 422);
         }
 
         $token = $this->tokenService->issue($order->id, (int) config('shop.confirmation_token_ttl_minutes', 60));
-        $confirmationUrl = rtrim(config('shop.frontend_confirmation_url'), '?');
-        $successUrl = $confirmationUrl
-            . '?order_id=' . $order->id
-            . '&token=' . urlencode($token)
-            . '&payment_intent_id={PAYMENT_INTENT_ID}';
+        $successBaseUrl = (string) ($validated['success_url'] ?? config('shop.frontend_confirmation_url'));
+        $successUrl = $this->buildSuccessUrl($successBaseUrl, $order->id, $token);
+        $cancelUrl = $validated['cancel_url'] ?? config('shop.frontend_cancel_url');
 
         $intent = $this->ziinaService->createPaymentIntent(
             $order->total_aed,
             'AED',
             $successUrl,
-            config('shop.frontend_cancel_url'),
+            $cancelUrl,
             null,
             'Order ' . $order->order_number
         );
@@ -65,6 +65,17 @@ class ShopOrderController extends Controller
         ]);
     }
 
+    private function buildSuccessUrl(string $baseUrl, int $orderId, string $token): string
+    {
+        $separator = str_contains($baseUrl, '?') ? '&' : '?';
+
+        return $baseUrl
+            . $separator
+            . 'order_id=' . $orderId
+            . '&token=' . urlencode($token)
+            . '&payment_intent_id={PAYMENT_INTENT_ID}';
+    }
+
     public function show(int $orderId): JsonResponse
     {
         $token = (string) request()->query('token', '');
@@ -88,7 +99,7 @@ class ShopOrderController extends Controller
                 'area' => $order->delivery_area,
                 'detail' => $order->delivery_detail,
             ],
-            'items' => $order->items->map(fn ($item) => [
+            'items' => collect($order->items)->map(fn ($item) => [
                 'product_id' => $item->shop_product_id,
                 'name_ar' => $item->product?->name_ar,
                 'quantity' => (int) $item->quantity,

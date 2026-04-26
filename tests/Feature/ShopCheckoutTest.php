@@ -47,11 +47,13 @@ class ShopCheckoutTest extends TestCase
                 'phone' => '+971500000000',
                 'email' => 'customer@example.com',
             ],
-            'delivery' => [
+            'address' => [
                 'emirate' => 'Dubai',
                 'area' => 'JVC',
                 'detail' => 'Building 1, Apartment 10',
             ],
+            'success_url' => 'http://localhost:3000/order/confirmation',
+            'cancel_url' => 'http://localhost:3000/order?cancelled=1',
             'items' => [
                 ['product_id' => $book->id, 'quantity' => 1],
                 ['product_id' => $stickers->id, 'quantity' => 2],
