@@ -21,6 +21,7 @@ class DashboardShopProductRequest extends FormRequest
             'name_ar' => ['required', 'string', 'max:255'],
             'price_aed' => ['required', 'numeric', 'min:0'],
             'image_url' => ['nullable', 'string', 'max:1000'],
+            'image' => ['nullable', 'file', 'image', 'max:5120'],
             'is_active' => ['sometimes', 'boolean'],
             'is_sellable' => ['sometimes', 'boolean'],
         ];

@@ -12,6 +12,21 @@ class DashboardShopProductController extends Controller
 {
     use ApiTrait;
 
+    private function serializeProduct(ShopProduct $product): array
+    {
+        return [
+            'id' => $product->id,
+            'sku' => $product->sku,
+            'name_ar' => $product->name_ar,
+            'price_aed' => (float) $product->price_aed,
+            'image_url' => $product->resolvedImageUrl(),
+            'is_active' => (bool) $product->is_active,
+            'is_sellable' => (bool) $product->is_sellable,
+            'created_at' => $product->created_at,
+            'updated_at' => $product->updated_at,
+        ];
+    }
+
     public function index(): JsonResponse
     {
         $query = ShopProduct::query()->orderByDesc('id');
@@ -32,9 +47,26 @@ class DashboardShopProductController extends Controller
             $query->where('is_sellable', filter_var(request('is_sellable'), FILTER_VALIDATE_BOOLEAN));
         }
 
+        $paginated = $query->paginate((int) request('per_page', 20));
+
         return response()->json([
             'success' => true,
-            'data' => $query->paginate((int) request('per_page', 20)),
+            'data' => [
+                'current_page' => $paginated->currentPage(),
+                'data' => collect($paginated->items())->map(
+                    fn (ShopProduct $product) => $this->serializeProduct($product)
+                )->values()->all(),
+                'first_page_url' => $paginated->url(1),
+                'from' => $paginated->firstItem(),
+                'last_page' => $paginated->lastPage(),
+                'last_page_url' => $paginated->url($paginated->lastPage()),
+                'next_page_url' => $paginated->nextPageUrl(),
+                'path' => $paginated->path(),
+                'per_page' => $paginated->perPage(),
+                'prev_page_url' => $paginated->previousPageUrl(),
+                'to' => $paginated->lastItem(),
+                'total' => $paginated->total(),
+            ],
         ]);
     }
 
@@ -42,7 +74,7 @@ class DashboardShopProductController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data' => $product,
+            'data' => $this->serializeProduct($product),
         ]);
     }
 
@@ -52,16 +84,37 @@ class DashboardShopProductController extends Controller
         $payload['is_active'] = (bool) ($payload['is_active'] ?? true);
         $payload['is_sellable'] = (bool) ($payload['is_sellable'] ?? true);
 
-        ShopProduct::create($payload);
+        unset($payload['image']);
 
-        return $this->sendSuccess(__('response.created'));
+        $product = ShopProduct::create($payload);
+        if ($request->hasFile('image')) {
+            $product->clearMediaCollection();
+            $product->addMediaFromRequest('image')->toMediaCollection();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => __('response.created'),
+            'data' => $this->serializeProduct($product->fresh()),
+        ]);
     }
 
     public function update(DashboardShopProductRequest $request, ShopProduct $product): JsonResponse
     {
-        $product->update($request->validated());
+        $payload = $request->validated();
+        unset($payload['image']);
+        $product->update($payload);
 
-        return $this->sendSuccess(__('response.updated'));
+        if ($request->hasFile('image')) {
+            $product->clearMediaCollection();
+            $product->addMediaFromRequest('image')->toMediaCollection();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => __('response.updated'),
+            'data' => $this->serializeProduct($product->fresh()),
+        ]);
     }
 
     public function destroy(ShopProduct $product): JsonResponse

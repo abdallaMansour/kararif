@@ -23,7 +23,7 @@ class ShopProductController extends Controller
                 'id' => (int) $product->id,
                 'name_ar' => $product->name_ar,
                 'price_aed' => (float) $product->price_aed,
-                'image_url' => $product->image_url,
+                'image_url' => $product->resolvedImageUrl(),
             ])
             ->values()
             ->all();
