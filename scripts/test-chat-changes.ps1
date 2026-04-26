@@ -1,9 +1,8 @@
 # Runs PHPUnit tests for recent chat-related changes.
 # - ChatChangesRegressionTest + CustomGameFlowTest: use RefreshDatabase (isolated DB OK for migrate:fresh).
 # - ChatChangesRealAccountTest: NO RefreshDatabase — logs in existing `adventurers` only (no registration).
-#   Requires the same DB as your app with:
-#     moamen.hamed33322@gmail.com / 6789
-#     moamen.hamed3334422@gmail.com / 1234
+#   Requires the same DB as your app with those adventurers/users present.
+#   Optional .env overrides: KARARIF_TEST_CREATOR_EMAIL/PASSWORD, KARARIF_TEST_PLAYER_EMAIL/PASSWORD
 #
 # Usage (from project root):
 #   .\scripts\test-chat-changes.ps1

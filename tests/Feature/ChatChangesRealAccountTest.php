@@ -10,14 +10,20 @@ use App\Models\Room;
 use App\Models\RoomPlayer;
 use App\Models\Subcategory;
 use App\Models\Type;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
- * Uses real `adventurers` rows in your database (no registration, no RefreshDatabase).
- * Point `.env` / `phpunit.xml` at the same DB where these accounts already exist.
+ * Uses real rows in your database (no RefreshDatabase, no registration).
  *
- * Room creator: moamen.hamed33322@gmail.com / 6789
- * Other player:  moamen.hamed3334422@gmail.com / 1234
+ * Defaults (override with .env when passwords differ):
+ *   KARARIF_TEST_CREATOR_EMAIL, KARARIF_TEST_CREATOR_PASSWORD
+ *   KARARIF_TEST_PLAYER_EMAIL, KARARIF_TEST_PLAYER_PASSWORD
+ *
+ * Auth: tries POST /api/auth/login (Adventurer). If that returns 401, falls back to
+ * verifying password against `adventurers` or `users` and issuing a Sanctum token
+ * (covers accounts that exist only as User, or pin-only Adventurer rows).
  */
 class ChatChangesRealAccountTest extends TestCase
 {
@@ -29,23 +35,111 @@ class ChatChangesRealAccountTest extends TestCase
 
     private const OTHER_PLAYER_PASSWORD = '1234';
 
-    /**
-     * @return array{token: string, adventurer_id: int}
-     */
-    private function loginApp(string $email, string $password): array
+    private function creatorEmail(): string
     {
-        $response = $this->postJson('/api/auth/login', [
+        return (string) env('KARARIF_TEST_CREATOR_EMAIL', self::ROOM_CREATOR_EMAIL);
+    }
+
+    private function creatorPassword(): string
+    {
+        return (string) env('KARARIF_TEST_CREATOR_PASSWORD', self::ROOM_CREATOR_PASSWORD);
+    }
+
+    private function playerEmail(): string
+    {
+        return (string) env('KARARIF_TEST_PLAYER_EMAIL', self::OTHER_PLAYER_EMAIL);
+    }
+
+    private function playerPassword(): string
+    {
+        return (string) env('KARARIF_TEST_PLAYER_PASSWORD', self::OTHER_PLAYER_PASSWORD);
+    }
+
+    /**
+     * @return array{token: string, kind: 'adventurer'|'user', id: int}
+     */
+    private function obtainAuth(string $email, string $password): array
+    {
+        $http = $this->postJson('/api/auth/login', [
             'email' => $email,
             'password' => $password,
         ]);
 
-        $response->assertOk()->assertJsonPath('success', true);
-        $token = $response->json('data.token');
-        $id = (int) $response->json('data.user.id');
-        $this->assertNotEmpty($token);
-        $this->assertGreaterThan(0, $id);
+        if ($http->status() === 200 && $http->json('success')) {
+            return [
+                'token' => (string) $http->json('data.token'),
+                'kind' => 'adventurer',
+                'id' => (int) $http->json('data.user.id'),
+            ];
+        }
 
-        return ['token' => $token, 'adventurer_id' => $id];
+        $adv = Adventurer::query()
+            ->where(function ($q) use ($email) {
+                $q->where('email', $email)->orWhere('username', $email);
+            })
+            ->first();
+        if ($adv && ! empty($adv->password) && Hash::check($password, $adv->password)) {
+            return [
+                'token' => $adv->createToken('real-account-test')->plainTextToken,
+                'kind' => 'adventurer',
+                'id' => (int) $adv->id,
+            ];
+        }
+
+        $user = User::query()
+            ->where(function ($q) use ($email) {
+                $q->where('email', $email)->orWhere('username', $email);
+            })
+            ->first();
+        if ($user && ! empty($user->password) && Hash::check($password, $user->password)) {
+            return [
+                'token' => $user->createToken('real-account-test')->plainTextToken,
+                'kind' => 'user',
+                'id' => (int) $user->id,
+            ];
+        }
+
+        $this->fail(sprintf(
+            'Could not authenticate %s: /api/auth/login HTTP %s. No matching Adventurer/User or password mismatch. Set KARARIF_TEST_* env vars if needed.',
+            $email,
+            $http->status()
+        ));
+    }
+
+    /**
+     * @return array{kind: 'adventurer'|'user', id: int}|null
+     */
+    private function findOtherPlayerByEmail(string $email): ?array
+    {
+        if ($a = Adventurer::query()->where('email', $email)->first()) {
+            return ['kind' => 'adventurer', 'id' => (int) $a->id];
+        }
+        if ($u = User::query()->where('email', $email)->first()) {
+            return ['kind' => 'user', 'id' => (int) $u->id];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array{kind: 'adventurer'|'user', id: int}  $p
+     * @return array<string, mixed>
+     */
+    private function roomPlayerAttributes(int $roomId, array $p, int $teamId): array
+    {
+        $row = [
+            'room_id' => $roomId,
+            'team_id' => $teamId,
+            'is_leader' => true,
+            'score' => 20,
+        ];
+        if ($p['kind'] === 'adventurer') {
+            $row['adventurer_id'] = $p['id'];
+        } else {
+            $row['user_id'] = $p['id'];
+        }
+
+        return $row;
     }
 
     /** @return array{type: Type, category: Category, subcategory: Subcategory} */
@@ -65,29 +159,31 @@ class ChatChangesRealAccountTest extends TestCase
 
     public function test_existing_accounts_login_returns_distinct_bearer_tokens(): void
     {
-        $a = $this->loginApp(self::ROOM_CREATOR_EMAIL, self::ROOM_CREATOR_PASSWORD);
-        $b = $this->loginApp(self::OTHER_PLAYER_EMAIL, self::OTHER_PLAYER_PASSWORD);
+        $a = $this->obtainAuth($this->creatorEmail(), $this->creatorPassword());
+        $b = $this->obtainAuth($this->playerEmail(), $this->playerPassword());
 
         $this->assertNotSame($a['token'], $b['token']);
-        $this->assertNotSame($a['adventurer_id'], $b['adventurer_id']);
+        $this->assertNotSame($a['id'], $b['id']);
     }
 
     public function test_get_games_api_returns_custom_draw_row_using_logged_in_creator(): void
     {
-        $creator = $this->loginApp(self::ROOM_CREATOR_EMAIL, self::ROOM_CREATOR_PASSWORD);
-        $other = Adventurer::query()->where('email', self::OTHER_PLAYER_EMAIL)->first();
-        $this->assertNotNull($other, 'Other player adventurer must exist in DB: '.self::OTHER_PLAYER_EMAIL);
+        $creator = $this->obtainAuth($this->creatorEmail(), $this->creatorPassword());
+        $other = $this->findOtherPlayerByEmail($this->playerEmail());
+        $this->assertNotNull($other, 'Other player must exist in DB: '.$this->playerEmail());
 
         $t = $this->seedFallbackTaxonomy();
 
-        $customCategory = CustomCategory::create([
-            'owner_adventurer_id' => $creator['adventurer_id'],
-            'name' => 'My Deck',
-            'status' => true,
-        ]);
+        $cat = ['name' => 'My Deck', 'status' => true];
+        if ($creator['kind'] === 'adventurer') {
+            $cat['owner_adventurer_id'] = $creator['id'];
+        } else {
+            $cat['owner_user_id'] = $creator['id'];
+        }
+        $customCategory = CustomCategory::create($cat);
 
         $code = 'RA'.substr(preg_replace('/\D/', '', (string) microtime(true)), -6);
-        $room = Room::create([
+        $roomData = [
             'code' => $code,
             'is_custom' => true,
             'custom_category_id' => $customCategory->id,
@@ -99,23 +195,16 @@ class ChatChangesRealAccountTest extends TestCase
             'players' => 2,
             'status' => 'finished',
             'expires_at' => now()->addHour(),
-            'created_by_adventurer_id' => $creator['adventurer_id'],
-        ]);
+        ];
+        if ($creator['kind'] === 'adventurer') {
+            $roomData['created_by_adventurer_id'] = $creator['id'];
+        } else {
+            $roomData['created_by'] = $creator['id'];
+        }
+        $room = Room::create($roomData);
 
-        RoomPlayer::create([
-            'room_id' => $room->id,
-            'adventurer_id' => $creator['adventurer_id'],
-            'team_id' => 1,
-            'is_leader' => true,
-            'score' => 20,
-        ]);
-        RoomPlayer::create([
-            'room_id' => $room->id,
-            'adventurer_id' => $other->id,
-            'team_id' => 2,
-            'is_leader' => true,
-            'score' => 20,
-        ]);
+        RoomPlayer::create($this->roomPlayerAttributes($room->id, $creator, 1));
+        RoomPlayer::create($this->roomPlayerAttributes($room->id, $other, 2));
 
         $finishedSession = GameSession::create([
             'room_id' => $room->id,

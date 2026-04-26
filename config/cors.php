@@ -19,7 +19,10 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => array_values(array_filter([
+        env('NEXT_PUBLIC_BASE_URL', '*'),
+        env('FRONTEND_BASE_URL'),
+    ])),
 
     'allowed_origins_patterns' => [],
 

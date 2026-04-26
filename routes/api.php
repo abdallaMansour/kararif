@@ -28,3 +28,4 @@ require __DIR__ . '/ranks.php';
 require __DIR__ . '/scoreboard.php';
 require __DIR__ . '/news.php';
 require __DIR__ . '/how_to_play.php';
+require __DIR__ . '/shop.php';
