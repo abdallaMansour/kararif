@@ -1,5 +1,30 @@
 <?php
 
+$rawOrigins = array_values(array_filter([
+    env('NEXT_PUBLIC_BASE_URL'),
+    env('FRONTEND_BASE_URL'),
+]));
+
+$normalizedOrigins = [];
+
+foreach ($rawOrigins as $originEntry) {
+    foreach (explode(',', (string) $originEntry) as $origin) {
+        $origin = trim($origin);
+        if ($origin === '') {
+            continue;
+        }
+        if ($origin !== '*') {
+            $origin = rtrim($origin, '/');
+        }
+        $normalizedOrigins[] = $origin;
+    }
+}
+
+$normalizedOrigins = array_values(array_unique($normalizedOrigins));
+if ($normalizedOrigins === []) {
+    $normalizedOrigins = ['*'];
+}
+
 return [
 
     /*
@@ -19,10 +44,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => array_values(array_filter([
-        env('NEXT_PUBLIC_BASE_URL', '*'),
-        env('FRONTEND_BASE_URL'),
-    ])),
+    'allowed_origins' => $normalizedOrigins,
 
     'allowed_origins_patterns' => [],
 

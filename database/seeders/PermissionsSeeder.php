@@ -34,24 +34,24 @@ class PermissionsSeeder extends Seeder
                 ]);
             }
 
-            $role = Role::create(['name' => $permission['name']]);
+            $role = Role::firstOrCreate(['name' => $permission['name']]);
 
             $role->translateOrNew('ar')->display_name =  $permission['display_name_ar'];
             $role->translateOrNew('en')->display_name =  $permission['display_name_en'];
 
-            $role->permissions()->attach([$model->id]);
+            $role->permissions()->syncWithoutDetaching([$model->id]);
 
             $role->save();
 
             $permissions_array[] = $model->id;
         }
 
-        $role = Role::create(['name' => 'super_admin']);
+        $role = Role::firstOrCreate(['name' => 'super_admin']);
 
         $role->translateOrNew('ar')->display_name =  'المشرف الأعلى';
         $role->translateOrNew('en')->display_name =  'Super admin';
 
-        $role->permissions()->attach($permissions_array);
+        $role->permissions()->sync($permissions_array);
 
         $role->save();
     }
@@ -174,6 +174,33 @@ class PermissionsSeeder extends Seeder
                 'translations' => [
                     ['locale' => 'ar', 'display_name' => 'الرتب'],
                     ['locale' => 'en', 'display_name' => 'Ranks'],
+                ],
+            ],
+            [
+                'name' => 'shop_products',
+                'display_name_ar' => 'منتجات المتجر',
+                'display_name_en' => 'Shop Products',
+                'translations' => [
+                    ['locale' => 'ar', 'display_name' => 'منتجات المتجر'],
+                    ['locale' => 'en', 'display_name' => 'Shop Products'],
+                ],
+            ],
+            [
+                'name' => 'shop_orders',
+                'display_name_ar' => 'طلبات المتجر',
+                'display_name_en' => 'Shop Orders',
+                'translations' => [
+                    ['locale' => 'ar', 'display_name' => 'طلبات المتجر'],
+                    ['locale' => 'en', 'display_name' => 'Shop Orders'],
+                ],
+            ],
+            [
+                'name' => 'shop_orders_update_status',
+                'display_name_ar' => 'تحديث حالة طلبات المتجر',
+                'display_name_en' => 'Update Shop Orders Status',
+                'translations' => [
+                    ['locale' => 'ar', 'display_name' => 'تحديث حالة طلبات المتجر'],
+                    ['locale' => 'en', 'display_name' => 'Update Shop Orders Status'],
                 ],
             ],
         ];
