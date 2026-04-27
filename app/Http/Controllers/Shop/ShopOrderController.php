@@ -28,7 +28,6 @@ class ShopOrderController extends Controller
 
         try {
             $order = $this->shopOrderService->createPendingOrder($validated);
-            $this->shopOrderMailService->sendOrderCreatedMails($order);
         } catch (\InvalidArgumentException $exception) {
             return ApiResponse::error($exception->getMessage(), 422);
         }
@@ -141,13 +140,19 @@ class ShopOrderController extends Controller
             return ApiResponse::error('Payment intent does not match this order.', 422);
         }
 
+        $becamePaid = false;
         if ($order->paid_at === null) {
             $order->update([
                 'status' => ShopOrder::STATUS_NEW_ORDER,
                 'gateway_reference' => $paymentIntentId,
                 'paid_at' => now(),
             ]);
+            $becamePaid = true;
             $order->refresh();
+        }
+
+        if ($becamePaid) {
+            $this->shopOrderMailService->sendOrderCreatedMails($order);
         }
 
         return ApiResponse::success([

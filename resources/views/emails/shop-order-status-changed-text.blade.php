@@ -1,15 +1,15 @@
-Order status updated
-Order Number: {{ $order->order_number }}
-Previous Status: {{ $previousStatusLabel() }}
-Current Status: {{ $currentStatusLabel() }}
+تحديث حالة الطلب
+رقم الطلب: {{ $order->order_number }}
+الحالة السابقة: {{ $previousStatusLabel() }}
+الحالة الحالية: {{ $currentStatusLabel() }}
 
-Items:
+المنتجات:
 @foreach($order->items as $item)
-- {{ $item->product?->name_ar ?? 'Product #' . $item->shop_product_id }} x {{ $item->quantity }} - {{ number_format($item->line_total_aed, 2) }} AED
+- {{ $item->product?->name_ar ?? ('منتج #' . $item->shop_product_id) }} × {{ $item->quantity }} - {{ number_format($item->line_total_aed, 2) }} درهم
 @endforeach
 
-Total: {{ number_format($order->total_aed, 2) }} AED
-Delivery: {{ $order->delivery_emirate }} - {{ $order->delivery_area }}
+الإجمالي الكلي: {{ number_format($order->total_aed, 2) }} درهم
+عنوان التوصيل: {{ $order->delivery_emirate }} - {{ $order->delivery_area }}
 {{ $order->delivery_detail }}
 
-Support: {{ config('shop.support_contact', 'support@khararif.ae') }}
+الدعم: {{ config('shop.support_contact', 'support@khararif.ae') }}

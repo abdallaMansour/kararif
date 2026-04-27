@@ -2,9 +2,11 @@
 
 namespace App\Mail;
 
+use App\Models\Setting;
 use App\Models\ShopOrder;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -16,12 +18,17 @@ class ShopOrderStatusChangedMail extends Mailable
     public function __construct(
         public ShopOrder $order,
         public string $previousStatus
-    ) {}
+    ) {
+        $this->logoUrl = (string) (Setting::query()->where('key', 'logo')->first()?->getFirstMediaUrl() ?? '');
+    }
+
+    public string $logoUrl = '';
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Order Status Updated - ' . $this->order->order_number,
+            from: new Address((string) config('mail.from.address'), 'خراريف'),
+            subject: 'تحديث حالة الطلب - ' . $this->order->order_number,
         );
     }
 
@@ -46,13 +53,13 @@ class ShopOrderStatusChangedMail extends Mailable
     private function statusLabel(string $status): string
     {
         return match ($status) {
-            ShopOrder::STATUS_PENDING_PAYMENT => 'Pending payment',
-            ShopOrder::STATUS_NEW_ORDER => 'New order',
-            ShopOrder::STATUS_CONFIRMED => 'Confirmed',
-            ShopOrder::STATUS_ON_DELIVERY => 'On delivery',
-            ShopOrder::STATUS_DELIVERED => 'Delivered',
-            ShopOrder::STATUS_FAILED => 'Failed',
-            ShopOrder::STATUS_CANCELLED => 'Cancelled',
+            ShopOrder::STATUS_PENDING_PAYMENT => 'بانتظار الدفع',
+            ShopOrder::STATUS_NEW_ORDER => 'طلب جديد',
+            ShopOrder::STATUS_CONFIRMED => 'تم التأكيد',
+            ShopOrder::STATUS_ON_DELIVERY => 'قيد التوصيل',
+            ShopOrder::STATUS_DELIVERED => 'تم التسليم',
+            ShopOrder::STATUS_FAILED => 'فشل الدفع',
+            ShopOrder::STATUS_CANCELLED => 'تم الإلغاء',
             default => ucfirst(str_replace('_', ' ', $status)),
         };
     }

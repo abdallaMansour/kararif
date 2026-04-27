@@ -2,9 +2,11 @@
 
 namespace App\Mail;
 
+use App\Models\Setting;
 use App\Models\ShopOrder;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -16,13 +18,18 @@ class ShopOrderCreatedMail extends Mailable
     public function __construct(
         public ShopOrder $order,
         public bool $isAdminRecipient = false
-    ) {}
+    ) {
+        $this->logoUrl = (string) (Setting::query()->where('key', 'logo')->first()?->getFirstMediaUrl() ?? '');
+    }
+
+    public string $logoUrl = '';
 
     public function envelope(): Envelope
     {
-        $subjectPrefix = $this->isAdminRecipient ? 'New Order Received' : 'Order Received';
+        $subjectPrefix = $this->isAdminRecipient ? 'طلب جديد' : 'تم استلام طلبك';
 
         return new Envelope(
+            from: new Address((string) config('mail.from.address'), 'خراريف'),
             subject: $subjectPrefix . ' - ' . $this->order->order_number,
         );
     }

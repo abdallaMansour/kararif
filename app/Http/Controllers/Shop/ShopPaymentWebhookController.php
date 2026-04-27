@@ -45,6 +45,7 @@ class ShopPaymentWebhookController extends Controller
 
         $status = (string) ($intent['status'] ?? '');
         $previousStatus = (string) $order->status;
+        $becamePaid = false;
         if ($status === 'completed') {
             if ($order->paid_at === null) {
                 $order->update([
@@ -52,6 +53,7 @@ class ShopPaymentWebhookController extends Controller
                     'gateway_reference' => $intentId,
                     'paid_at' => now(),
                 ]);
+                $becamePaid = true;
             }
         } elseif (in_array($status, ['failed', 'cancelled'], true)) {
             $order->update([
@@ -62,6 +64,9 @@ class ShopPaymentWebhookController extends Controller
         }
 
         $order->refresh();
+        if ($becamePaid) {
+            $this->shopOrderMailService->sendOrderCreatedMails($order);
+        }
         $this->shopOrderMailService->sendStatusChangedMail($order, $previousStatus);
 
         return response()->json(['received' => true], 200);

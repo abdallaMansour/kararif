@@ -1,23 +1,23 @@
-{{ $isAdminRecipient ? 'New order received' : 'Your order has been received' }}
-Order Number: {{ $order->order_number }}
-Current Status: {{ ucfirst(str_replace('_', ' ', $order->status)) }}
+{{ $isAdminRecipient ? 'طلب جديد في المتجر' : 'تم استلام طلبك بنجاح' }}
+رقم الطلب: {{ $order->order_number }}
+حالة الطلب: طلب جديد
 
-Customer:
-Name: {{ $order->customer_full_name }}
-Phone: {{ $order->customer_phone }}
-Email: {{ $order->customer_email }}
+بيانات العميل:
+الاسم: {{ $order->customer_full_name }}
+الهاتف: {{ $order->customer_phone }}
+البريد الإلكتروني: {{ $order->customer_email }}
 
-Items:
+المنتجات:
 @foreach($order->items as $item)
-- {{ $item->product?->name_ar ?? 'Product #' . $item->shop_product_id }} x {{ $item->quantity }} - {{ number_format($item->line_total_aed, 2) }} AED
+- {{ $item->product?->name_ar ?? ('منتج #' . $item->shop_product_id) }} × {{ $item->quantity }} - {{ number_format($item->line_total_aed, 2) }} درهم
 @endforeach
 
-Subtotal: {{ number_format($order->subtotal_aed, 2) }} AED
-Shipping: {{ number_format($order->shipping_fee_aed, 2) }} AED
-Total: {{ number_format($order->total_aed, 2) }} AED
+الإجمالي الفرعي: {{ number_format($order->subtotal_aed, 2) }} درهم
+رسوم الشحن: {{ number_format($order->shipping_fee_aed, 2) }} درهم
+الإجمالي الكلي: {{ number_format($order->total_aed, 2) }} درهم
 
-Delivery:
+عنوان التوصيل:
 {{ $order->delivery_emirate }} - {{ $order->delivery_area }}
 {{ $order->delivery_detail }}
 
-Support: {{ config('shop.support_contact', 'support@khararif.ae') }}
+الدعم: {{ config('shop.support_contact', 'support@khararif.ae') }}
