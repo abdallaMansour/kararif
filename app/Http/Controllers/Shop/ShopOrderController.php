@@ -109,6 +109,10 @@ class ShopOrderController extends Controller
                 'unit_price_aed' => (float) $item->unit_price_aed,
                 'line_total_aed' => (float) $item->line_total_aed,
                 'signature_names' => $item->signature_names ?? [],
+                'is_free_promotional_item' => $order->id <= 30
+                    && (int) $item->shop_product_id === 3
+                    && (float) $item->unit_price_aed === 0.0
+                    && (float) $item->line_total_aed === 0.0,
                 'image_url' => $item->product?->resolvedImageUrl(),
             ])->values()->all(),
             'subtotal_aed' => (float) $order->subtotal_aed,

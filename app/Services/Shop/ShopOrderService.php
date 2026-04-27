@@ -12,6 +12,8 @@ class ShopOrderService
 {
     private const BOOK_SKU = 'book';
     private const STICKERS_SKU = 'stickers';
+    private const PROMO_FREE_STICKER_PRODUCT_ID = 3;
+    private const PROMO_FREE_STICKER_MAX_ORDER_ID = 30;
 
     public function createPendingOrder(array $payload): ShopOrder
     {
@@ -120,6 +122,16 @@ class ShopOrderService
                 'gateway_name' => 'ziina',
             ]);
 
+            if ($this->shouldAddPromoFreeSticker($order->id)) {
+                $items[] = [
+                    'shop_product_id' => self::PROMO_FREE_STICKER_PRODUCT_ID,
+                    'quantity' => 1,
+                    'unit_price_aed' => 0.0,
+                    'line_total_aed' => 0.0,
+                    'signature_names' => null,
+                ];
+            }
+
             $order->items()->createMany($items);
 
             return $order->fresh('items.product');
@@ -142,5 +154,17 @@ class ShopOrderService
             ->value('value');
 
         return in_array((string) $value, ['1', 'true', 'on'], true);
+    }
+
+    private function shouldAddPromoFreeSticker(int $orderId): bool
+    {
+        if ($orderId < 1 || $orderId > self::PROMO_FREE_STICKER_MAX_ORDER_ID) {
+            return false;
+        }
+
+        return ShopProduct::query()
+            ->whereKey(self::PROMO_FREE_STICKER_PRODUCT_ID)
+            ->where('is_active', true)
+            ->exists();
     }
 }

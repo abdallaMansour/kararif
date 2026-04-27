@@ -14,8 +14,7 @@ class ShopOrderMailService
     {
         $order->loadMissing('items.product');
 
-        $adminEmail = (string) (config('mail.shop_orders_admin_email') ?: '');
-        if ($adminEmail !== '') {
+        foreach ($this->adminRecipients() as $adminEmail) {
             $this->sendMail($adminEmail, new ShopOrderCreatedMail($order, true), 'shop order admin create mail failed');
         }
 
@@ -51,5 +50,26 @@ class ShopOrderMailService
                 'error' => $th->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function adminRecipients(): array
+    {
+        $csv = (string) (config('mail.shop_orders_admin_emails') ?: '');
+        $list = collect(explode(',', $csv))
+            ->map(fn ($email) => trim((string) $email))
+            ->filter()
+            ->values();
+
+        if ($list->isEmpty()) {
+            $fallback = trim((string) (config('mail.shop_orders_admin_email') ?: ''));
+            if ($fallback !== '') {
+                $list = collect([$fallback]);
+            }
+        }
+
+        return $list->unique()->values()->all();
     }
 }

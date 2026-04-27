@@ -124,6 +124,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Shop Orders Admin Emails (multiple recipients)
+    |--------------------------------------------------------------------------
+    | Comma separated list. Example:
+    | SHOP_ORDERS_ADMIN_EMAILS="a@example.com,b@example.com"
+    */
+    'shop_orders_admin_emails' => env('SHOP_ORDERS_ADMIN_EMAILS'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Markdown Mail Settings
     |--------------------------------------------------------------------------
     |

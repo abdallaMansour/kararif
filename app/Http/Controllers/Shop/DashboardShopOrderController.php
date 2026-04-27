@@ -68,7 +68,7 @@ class DashboardShopOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $order,
+            'data' => $this->serializeOrder($order),
         ]);
     }
 
@@ -90,5 +90,39 @@ class DashboardShopOrderController extends Controller
         $this->shopOrderMailService->sendStatusChangedMail($order, $previousStatus);
 
         return $this->sendSuccess(__('response.updated'));
+    }
+
+    private function serializeOrder(ShopOrder $order): array
+    {
+        return [
+            'id' => $order->id,
+            'order_number' => $order->order_number,
+            'status' => $order->status,
+            'customer_full_name' => $order->customer_full_name,
+            'customer_phone' => $order->customer_phone,
+            'customer_email' => $order->customer_email,
+            'delivery_emirate' => $order->delivery_emirate,
+            'delivery_area' => $order->delivery_area,
+            'delivery_detail' => $order->delivery_detail,
+            'subtotal_aed' => (float) $order->subtotal_aed,
+            'shipping_fee_aed' => (float) $order->shipping_fee_aed,
+            'total_aed' => (float) $order->total_aed,
+            'paid_at' => $order->paid_at,
+            'created_at' => $order->created_at,
+            'updated_at' => $order->updated_at,
+            'items' => collect($order->items)->map(fn ($item) => [
+                'id' => $item->id,
+                'shop_product_id' => $item->shop_product_id,
+                'name_ar' => $item->product?->name_ar,
+                'quantity' => (int) $item->quantity,
+                'unit_price_aed' => (float) $item->unit_price_aed,
+                'line_total_aed' => (float) $item->line_total_aed,
+                'signature_names' => $item->signature_names ?? [],
+                'is_free_promotional_item' => $order->id <= 30
+                    && (int) $item->shop_product_id === 3
+                    && (float) $item->unit_price_aed === 0.0
+                    && (float) $item->line_total_aed === 0.0,
+            ])->values()->all(),
+        ];
     }
 }
