@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Shop;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Shop\DashboardShopOrderStatusRequest;
 use App\Models\ShopOrder;
+use App\Services\Shop\ShopOrderMailService;
 use App\Traits\ApiTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -13,9 +14,14 @@ class DashboardShopOrderController extends Controller
 {
     use ApiTrait;
 
+    public function __construct(
+        protected ShopOrderMailService $shopOrderMailService
+    ) {}
+
     public function index(): JsonResponse
     {
         $query = ShopOrder::query()
+            ->whereNotNull('paid_at')
             ->withCount('items')
             ->orderByDesc('id');
 
@@ -66,10 +72,13 @@ class DashboardShopOrderController extends Controller
         }
 
         $status = (string) $request->validated()['status'];
+        $previousStatus = (string) $order->status;
 
         $order->update([
             'status' => $status,
         ]);
+        $order->refresh();
+        $this->shopOrderMailService->sendStatusChangedMail($order, $previousStatus);
 
         return $this->sendSuccess(__('response.updated'));
     }

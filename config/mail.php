@@ -113,6 +113,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Shop Orders Admin Email (recipient for order notifications)
+    |--------------------------------------------------------------------------
+    | Fallback: CONTACT_ADMIN_EMAIL, then MAIL_FROM_ADDRESS, then MAIL_USERNAME.
+    */
+    'shop_orders_admin_email' => env('SHOP_ORDERS_ADMIN_EMAIL')
+        ?? env('CONTACT_ADMIN_EMAIL')
+        ?? env('MAIL_FROM_ADDRESS')
+        ?? env('MAIL_USERNAME'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Markdown Mail Settings
     |--------------------------------------------------------------------------
     |

@@ -2,6 +2,7 @@
 
 namespace App\Services\Shop;
 
+use App\Models\Setting;
 use App\Models\ShopOrder;
 use App\Models\ShopProduct;
 use Illuminate\Support\Collection;
@@ -9,6 +10,9 @@ use Illuminate\Support\Facades\DB;
 
 class ShopOrderService
 {
+    private const BOOK_SKU = 'book';
+    private const STICKERS_SKU = 'stickers';
+
     public function createPendingOrder(array $payload): ShopOrder
     {
         $requestedItems = collect($payload['items'] ?? []);
@@ -43,6 +47,27 @@ class ShopOrderService
             ];
         }
 
+        $containsBook = collect($items)->contains(function (array $item) use ($products): bool {
+            $product = $products->get((int) $item['shop_product_id']);
+            return (string) ($product?->sku ?? '') === self::BOOK_SKU;
+        });
+
+        if ($containsBook && $this->giftStickerEnabled()) {
+            $stickerProduct = ShopProduct::query()
+                ->where('sku', self::STICKERS_SKU)
+                ->where('is_active', true)
+                ->first();
+
+            if ($stickerProduct) {
+                $items[] = [
+                    'shop_product_id' => $stickerProduct->id,
+                    'quantity' => 1,
+                    'unit_price_aed' => 0.0,
+                    'line_total_aed' => 0.0,
+                ];
+            }
+        }
+
         $shippingFee = (float) config('shop.shipping_fee_aed', 30);
         $subtotal = round($subtotal, 2);
         $total = round($subtotal + $shippingFee, 2);
@@ -75,5 +100,15 @@ class ShopOrderService
         $suffix = strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
 
         return 'KHS-' . $date . '-' . $suffix;
+    }
+
+    private function giftStickerEnabled(): bool
+    {
+        $value = Setting::query()
+            ->where('key', 'gift_sticker_with_book')
+            ->whereNull('lang')
+            ->value('value');
+
+        return in_array((string) $value, ['1', 'true', 'on'], true);
     }
 }

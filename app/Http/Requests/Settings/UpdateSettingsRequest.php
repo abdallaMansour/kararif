@@ -34,6 +34,7 @@ class UpdateSettingsRequest extends FormRequest
             'faqs_image' => 'nullable|image|max:2048',
             'privacy_policy_image' => 'nullable|image|max:2048',
             'terms_conditions_image' => 'nullable|image|max:2048',
+            'gift_sticker_with_book' => 'nullable|boolean',
         ];
 
         foreach (Languages::LANGS as $lang) {

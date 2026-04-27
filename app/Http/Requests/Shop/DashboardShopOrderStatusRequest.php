@@ -20,7 +20,6 @@ class DashboardShopOrderStatusRequest extends FormRequest
                 'required',
                 'string',
                 Rule::in([
-                    ShopOrder::STATUS_PENDING_CONFIRMATION,
                     ShopOrder::STATUS_CONFIRMED,
                     ShopOrder::STATUS_ON_DELIVERY,
                     ShopOrder::STATUS_DELIVERED,

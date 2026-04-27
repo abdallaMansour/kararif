@@ -3,15 +3,18 @@
 namespace App\Http\Controllers\Shop;
 
 use App\Http\Controllers\Controller;
-use App\Mail\ShopOrderPaidMail;
 use App\Models\ShopOrder;
+use App\Services\Shop\ShopOrderMailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class ShopPaymentWebhookController extends Controller
 {
+    public function __construct(
+        protected ShopOrderMailService $shopOrderMailService
+    ) {}
+
     public function ziina(Request $request): JsonResponse
     {
         $secret = config('ziina.webhook_secret');
@@ -41,16 +44,14 @@ class ShopPaymentWebhookController extends Controller
         }
 
         $status = (string) ($intent['status'] ?? '');
+        $previousStatus = (string) $order->status;
         if ($status === 'completed') {
             if ($order->paid_at === null) {
                 $order->update([
-                    'status' => ShopOrder::STATUS_PENDING_CONFIRMATION,
+                    'status' => ShopOrder::STATUS_NEW_ORDER,
                     'gateway_reference' => $intentId,
                     'paid_at' => now(),
                 ]);
-
-                $order->load('items.product');
-                Mail::to($order->customer_email)->send(new ShopOrderPaidMail($order));
             }
         } elseif (in_array($status, ['failed', 'cancelled'], true)) {
             $order->update([
@@ -59,6 +60,9 @@ class ShopPaymentWebhookController extends Controller
                     : ShopOrder::STATUS_FAILED,
             ]);
         }
+
+        $order->refresh();
+        $this->shopOrderMailService->sendStatusChangedMail($order, $previousStatus);
 
         return response()->json(['received' => true], 200);
     }

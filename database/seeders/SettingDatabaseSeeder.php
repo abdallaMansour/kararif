@@ -106,6 +106,11 @@ class SettingDatabaseSeeder extends Seeder
                 'value' => 'https://linkedin.com',
                 'lang' => null,
             ],
+            [
+                'key' => 'gift_sticker_with_book',
+                'value' => '0',
+                'lang' => null,
+            ],
         ];
     }
 }

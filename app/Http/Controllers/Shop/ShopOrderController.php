@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Shop\CheckoutRequest;
 use App\Models\ShopOrder;
 use App\Services\Shop\OrderConfirmationTokenService;
+use App\Services\Shop\ShopOrderMailService;
 use App\Services\Shop\ShopOrderService;
 use App\Services\ZiinaService;
 use Illuminate\Http\JsonResponse;
@@ -15,6 +16,7 @@ class ShopOrderController extends Controller
 {
     public function __construct(
         protected ShopOrderService $shopOrderService,
+        protected ShopOrderMailService $shopOrderMailService,
         protected OrderConfirmationTokenService $tokenService,
         protected ZiinaService $ziinaService
     ) {}
@@ -25,6 +27,7 @@ class ShopOrderController extends Controller
 
         try {
             $order = $this->shopOrderService->createPendingOrder($validated);
+            $this->shopOrderMailService->sendOrderCreatedMails($order);
         } catch (\InvalidArgumentException $exception) {
             return ApiResponse::error($exception->getMessage(), 422);
         }
