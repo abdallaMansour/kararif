@@ -10,12 +10,6 @@ use Illuminate\Support\Facades\Mail;
 
 class ShopOrderMailService
 {
-    private const NOTIFIABLE_STATUS_UPDATES = [
-        ShopOrder::STATUS_CONFIRMED,
-        ShopOrder::STATUS_ON_DELIVERY,
-        ShopOrder::STATUS_DELIVERED,
-    ];
-
     public function sendOrderCreatedMails(ShopOrder $order): void
     {
         $order->loadMissing('items.product');
@@ -34,11 +28,7 @@ class ShopOrderMailService
     public function sendStatusChangedMail(ShopOrder $order, string $previousStatus): void
     {
         $customerEmail = trim((string) $order->customer_email);
-        if (
-            $customerEmail === ''
-            || $previousStatus === $order->status
-            || ! in_array((string) $order->status, self::NOTIFIABLE_STATUS_UPDATES, true)
-        ) {
+        if ($customerEmail === '' || $previousStatus === $order->status) {
             return;
         }
 
