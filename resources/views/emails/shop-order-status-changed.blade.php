@@ -11,8 +11,9 @@
             <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;background:#fefefe;border-radius:18px;overflow:hidden;border:1px solid #99c8cf;direction:rtl;text-align:right;" dir="rtl">
                 <tr>
                     <td style="background:linear-gradient(180deg,#8fd5e4 0%,#b7e7ef 48%,#f4f9fb 100%);padding:22px;text-align:center;">
+                        <p style="margin:0 0 8px 0;color:#174f59;font-size:36px;line-height:1.1;font-weight:900;letter-spacing:0.4px;">خراريف</p>
                         @if(!empty($logoUrl))
-                            <img src="{{ $logoUrl }}" alt="خراريف" style="max-height:84px;display:block;margin:0 auto 10px auto;">
+                            <img src="{{ $logoUrl }}" alt="خراريف" style="max-height:92px;display:block;margin:0 auto 12px auto;">
                         @endif
                         <h2 style="margin:0;color:#2e5f68;font-size:24px;">تحديث حالة الطلب</h2>
                     </td>

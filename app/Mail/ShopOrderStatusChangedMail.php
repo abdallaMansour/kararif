@@ -18,7 +18,8 @@ class ShopOrderStatusChangedMail extends Mailable
         public ShopOrder $order,
         public string $previousStatus
     ) {
-        $this->logoUrl = asset('animated-logo-ii.gif');
+        $baseUrl = rtrim((string) config('app.url'), '/');
+        $this->logoUrl = $baseUrl !== '' ? ($baseUrl . '/animated-logo-ii.gif') : asset('animated-logo-ii.gif');
     }
 
     public string $logoUrl = '';
