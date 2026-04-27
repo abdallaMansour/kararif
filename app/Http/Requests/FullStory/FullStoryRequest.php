@@ -16,6 +16,16 @@ class FullStoryRequest extends FormRequest
      */
     public function rules()
     {
+        $isUpdate = $this->route('full_story') !== null;
+
+        $audioRules = ['nullable', 'array', 'max:5'];
+        $videoRules = ['nullable', 'array', 'max:10'];
+
+        if (! $isUpdate) {
+            $audioRules[] = 'required_if:type,1';
+            $videoRules[] = 'required_if:type,2';
+        }
+
         return [
             'title' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
@@ -23,9 +33,9 @@ class FullStoryRequest extends FormRequest
             'type' => ['required', 'integer', 'in:1,2,3'],
             'link' => ['nullable', 'string', 'url'],
             'image' => ['nullable', 'image'],
-            'audios' => ['nullable', 'required_if:type,1', 'array', 'max:5'],
+            'audios' => $audioRules,
             'audios.*' => ['file'],
-            'videos' => ['nullable', 'required_if:type,2', 'array', 'max:10'],
+            'videos' => $videoRules,
             // NOTE: max is in KB -> 51200 KB = 50 MB
             'videos.*' => ['file', 'mimetypes:video/mp4,video/webm,video/ogg,video/quicktime', 'max:51200'],
         ];
