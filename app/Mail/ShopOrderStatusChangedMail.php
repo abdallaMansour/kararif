@@ -2,7 +2,6 @@
 
 namespace App\Mail;
 
-use App\Models\Setting;
 use App\Models\ShopOrder;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -19,7 +18,7 @@ class ShopOrderStatusChangedMail extends Mailable
         public ShopOrder $order,
         public string $previousStatus
     ) {
-        $this->logoUrl = (string) (Setting::query()->where('key', 'logo')->first()?->getFirstMediaUrl() ?? '');
+        $this->logoUrl = asset('animated-logo-ii.gif');
     }
 
     public string $logoUrl = '';
