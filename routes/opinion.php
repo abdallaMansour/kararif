@@ -8,6 +8,8 @@ Route::get('opinion/{opinion}', [DashboardOpinionController::class, 'show']);
 Route::post('opinion', [DashboardOpinionController::class, 'create']);
 Route::delete('opinion/{opinion}', [DashboardOpinionController::class, 'destroy']);
 Route::delete('opinions/{opinion}', [DashboardOpinionController::class, 'destroy']);
+Route::post('opinion/{opinion}/delete', [DashboardOpinionController::class, 'destroy']);
+Route::post('opinions/{opinion}/delete', [DashboardOpinionController::class, 'destroy']);
 
 Route::prefix('dashboard/opinion')->group(function () {
     Route::get('/', [DashboardOpinionController::class, 'index']);
@@ -15,6 +17,7 @@ Route::prefix('dashboard/opinion')->group(function () {
     Route::get('/{opinion}', [DashboardOpinionController::class, 'show']);
     Route::post('/{opinion}', [DashboardOpinionController::class, 'update']);
     Route::delete('/{opinion}', [DashboardOpinionController::class, 'destroy']);
+    Route::post('/{opinion}/delete', [DashboardOpinionController::class, 'destroy']);
 });
 
 Route::prefix('dashboard/opinions')->group(function () {
@@ -23,4 +26,5 @@ Route::prefix('dashboard/opinions')->group(function () {
     Route::get('/{opinion}', [DashboardOpinionController::class, 'show']);
     Route::post('/{opinion}', [DashboardOpinionController::class, 'update']);
     Route::delete('/{opinion}', [DashboardOpinionController::class, 'destroy']);
+    Route::post('/{opinion}/delete', [DashboardOpinionController::class, 'destroy']);
 });
