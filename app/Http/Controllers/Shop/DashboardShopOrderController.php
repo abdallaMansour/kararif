@@ -21,12 +21,12 @@ class DashboardShopOrderController extends Controller
     public function index(): JsonResponse
     {
         $query = ShopOrder::query()
-            ->whereNotNull('paid_at')
             ->withCount('items')
             ->orderByDesc('id');
 
         if (request()->filled('status')) {
-            $query->where('status', (string) request('status'));
+            $status = $this->normalizeStatus((string) request('status'));
+            $query->where('status', $status);
         }
 
         if (request()->filled('q')) {
@@ -51,6 +51,15 @@ class DashboardShopOrderController extends Controller
             'success' => true,
             'data' => $query->paginate((int) request('per_page', 20)),
         ]);
+    }
+
+    private function normalizeStatus(string $status): string
+    {
+        if ($status === 'payment_pending') {
+            return ShopOrder::STATUS_PENDING_PAYMENT;
+        }
+
+        return $status;
     }
 
     public function show(ShopOrder $order): JsonResponse

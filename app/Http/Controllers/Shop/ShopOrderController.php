@@ -11,6 +11,7 @@ use App\Services\Shop\ShopOrderMailService;
 use App\Services\Shop\ShopOrderService;
 use App\Services\ZiinaService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ShopOrderController extends Controller
 {
@@ -114,6 +115,46 @@ class ShopOrderController extends Controller
             'shipping_fee_aed' => (float) $order->shipping_fee_aed,
             'total_aed' => (float) $order->total_aed,
             'created_at' => $order->created_at,
+        ]);
+    }
+
+    /**
+     * Success-url fallback confirmation for shop orders (no webhook dependency).
+     */
+    public function confirmPaymentSuccess(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:shop_orders,id'],
+            'token' => ['required', 'string'],
+            'payment_intent_id' => ['required', 'string', 'max:255'],
+        ]);
+
+        $orderId = (int) $validated['order_id'];
+        $token = (string) $validated['token'];
+        if (! $this->tokenService->verify($orderId, $token)) {
+            return ApiResponse::error('Invalid or expired order token.', 403);
+        }
+
+        $order = ShopOrder::with('items.product')->findOrFail($orderId);
+        $paymentIntentId = (string) $validated['payment_intent_id'];
+        if ((string) $order->gateway_payment_intent_id !== $paymentIntentId) {
+            return ApiResponse::error('Payment intent does not match this order.', 422);
+        }
+
+        if ($order->paid_at === null) {
+            $order->update([
+                'status' => ShopOrder::STATUS_NEW_ORDER,
+                'gateway_reference' => $paymentIntentId,
+                'paid_at' => now(),
+            ]);
+            $order->refresh();
+        }
+
+        return ApiResponse::success([
+            'id' => $order->id,
+            'order_number' => $order->order_number,
+            'status' => $order->status,
+            'paid_at' => $order->paid_at,
         ]);
     }
 }

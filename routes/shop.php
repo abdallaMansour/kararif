@@ -11,6 +11,7 @@ Route::prefix('shop')->group(function () {
     Route::get('products', [ShopProductController::class, 'index']);
     Route::post('checkout', [ShopOrderController::class, 'checkout'])->middleware('throttle:shop-checkout');
     Route::get('orders/{orderId}', [ShopOrderController::class, 'show']);
+    Route::post('payment/confirm-success', [ShopOrderController::class, 'confirmPaymentSuccess']);
     Route::post('payment/webhook', [ShopPaymentWebhookController::class, 'ziina']);
 });
 

@@ -6,8 +6,18 @@ use App\Http\Controllers\Opinion\DashboardOpinionController;
 Route::get('opinion', [DashboardOpinionController::class, 'index']);
 Route::get('opinion/{opinion}', [DashboardOpinionController::class, 'show']);
 Route::post('opinion', [DashboardOpinionController::class, 'create']);
+Route::delete('opinion/{opinion}', [DashboardOpinionController::class, 'destroy']);
+Route::delete('opinions/{opinion}', [DashboardOpinionController::class, 'destroy']);
 
 Route::prefix('dashboard/opinion')->group(function () {
+    Route::get('/', [DashboardOpinionController::class, 'index']);
+    Route::post('/', [DashboardOpinionController::class, 'create']);
+    Route::get('/{opinion}', [DashboardOpinionController::class, 'show']);
+    Route::post('/{opinion}', [DashboardOpinionController::class, 'update']);
+    Route::delete('/{opinion}', [DashboardOpinionController::class, 'destroy']);
+});
+
+Route::prefix('dashboard/opinions')->group(function () {
     Route::get('/', [DashboardOpinionController::class, 'index']);
     Route::post('/', [DashboardOpinionController::class, 'create']);
     Route::get('/{opinion}', [DashboardOpinionController::class, 'show']);
