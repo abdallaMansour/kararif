@@ -25,7 +25,7 @@ class ContactMessageMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '[قراريش] رسالة تواصل جديد: ' . ($this->contact->subject ?: 'بدون موضوع'),
+            subject: '[خراريف] رسالة تواصل جديد: ' . ($this->contact->subject ?: 'بدون موضوع'),
         );
     }
 
