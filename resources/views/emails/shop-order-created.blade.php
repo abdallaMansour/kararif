@@ -39,7 +39,10 @@
                             @foreach($order->items as $item)
                                 <tr>
                                     <td style="padding:8px 0;border-bottom:1px solid #d3e6ea;">
-                                        {{ $item->product?->name_ar ?? ('منتج #' . $item->shop_product_id) }} × {{ $item->quantity }}
+                                        <div style="font-weight:700;">{{ $item->product?->name_ar ?? ('منتج #' . $item->shop_product_id) }}</div>
+                                        <div style="margin-top:4px;color:#6e675b;font-size:13px;">
+                                            الكمية: {{ (int) $item->quantity }}
+                                        </div>
                                         @if(!empty($item->signature_names))
                                             <div style="margin-top:6px;color:#6e675b;font-size:13px;">
                                                 أسماء الإهداء:
