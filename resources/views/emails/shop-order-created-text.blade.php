@@ -10,6 +10,9 @@
 المنتجات:
 @foreach($order->items as $item)
 - {{ $item->product?->name_ar ?? ('منتج #' . $item->shop_product_id) }} × {{ $item->quantity }} - {{ number_format($item->line_total_aed, 2) }} درهم
+@if(!empty($item->signature_names))
+  أسماء الإهداء: {{ collect($item->signature_names)->implode('، ') }}
+@endif
 @endforeach
 
 الإجمالي الفرعي: {{ number_format($order->subtotal_aed, 2) }} درهم

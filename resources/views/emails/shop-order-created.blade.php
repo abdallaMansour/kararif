@@ -38,7 +38,15 @@
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;direction:rtl;text-align:right;" dir="rtl">
                             @foreach($order->items as $item)
                                 <tr>
-                                    <td style="padding:8px 0;border-bottom:1px solid #d3e6ea;">{{ $item->product?->name_ar ?? ('منتج #' . $item->shop_product_id) }} × {{ $item->quantity }}</td>
+                                    <td style="padding:8px 0;border-bottom:1px solid #d3e6ea;">
+                                        {{ $item->product?->name_ar ?? ('منتج #' . $item->shop_product_id) }} × {{ $item->quantity }}
+                                        @if(!empty($item->signature_names))
+                                            <div style="margin-top:6px;color:#6e675b;font-size:13px;">
+                                                أسماء الإهداء:
+                                                {{ collect($item->signature_names)->implode('، ') }}
+                                            </div>
+                                        @endif
+                                    </td>
                                     <td style="padding:8px 0;border-bottom:1px solid #d3e6ea;text-align:left;">{{ number_format($item->line_total_aed, 2) }} درهم</td>
                                 </tr>
                             @endforeach

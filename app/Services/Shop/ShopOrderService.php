@@ -15,7 +15,24 @@ class ShopOrderService
 
     public function createPendingOrder(array $payload): ShopOrder
     {
-        $requestedItems = collect($payload['items'] ?? []);
+        $requestedItems = collect($payload['items'] ?? [])
+            ->map(fn (array $item) => [
+                'product_id' => (int) ($item['product_id'] ?? 0),
+                'quantity' => (int) ($item['quantity'] ?? 0),
+                'signature_names' => collect((array) ($item['signature_names'] ?? []))
+                    ->map(fn ($name) => trim((string) $name))
+                    ->filter()
+                    ->values()
+                    ->all(),
+            ])
+            ->groupBy('product_id')
+            ->map(fn (Collection $group, int $productId) => [
+                'product_id' => $productId,
+                'quantity' => $group->sum('quantity'),
+                'signature_names' => $group->pluck('signature_names')->flatten()->values()->all(),
+            ])
+            ->values();
+
         $productIds = $requestedItems->pluck('product_id')->unique()->values();
 
         /** @var Collection<int, ShopProduct> $products */
@@ -34,7 +51,20 @@ class ShopOrderService
         $items = [];
         foreach ($requestedItems as $item) {
             $product = $products->get((int) $item['product_id']);
-            $quantity = (int) $item['quantity'];
+            $quantity = max(1, (int) $item['quantity']);
+            $signatureNames = collect((array) ($item['signature_names'] ?? []))
+                ->map(fn ($name) => trim((string) $name))
+                ->filter()
+                ->values();
+
+            if ((string) $product->sku === self::BOOK_SKU && $signatureNames->count() > $quantity) {
+                throw new \InvalidArgumentException('Signature names count cannot exceed ordered book quantity.');
+            }
+
+            if ((string) $product->sku !== self::BOOK_SKU && $signatureNames->isNotEmpty()) {
+                throw new \InvalidArgumentException('Signature names are allowed only for books.');
+            }
+
             $unitPrice = (float) $product->price_aed;
             $lineTotal = round($unitPrice * $quantity, 2);
             $subtotal += $lineTotal;
@@ -44,6 +74,7 @@ class ShopOrderService
                 'quantity' => $quantity,
                 'unit_price_aed' => $unitPrice,
                 'line_total_aed' => $lineTotal,
+                'signature_names' => $signatureNames->isEmpty() ? null : $signatureNames->values()->all(),
             ];
         }
 
@@ -64,6 +95,7 @@ class ShopOrderService
                     'quantity' => 1,
                     'unit_price_aed' => 0.0,
                     'line_total_aed' => 0.0,
+                    'signature_names' => null,
                 ];
             }
         }

@@ -108,6 +108,7 @@ class ShopOrderController extends Controller
                 'quantity' => (int) $item->quantity,
                 'unit_price_aed' => (float) $item->unit_price_aed,
                 'line_total_aed' => (float) $item->line_total_aed,
+                'signature_names' => $item->signature_names ?? [],
                 'image_url' => $item->product?->resolvedImageUrl(),
             ])->values()->all(),
             'subtotal_aed' => (float) $order->subtotal_aed,

@@ -35,12 +35,22 @@
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;direction:rtl;text-align:right;" dir="rtl">
                             @foreach($order->items as $item)
                                 <tr>
-                                    <td style="padding:8px 0;border-bottom:1px solid #d3e6ea;">{{ $item->product?->name_ar ?? ('منتج #' . $item->shop_product_id) }} × {{ $item->quantity }}</td>
+                                    <td style="padding:8px 0;border-bottom:1px solid #d3e6ea;">
+                                        {{ $item->product?->name_ar ?? ('منتج #' . $item->shop_product_id) }} × {{ $item->quantity }}
+                                        @if(!empty($item->signature_names))
+                                            <div style="margin-top:6px;color:#6e675b;font-size:13px;">
+                                                أسماء الإهداء:
+                                                {{ collect($item->signature_names)->implode('، ') }}
+                                            </div>
+                                        @endif
+                                    </td>
                                     <td style="padding:8px 0;border-bottom:1px solid #d3e6ea;text-align:left;">{{ number_format($item->line_total_aed, 2) }} درهم</td>
                                 </tr>
                             @endforeach
                         </table>
-                        <p style="margin:14px 0 6px 0;color:#8b3f2b;"><strong>الإجمالي الكلي: {{ number_format($order->total_aed, 2) }} درهم</strong></p>
+                        <p style="margin:14px 0 6px 0;">الإجمالي الفرعي: <strong>{{ number_format($order->subtotal_aed, 2) }} درهم</strong></p>
+                        <p style="margin:0 0 6px 0;">رسوم الشحن: {{ number_format($order->shipping_fee_aed, 2) }} درهم</p>
+                        <p style="margin:0 0 6px 0;color:#8b3f2b;"><strong>الإجمالي الكلي: {{ number_format($order->total_aed, 2) }} درهم</strong></p>
                         <p style="margin:0 0 4px 0;">عنوان التوصيل: {{ $order->delivery_emirate }} - {{ $order->delivery_area }}</p>
                         <p style="margin:0 0 14px 0;">{{ $order->delivery_detail }}</p>
                         <p style="margin:0;color:#6e675b;">الدعم: {{ config('shop.support_contact', 'support@khararif.ae') }}</p>

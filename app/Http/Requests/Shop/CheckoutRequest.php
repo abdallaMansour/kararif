@@ -25,6 +25,8 @@ class CheckoutRequest extends FormRequest
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'exists:shop_products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100'],
+            'items.*.signature_names' => ['nullable', 'array'],
+            'items.*.signature_names.*' => ['nullable', 'string', 'max:120'],
         ];
     }
 
@@ -36,6 +38,20 @@ class CheckoutRequest extends FormRequest
         // Accept both "delivery" and "address" payload keys.
         $deliveryInput = $this->input('delivery', $this->input('address', []));
         $delivery = (array) $deliveryInput;
+        $items = collect((array) $this->input('items', []))->map(function ($item) use ($clean) {
+            $item = (array) $item;
+            $signatureNames = collect((array) ($item['signature_names'] ?? []))
+                ->map(fn ($name) => $clean(is_string($name) ? $name : null))
+                ->filter(fn ($name) => $name !== null && $name !== '')
+                ->values()
+                ->all();
+
+            return [
+                'product_id' => isset($item['product_id']) ? (int) $item['product_id'] : null,
+                'quantity' => isset($item['quantity']) ? (int) $item['quantity'] : null,
+                'signature_names' => $signatureNames,
+            ];
+        })->values()->all();
 
         $this->merge([
             'customer' => [
@@ -50,6 +66,7 @@ class CheckoutRequest extends FormRequest
             ],
             'success_url' => $clean($this->input('success_url')),
             'cancel_url' => $clean($this->input('cancel_url')),
+            'items' => $items,
         ]);
     }
 }

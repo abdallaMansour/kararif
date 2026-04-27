@@ -13,12 +13,14 @@ class ShopOrderItem extends Model
         'quantity',
         'unit_price_aed',
         'line_total_aed',
+        'signature_names',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
         'unit_price_aed' => 'float',
         'line_total_aed' => 'float',
+        'signature_names' => 'array',
     ];
 
     public function order(): BelongsTo
