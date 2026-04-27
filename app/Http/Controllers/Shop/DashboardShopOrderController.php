@@ -7,6 +7,7 @@ use App\Http\Requests\Shop\DashboardShopOrderStatusRequest;
 use App\Models\ShopOrder;
 use App\Traits\ApiTrait;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\ValidationException;
 
 class DashboardShopOrderController extends Controller
 {
@@ -58,11 +59,16 @@ class DashboardShopOrderController extends Controller
 
     public function updateStatus(DashboardShopOrderStatusRequest $request, ShopOrder $order): JsonResponse
     {
+        if ($order->paid_at === null) {
+            throw ValidationException::withMessages([
+                'status' => ['Order payment is not completed yet.'],
+            ]);
+        }
+
         $status = (string) $request->validated()['status'];
 
         $order->update([
             'status' => $status,
-            'paid_at' => $status === ShopOrder::STATUS_PAID ? ($order->paid_at ?? now()) : $order->paid_at,
         ]);
 
         return $this->sendSuccess(__('response.updated'));

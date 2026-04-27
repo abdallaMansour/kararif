@@ -42,9 +42,9 @@ class ShopPaymentWebhookController extends Controller
 
         $status = (string) ($intent['status'] ?? '');
         if ($status === 'completed') {
-            if ($order->status !== ShopOrder::STATUS_PAID) {
+            if ($order->paid_at === null) {
                 $order->update([
-                    'status' => ShopOrder::STATUS_PAID,
+                    'status' => ShopOrder::STATUS_PENDING_CONFIRMATION,
                     'gateway_reference' => $intentId,
                     'paid_at' => now(),
                 ]);

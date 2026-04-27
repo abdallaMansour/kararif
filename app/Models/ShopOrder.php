@@ -8,7 +8,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ShopOrder extends Model
 {
     public const STATUS_PENDING_PAYMENT = 'pending_payment';
-    public const STATUS_PAID = 'paid';
+    public const STATUS_PENDING_CONFIRMATION = 'pending_confirmation';
+    public const STATUS_CONFIRMED = 'confirmed';
+    public const STATUS_ON_DELIVERY = 'on_delivery';
+    public const STATUS_DELIVERED = 'delivered';
     public const STATUS_FAILED = 'failed';
     public const STATUS_CANCELLED = 'cancelled';
 
