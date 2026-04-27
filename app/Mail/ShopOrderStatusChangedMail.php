@@ -37,6 +37,10 @@ class ShopOrderStatusChangedMail extends Mailable
         return new Content(
             view: 'emails.shop-order-status-changed',
             text: 'emails.shop-order-status-changed-text',
+            with: [
+                'previousStatusLabel' => $this->previousStatusLabel(),
+                'currentStatusLabel' => $this->currentStatusLabel(),
+            ],
         );
     }
 

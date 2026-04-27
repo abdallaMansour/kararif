@@ -20,8 +20,8 @@
                 <tr>
                     <td style="padding:22px 24px;">
                         <p style="margin:0 0 8px 0;"><strong>رقم الطلب:</strong> {{ $order->order_number }}</p>
-                        <p style="margin:0 0 8px 0;"><strong>الحالة السابقة:</strong> {{ $previousStatusLabel() }}</p>
-                        <p style="margin:0 0 16px 0;"><strong>الحالة الحالية:</strong> {{ $currentStatusLabel() }}</p>
+                        <p style="margin:0 0 8px 0;"><strong>الحالة السابقة:</strong> {{ $previousStatusLabel }}</p>
+                        <p style="margin:0 0 16px 0;"><strong>الحالة الحالية:</strong> {{ $currentStatusLabel }}</p>
                         <p style="margin:0 0 12px 0;font-size:17px;"><strong>المنتجات</strong></p>
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
                             @foreach($order->items as $item)

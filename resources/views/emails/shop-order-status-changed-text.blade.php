@@ -1,7 +1,7 @@
 تحديث حالة الطلب
 رقم الطلب: {{ $order->order_number }}
-الحالة السابقة: {{ $previousStatusLabel() }}
-الحالة الحالية: {{ $currentStatusLabel() }}
+الحالة السابقة: {{ $previousStatusLabel }}
+الحالة الحالية: {{ $currentStatusLabel }}
 
 المنتجات:
 @foreach($order->items as $item)
