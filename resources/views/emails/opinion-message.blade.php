@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="utf-8">
-    <title>رسالة تواصل جديدة</title>
+    <title>رأي جديد</title>
 </head>
 <body style="margin:0;padding:0;background:#d8d5c9;font-family:Tahoma,Arial,sans-serif;color:#4b3f2f;direction:rtl;text-align:right;" dir="rtl">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0;">
@@ -19,22 +19,21 @@
                         @if(!empty($embeddedLogo))
                             <img src="{{ $embeddedLogo }}" alt="خراريف" style="max-height:92px;display:block;margin:0 auto 12px auto;">
                         @endif
-                        <h2 style="margin:0;color:#2e5f68;font-size:24px;">رسالة تواصل جديدة</h2>
+                        <h2 style="margin:0;color:#2e5f68;font-size:24px;">رأي جديد من العملاء</h2>
                     </td>
                 </tr>
                 <tr>
-                    <td style="padding:22px 24px;direction:rtl;text-align:right;">
-                        <p style="margin:0 0 8px 0;"><strong>الاسم:</strong> {{ $contact->name }}</p>
-                        <p style="margin:0 0 8px 0;"><strong>البريد:</strong> {{ $contact->email }}</p>
-                        <p style="margin:0 0 8px 0;"><strong>المصدر:</strong> {{ $sourceLabel ?? $contact->source ?? '—' }}</p>
-                        @if($contact->category)
-                            <p style="margin:0 0 8px 0;"><strong>الفئة:</strong> {{ $contact->category }}</p>
+                    <td style="padding:22px 24px;">
+                        <p style="margin:0 0 8px 0;"><strong>الاسم:</strong> {{ $opinion->name }}</p>
+                        @if($opinion->email)
+                            <p style="margin:0 0 8px 0;"><strong>البريد:</strong> {{ $opinion->email }}</p>
                         @endif
-                        @if($contact->subject)
-                            <p style="margin:0 0 8px 0;"><strong>الموضوع:</strong> {{ $contact->subject }}</p>
+                        @if($opinion->phone)
+                            <p style="margin:0 0 8px 0;"><strong>الهاتف:</strong> {{ $opinion->phone }}</p>
                         @endif
-                        <p style="margin:0 0 8px 0;"><strong>الرسالة:</strong></p>
-                        <p style="margin:0;line-height:1.7;">{{ $contact->message }}</p>
+                        <p style="margin:0 0 8px 0;"><strong>التقييم:</strong> {{ $opinion->rate }}/5</p>
+                        <p style="margin:0 0 8px 0;"><strong>الرأي:</strong></p>
+                        <p style="margin:0;line-height:1.7;">{{ $opinion->opinion }}</p>
                     </td>
                 </tr>
             </table>

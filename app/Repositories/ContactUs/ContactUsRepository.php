@@ -44,9 +44,7 @@ class ContactUsRepository
             ]);
             DB::commit();
 
-            $adminEmail = config('mail.contact_admin_email')
-                ?? config('mail.from.address')
-                ?? config('mail.mailers.smtp.username');
+            $adminEmail = (string) (config('mail.contact_admin_email') ?: '');
             if ($adminEmail) {
                 Mail::to($adminEmail)->send(new ContactMessageMail($contact));
             }
