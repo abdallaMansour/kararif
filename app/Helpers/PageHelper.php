@@ -24,6 +24,9 @@ trait PageHelper
         'contact_us',
         'electronic_games',
         'coloring',
+        'shop_products',
+        'shop_checkout',
+        'shop_order_confirmation',
     ];
 
     /**

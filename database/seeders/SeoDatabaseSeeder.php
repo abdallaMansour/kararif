@@ -275,6 +275,39 @@ class SeoDatabaseSeeder extends Seeder
                     'icon' => '/seo_imgs/user_icon.png',
                 ]
             ],
+            [
+                'title' => 'shop products page',
+                'description' => 'description',
+                'site_name' => 'site name',
+                'keyword' => 'keyword',
+                'name_id' => 'shop_products',
+                'images' => [
+                    'image' => '/seo_imgs/project.png',
+                    'icon' => '/seo_imgs/user_icon.png',
+                ]
+            ],
+            [
+                'title' => 'shop checkout page',
+                'description' => 'description',
+                'site_name' => 'site name',
+                'keyword' => 'keyword',
+                'name_id' => 'shop_checkout',
+                'images' => [
+                    'image' => '/seo_imgs/project.png',
+                    'icon' => '/seo_imgs/user_icon.png',
+                ]
+            ],
+            [
+                'title' => 'shop order confirmation page',
+                'description' => 'description',
+                'site_name' => 'site name',
+                'keyword' => 'keyword',
+                'name_id' => 'shop_order_confirmation',
+                'images' => [
+                    'image' => '/seo_imgs/project.png',
+                    'icon' => '/seo_imgs/user_icon.png',
+                ]
+            ],
         ];
     }
 }
