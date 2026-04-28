@@ -18,6 +18,7 @@ class DashboardOpinionResource extends JsonResource
             'phone' => $this->phone,
             'opinion' => $this->opinion,
             'rate' => $this->rate,
+            'created_at' => $this->created_at,
         ];
     }
 }

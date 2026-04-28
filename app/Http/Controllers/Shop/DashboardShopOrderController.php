@@ -98,10 +98,13 @@ class DashboardShopOrderController extends Controller
             'id' => $order->id,
             'order_number' => $order->order_number,
             'status' => $order->status,
+            'gateway_name' => $order->gateway_name,
+            'gateway_payment_intent_id' => $order->gateway_payment_intent_id,
+            'gateway_reference' => $order->gateway_reference,
             'customer_full_name' => $order->customer_full_name,
             'customer_phone' => $order->customer_phone,
             'customer_email' => $order->customer_email,
-            'delivery_emirate' => $order->delivery_emirate,
+            'delivery_emirate' => $this->emirateLabelAr((string) $order->delivery_emirate),
             'delivery_area' => $order->delivery_area,
             'delivery_detail' => $order->delivery_detail,
             'subtotal_aed' => (float) $order->subtotal_aed,
@@ -114,6 +117,8 @@ class DashboardShopOrderController extends Controller
                 'id' => $item->id,
                 'shop_product_id' => $item->shop_product_id,
                 'name_ar' => $item->product?->name_ar,
+                'sku' => $item->product?->sku,
+                'image_url' => $item->product?->resolvedImageUrl(),
                 'quantity' => (int) $item->quantity,
                 'unit_price_aed' => (float) $item->unit_price_aed,
                 'line_total_aed' => (float) $item->line_total_aed,
@@ -124,5 +129,25 @@ class DashboardShopOrderController extends Controller
                     && (float) $item->line_total_aed === 0.0,
             ])->values()->all(),
         ];
+    }
+
+    private function emirateLabelAr(string $emirate): string
+    {
+        $labels = [
+            'abu_dhabi' => 'أبوظبي',
+            'abu dhabi' => 'أبوظبي',
+            'dubai' => 'دبي',
+            'sharjah' => 'الشارقة',
+            'ajman' => 'عجمان',
+            'umm_al_quwain' => 'أم القيوين',
+            'umm al quwain' => 'أم القيوين',
+            'ras_al_khaimah' => 'رأس الخيمة',
+            'ras al khaimah' => 'رأس الخيمة',
+            'fujairah' => 'الفجيرة',
+        ];
+
+        $normalized = strtolower(trim($emirate));
+
+        return $labels[$normalized] ?? $emirate;
     }
 }
