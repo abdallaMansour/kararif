@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\QuestionsStages\StageController;
 use App\Http\Controllers\QuestionsStages\DashboardStageController;
+use App\Http\Controllers\QuestionsStages\DashboardCustomStageController;
 use App\Http\Controllers\QuestionsStages\CategoryController;
 use App\Http\Controllers\QuestionsStages\DashboardCategoryController;
 use App\Http\Controllers\QuestionsStages\SubcategoryController;
@@ -32,6 +33,11 @@ Route::prefix('dashboard')->middleware('hasPermission:questions_and_stages')->gr
     Route::post('stages/{stage}', [DashboardStageController::class, 'update']);
     Route::delete('stages/{stage}', [DashboardStageController::class, 'destroy']);
     Route::post('stages/{stage}/groups/{group}/videos', [DashboardStageController::class, 'updateGroupVideos']);
+    Route::get('custom-stages', [DashboardCustomStageController::class, 'index']);
+    Route::post('custom-stages', [DashboardCustomStageController::class, 'create']);
+    Route::get('custom-stages/{custom_stage}', [DashboardCustomStageController::class, 'show']);
+    Route::post('custom-stages/{custom_stage}', [DashboardCustomStageController::class, 'update']);
+    Route::delete('custom-stages/{custom_stage}', [DashboardCustomStageController::class, 'destroy']);
     Route::get('categories', [DashboardCategoryController::class, 'index']);
     Route::post('categories', [DashboardCategoryController::class, 'create']);
     Route::get('categories/{category}', [DashboardCategoryController::class, 'show']);

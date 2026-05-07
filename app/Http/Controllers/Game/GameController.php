@@ -14,6 +14,7 @@ use App\Models\Adventurer;
 use App\Models\Category;
 use App\Models\CustomCategory;
 use App\Models\CustomQuestion;
+use App\Models\CustomStage;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\RoomPlayer;
@@ -132,6 +133,7 @@ class GameController extends Controller
             $rounds = 1;
         }
 
+        // 1 round = 1 consumed available session (minimum 1 session per room).
         $sessionCost = max(1, $rounds);
         if (($user->available_sessions ?? 0) < $sessionCost) {
             return ApiResponse::error('لا توجد جلسات لعبة متاحة. كل جولة إضافية تحتاج جلسة واحدة. يرجى شراء حزمة للاستمرار.', 403);
@@ -192,6 +194,14 @@ class GameController extends Controller
             return ApiResponse::error('Custom category not found for this owner.', 422);
         }
 
+        $customStage = CustomStage::query()
+            ->where('id', (int) $request->input('customStageId'))
+            ->where('status', true)
+            ->first();
+        if (! $customStage) {
+            return ApiResponse::error('Custom stage not found or inactive.', 422);
+        }
+
         $availableQuestions = CustomQuestion::ownedBy($user)
             ->where('custom_category_id', $category->id)
             ->where('status', true)
@@ -211,6 +221,7 @@ class GameController extends Controller
         }
         $questionsCount = max(1, min($questionsCount, $availableQuestions));
 
+        // 1 round = 1 consumed available session (minimum 1 session per room).
         $sessionCost = max(1, $rounds);
         if (($user->available_sessions ?? 0) < $sessionCost) {
             return ApiResponse::error('لا توجد جلسات لعبة متاحة. كل جولة إضافية تحتاج جلسة واحدة. يرجى شراء حزمة للاستمرار.', 403);
@@ -233,6 +244,7 @@ class GameController extends Controller
             'code' => $code,
             'is_custom' => true,
             'custom_category_id' => $category->id,
+            'custom_stage_id' => $customStage->id,
             'type_id' => $fallbackTypeId,
             'category_id' => $fallbackCategoryId,
             'subcategory_id' => $fallbackSubcategoryId,
@@ -270,6 +282,8 @@ class GameController extends Controller
             'code' => $room->code,
             'isCustom' => true,
             'customCategoryId' => (string) $category->id,
+            'customStageId' => (string) $customStage->id,
+            'customStageName' => $customStage->name,
             'lifePoints' => (int) $room->life_points,
             'selectedQuestionsCount' => (int) $room->questions_count,
             'expiresAt' => $room->expires_at?->toIso8601String(),
@@ -340,6 +354,7 @@ class GameController extends Controller
         $room = Room::withCount('roomPlayers')
             ->with([
                 'customCategory',
+                'customStage',
                 'roomPlayers.user',
                 'roomPlayers.adventurer',
                 'gameSessions' => fn ($q) => $q->whereIn('status', ['waiting', 'playing', 'starting', 'paused'])->latest()->limit(1),
@@ -371,6 +386,8 @@ class GameController extends Controller
             'isCustom' => true,
             'customCategoryId' => (string) $room->custom_category_id,
             'customCategoryName' => $room->customCategory?->name,
+            'customStageId' => $room->custom_stage_id !== null ? (string) $room->custom_stage_id : null,
+            'customStageName' => $room->customStage?->name,
             'sessionId' => $activeSession ? (string) $activeSession->id : null,
             'joinedCount' => $room->room_players_count ?? $room->roomPlayers()->count(),
             'selectedQuestionsCount' => (int) $selectedQuestionsCount,

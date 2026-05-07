@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "0b930eb7-af54-4824-9a8e-dcce5bdcf9ed",
     "name": "Khararif API",
-    "description": "App: auth, user (profile with stats.wins/losses/surrender_count plus custom_categories_count/custom_questions_count, avatar, balance, games), game (create-room and create-custom-room: creator auto-joins as K1 leader; responses include joined/playerId/teamCode/isLeader; custom categories/questions CRUD; create-custom-room life-points flow with random stage videos; leave/exit before session; surrender: 2 teams=end game, 3+ teams=team eliminated, others continue; Firebase teams[].surrendered). Content, payment. Dashboard: login, CRUD. Profile stats and surrender_count are returned correctly from GET /api/user/profile.",
+    "description": "App: auth, user (profile with stats.wins/losses/surrender_count plus custom_categories_count/custom_questions_count, avatar, balance, games), game (create-room and create-custom-room: creator auto-joins as K1 leader; responses include joined/playerId/teamCode/isLeader; GET /api/game/custom-stages for custom-room stage picker; create-custom-room requires customStageId; custom stage media in Firebase session stage payload; custom categories/questions CRUD; leave/exit before session; surrender: 2 teams=end game, 3+ teams=team eliminated, others continue; Firebase teams[].surrendered). Content, payment. Dashboard: login, CRUD, custom-stages CRUD. Profile stats and surrender_count are returned correctly from GET /api/user/profile.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "30751441"
   },
@@ -636,7 +636,7 @@
         },
         {
           "name": "Custom game flow",
-          "description": "Player-owned custom categories and questions (Bearer token required for mutating and my-* getters). Includes full CRUD: list/show/create/update/delete for custom-categories and custom-questions, plus my-custom-* list aliases, create-custom-room, and custom-room details. List endpoints return only resources owned by the authenticated user or adventurer. POST custom-questions requires custom_category_id. Category lists include usage_count (stored; incremented once per finished custom-room session). Question lists include usage_count (stored; incremented once per finished session for each question id in that session's schedule) and category_usage_count (the category's stored usage_count). GET custom-questions/{id} includes usage_count and category_usage_count when the category is loaded.",
+          "description": "Player-owned custom categories and questions (Bearer token required for mutating and my-* getters). Includes full CRUD: list/show/create/update/delete for custom-categories and custom-questions, plus my-custom-* list aliases, GET custom-stages (picker: id, name, cover_image_url), create-custom-room (requires customStageId), and custom-room details. List endpoints return only resources owned by the authenticated user or adventurer. POST custom-questions requires custom_category_id. Category lists include usage_count (stored; incremented once per finished custom-room session). Question lists include usage_count (stored; incremented once per finished session for each question id in that session's schedule) and category_usage_count (the category's stored usage_count). GET custom-questions/{id} includes usage_count and category_usage_count when the category is loaded.",
           "item": [
             {
               "name": "Get My Custom Categories",
@@ -1021,9 +1021,38 @@
               "response": []
             },
             {
+              "name": "List Custom Stages (mobile picker)",
+              "request": {
+                "description": "Returns active custom stages for the create-custom-room UI: id, name, cover_image_url only.",
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/game/custom-stages",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "game",
+                    "custom-stages"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
               "name": "Create Custom Room",
               "request": {
-                "description": "Creates a custom room using player's own custom category. Game mode is always life points. life_points is optional and defaults to 5. The creator is added as a room player automatically: team K1, isLeader true (same as POST create-room). Response includes joined, playerId, teamId, teamCode, isLeader so the client can skip a separate join call.",
+                "description": "Creates a custom room using player's own custom category and a dashboard-defined custom stage (customStageId required). Game mode is always life points. life_points is optional and defaults to 5. Session cost = number of rounds (1 round = 1 available session). The creator is added as a room player automatically: team K1, isLeader true (same as POST create-room). Response includes joined, playerId, teamId, teamCode, isLeader, customStageId, customStageName so the client can skip a separate join call.",
                 "method": "POST",
                 "header": [
                   {
@@ -1037,7 +1066,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"customCategoryId\": 1,\n  \"title\": \"جلسة الأصدقاء\",\n  \"questionsCount\": 10,\n  \"rounds\": 2,\n  \"teams\": 2,\n  \"players\": 4,\n  \"life_points\": 5\n}"
+                  "raw": "{\n  \"customCategoryId\": 1,\n  \"customStageId\": 1,\n  \"title\": \"جلسة الأصدقاء\",\n  \"questionsCount\": 10,\n  \"rounds\": 2,\n  \"teams\": 2,\n  \"players\": 4,\n  \"life_points\": 5\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/api/game/create-custom-room",
@@ -2219,6 +2248,152 @@
           ]
         },
         {
+          "name": "Custom Stages",
+          "description": "Life-points-only stages for custom games (questions_and_stages permission). Multipart create/update: name, life_points_per_question, number_of_questions, status, cover_image (image), start_video, end_video, lunch_video, correct_answer_video, wrong_answer_video.",
+          "item": [
+            {
+              "name": "List Custom Stages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/dashboard/custom-stages",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "dashboard", "custom-stages"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Show Custom Stage",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/dashboard/custom-stages/1",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "dashboard", "custom-stages", "1"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Custom Stage",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "name", "type": "text", "value": "مرحلة مخصصة" },
+                    { "key": "life_points_per_question", "type": "text", "value": "5" },
+                    { "key": "number_of_questions", "type": "text", "value": "10" },
+                    { "key": "status", "type": "text", "value": "1" },
+                    { "key": "cover_image", "type": "file", "src": "" },
+                    { "key": "start_video", "type": "file", "src": "" },
+                    { "key": "end_video", "type": "file", "src": "" },
+                    { "key": "lunch_video", "type": "file", "src": "" },
+                    { "key": "correct_answer_video", "type": "file", "src": "" },
+                    { "key": "wrong_answer_video", "type": "file", "src": "" }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/dashboard/custom-stages",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "dashboard", "custom-stages"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Custom Stage",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "name", "type": "text", "value": "مرحلة مخصصة" },
+                    { "key": "life_points_per_question", "type": "text", "value": "5" },
+                    { "key": "number_of_questions", "type": "text", "value": "10" },
+                    { "key": "status", "type": "text", "value": "1" },
+                    { "key": "cover_image", "type": "file", "src": "" },
+                    { "key": "start_video", "type": "file", "src": "" },
+                    { "key": "end_video", "type": "file", "src": "" },
+                    { "key": "lunch_video", "type": "file", "src": "" },
+                    { "key": "correct_answer_video", "type": "file", "src": "" },
+                    { "key": "wrong_answer_video", "type": "file", "src": "" }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/dashboard/custom-stages/1",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "dashboard", "custom-stages", "1"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Custom Stage",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/dashboard/custom-stages/1",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "dashboard", "custom-stages", "1"]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
           "name": "Types",
           "item": [
             {
@@ -3245,7 +3420,7 @@
           "response": []
         }
       ],
-      "description": "All dashboard requests require Authorization: Bearer {{token}} (use Dashboard Login first). Types/Categories/Subcategories require permission questions_and_stages; Questions require questions; Avatars/Packages/Coupons require avatars/packages/coupons."
+      "description": "All dashboard requests require Authorization: Bearer {{token}} (use Dashboard Login first). Types/Categories/Subcategories/Custom Stages require permission questions_and_stages; Questions require questions; Avatars/Packages/Coupons require avatars/packages/coupons."
     }
   ],
   "auth": {

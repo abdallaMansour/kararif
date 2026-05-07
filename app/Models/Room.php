@@ -17,6 +17,7 @@ class Room extends Model
         'category_id',
         'subcategory_id',
         'custom_category_id',
+        'custom_stage_id',
         'created_by',
         'title',
         'rounds',
@@ -51,6 +52,11 @@ class Room extends Model
     public function customCategory(): BelongsTo
     {
         return $this->belongsTo(CustomCategory::class, 'custom_category_id');
+    }
+
+    public function customStage(): BelongsTo
+    {
+        return $this->belongsTo(CustomStage::class, 'custom_stage_id');
     }
 
     public function creator(): BelongsTo

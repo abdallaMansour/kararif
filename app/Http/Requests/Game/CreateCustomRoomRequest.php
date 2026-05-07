@@ -15,6 +15,7 @@ class CreateCustomRoomRequest extends FormRequest
     {
         return [
             'customCategoryId' => 'required|exists:custom_categories,id',
+            'customStageId' => 'required|integer|exists:custom_stages,id',
             'title' => 'nullable|string|max:255',
             'rounds' => 'nullable|integer|min:1|max:20',
             'questionsCount' => 'nullable|integer|min:1|max:50',

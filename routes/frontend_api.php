@@ -9,6 +9,7 @@ use App\Http\Controllers\Game\GameController;
 use App\Http\Controllers\Game\TvDisplayController;
 use App\Http\Controllers\Game\CustomCategoryController;
 use App\Http\Controllers\Game\CustomQuestionController;
+use App\Http\Controllers\Game\CustomStageController;
 
 // Countries (public, for registration/filter dropdowns)
 Route::get('countries', [\App\Http\Controllers\CountryController::class, 'index']);
@@ -88,6 +89,8 @@ Route::prefix('game')->group(function () {
         Route::post('custom-questions', [CustomQuestionController::class, 'store']);
         Route::patch('custom-questions/{id}', [CustomQuestionController::class, 'update']);
         Route::delete('custom-questions/{id}', [CustomQuestionController::class, 'destroy']);
+
+        Route::get('custom-stages', [CustomStageController::class, 'index']);
 
         Route::post('create-room', [GameController::class, 'createRoom']);
         Route::post('create-custom-room', [GameController::class, 'createCustomRoom']);

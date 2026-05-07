@@ -288,45 +288,37 @@ class FirebaseGameSyncService
     private function buildStageData(Room $room, ?GameSession $session = null): ?array
     {
         if ((bool) $room->is_custom) {
-            $gameService = app(GameService::class);
-            $currentRoundNumber = $session ? $gameService->getCurrentRoundNumber($session) : 1;
-            $stage = $gameService->getEffectiveStageForRound($room, $session, $currentRoundNumber);
-            if ($stage) {
-                $stage->load('questionGroups');
-                $questionGroups = $stage->questionGroups->sortBy('sort_order')->values()->map(function ($g) {
-                    return [
-                        'id' => (int) $g->id,
-                        'sort_order' => (int) $g->sort_order,
-                        'start_video' => $g->getFirstMediaUrl('start_video'),
-                        'end_video' => $g->getFirstMediaUrl('end_video'),
-                        'correct_answer_video' => $g->getFirstMediaUrl('correct_answer_video'),
-                        'wrong_answer_video' => $g->getFirstMediaUrl('wrong_answer_video'),
-                    ];
-                })->all();
+            $room->loadMissing('customStage');
+            $cs = $room->customStage;
+
+            if ($cs) {
+                $lifePointsPerQuestion = $cs->life_points_per_question !== null
+                    ? (float) $cs->life_points_per_question
+                    : (float) ($room->life_points ?? 5);
 
                 return [
-                    'id' => (int) $stage->id,
-                    'name' => $stage->name,
+                    'id' => (int) $cs->id,
+                    'name' => $cs->name,
+                    'cover_image' => $cs->getFirstMediaUrl('cover_image') ?: null,
                     'stage_type' => Stage::TYPE_LIFE_POINTS,
-                    'selected_stage_type' => $stage->stage_type,
-                    'question_groups_count' => (int) ($stage->question_groups_count ?? 0),
+                    'question_groups_count' => 0,
                     'number_of_questions' => (int) ($room->questions_count ?? 0),
-                    'life_points_per_question' => (float) ($room->life_points ?? 5),
-                    'start_video' => $stage->getFirstMediaUrl('start_video'),
-                    'end_video' => $stage->getFirstMediaUrl('end_video'),
-                    'lunch_video' => $stage->getFirstMediaUrl('lunch_video'),
-                    'correct_answer_video' => $stage->getFirstMediaUrl('correct_answer_video'),
-                    'wrong_answer_video' => $stage->getFirstMediaUrl('wrong_answer_video'),
-                    'question_groups' => $questionGroups,
+                    'life_points_per_question' => $lifePointsPerQuestion,
+                    'start_video' => $cs->getFirstMediaUrl('start_video') ?: null,
+                    'end_video' => $cs->getFirstMediaUrl('end_video') ?: null,
+                    'lunch_video' => $cs->getFirstMediaUrl('lunch_video') ?: null,
+                    'correct_answer_video' => $cs->getFirstMediaUrl('correct_answer_video') ?: null,
+                    'wrong_answer_video' => $cs->getFirstMediaUrl('wrong_answer_video') ?: null,
+                    'question_groups' => [],
                 ];
             }
 
             return [
                 'id' => null,
                 'name' => $room->customCategory?->name ?? 'Custom',
+                'cover_image' => null,
                 'stage_type' => Stage::TYPE_LIFE_POINTS,
-                'selected_stage_type' => null,
-                'question_groups_count' => 1,
+                'question_groups_count' => 0,
                 'number_of_questions' => (int) ($room->questions_count ?? 0),
                 'life_points_per_question' => (float) ($room->life_points ?? 5),
                 'start_video' => null,

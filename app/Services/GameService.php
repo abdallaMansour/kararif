@@ -176,11 +176,7 @@ class GameService
     public function getEffectiveStageForRound(Room $room, ?GameSession $session, int $roundNumber): ?Stage
     {
         if ((bool) $room->is_custom) {
-            $roundStageIds = $session?->round_stage_ids ?? [];
-            $stageId = $roundStageIds[(string) $roundNumber] ?? $roundStageIds[$roundNumber] ?? null;
-            if ($stageId) {
-                return Stage::find($stageId);
-            }
+            // Custom rooms use `custom_stages` via Firebase `stage` payload only, not normal `Stage` rows.
             return null;
         }
 
@@ -205,17 +201,8 @@ class GameService
     public function computeRoundStageIds(Room $room): ?array
     {
         if ((bool) $room->is_custom) {
-            $roundsCount = max(1, (int) ($room->rounds ?? 1));
-            $stageIds = Stage::where('status', true)->pluck('id')->toArray();
-            if (empty($stageIds)) {
-                return null;
-            }
-
-            $result = [];
-            for ($r = 1; $r <= $roundsCount; $r++) {
-                $result[(string) $r] = $stageIds[array_rand($stageIds)];
-            }
-            return $result;
+            // Stage media for custom games comes from `rooms.custom_stage_id` / `custom_stages`, not per-round `Stage`.
+            return null;
         }
 
         $room->loadMissing('subcategory.stage');
