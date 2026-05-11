@@ -16,7 +16,8 @@ class GameService
     public function __construct(
         protected FirebaseGameSyncService $firebaseSync,
         protected CustomContentUsageService $customContentUsage
-    ) {}
+    ) {
+    }
     public function generateRoomCode(): string
     {
         do {
@@ -322,7 +323,7 @@ class GameService
             return null;
         }
 
-        $joinedCount = $room->roomPlayers->filter(fn ($rp) => $rp->tv_view_joined_at !== null)->count();
+        $joinedCount = $room->roomPlayers->filter(fn($rp) => $rp->tv_view_joined_at !== null)->count();
         if ($joinedCount < $total) {
             return null;
         }
@@ -532,9 +533,9 @@ class GameService
         }
 
         // Exclude surrendered teams from expected count and from answered count
-        $answeredTeamIds = $answeredTeamIds->reject(fn ($tid) => in_array((string) $tid, $surrenderedTeamIds, true))->values();
+        $answeredTeamIds = $answeredTeamIds->reject(fn($tid) => in_array((string) $tid, $surrenderedTeamIds, true))->values();
         $activeTeamIds = $room->roomPlayers()->pluck('team_id')->filter()->unique()->values();
-        $activeTeamIds = $activeTeamIds->reject(fn ($tid) => in_array((string) $tid, $surrenderedTeamIds, true))->values();
+        $activeTeamIds = $activeTeamIds->reject(fn($tid) => in_array((string) $tid, $surrenderedTeamIds, true))->values();
         $expectedTeams = $activeTeamIds->count();
         $answeredCount = $answeredTeamIds->count();
 
@@ -657,7 +658,7 @@ class GameService
                 $maxLife = $aliveTeams->count() > 0 ? $aliveTeams->max() : 0;
                 // Winners are teams with the highest life (allowing ties), even if 0
                 $winnerTeamIds = collect($lifeByTeam)
-                    ->filter(fn ($life) => $life === $maxLife)
+                    ->filter(fn($life) => $life === $maxLife)
                     ->keys()
                     ->values()
                     ->all();
@@ -671,10 +672,10 @@ class GameService
         } else {
             // Non life-points stage: finish when only one active team left (others surrendered) or questions exhausted
             $activeTeamIds = $room->roomPlayers->pluck('team_id')->unique()->filter()->reject(
-                fn ($tid) => in_array((string) $tid, $surrenderedTeamIds, true)
+                fn($tid) => in_array((string) $tid, $surrenderedTeamIds, true)
             )->values();
             if ($activeTeamIds->count() === 1) {
-                $winnerTeamIds = $activeTeamIds->map(fn ($id) => (string) $id)->all();
+                $winnerTeamIds = $activeTeamIds->map(fn($id) => (string) $id)->all();
                 $session->update(['status' => 'finished', 'current_round' => $nextRound]);
                 $session->room->update(['status' => 'finished']);
                 $this->updatePointsForFinishedSession($session->fresh());
@@ -705,13 +706,13 @@ class GameService
     {
         $session->load('room.roomPlayers.adventurer', 'room.roomPlayers.user');
         $teamScores = $session->room->roomPlayers->groupBy('team_id')
-            ->map(fn ($players) => $players->sum('score'));
+            ->map(fn($players) => $players->sum('score'));
         $maxScore = $teamScores->max();
-        $teamsAtMaxScore = $teamScores->filter(fn ($s) => $s === $maxScore);
+        $teamsAtMaxScore = $teamScores->filter(fn($s) => $s === $maxScore);
 
         foreach ($session->room->roomPlayers as $rp) {
             $player = $rp->adventurer ?? $rp->user;
-            if (! $player) {
+            if (!$player) {
                 continue;
             }
             $teamScore = $teamScores[(string) $rp->team_id] ?? 0;

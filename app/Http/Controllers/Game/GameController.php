@@ -26,17 +26,19 @@ use App\Models\User;
 use App\Services\FirebaseGameSyncService;
 use App\Services\GameService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class GameController extends Controller
 {
     public function __construct(
         protected GameService $gameService,
         protected FirebaseGameSyncService $firebaseSync
-    ) {}
+    ) {
+    }
 
     public function getQuestionTypes(): JsonResponse
     {
-        $types = Type::where('status', true)->withCount('categories')->orderBy('id')->get()->map(fn ($t) => [
+        $types = Type::where('status', true)->withCount('categories')->orderBy('id')->get()->map(fn($t) => [
             'id' => (string) $t->id,
             'name_ar' => $t->name,
             'slug' => \Illuminate\Support\Str::slug($t->name),
@@ -54,7 +56,7 @@ class GameController extends Controller
         if ($questionTypeId !== null) {
             $query->where('type_id', $questionTypeId);
         }
-        $items = $query->with('type')->withCount('questions')->orderBy('id')->get()->map(fn ($c) => [
+        $items = $query->with('type')->withCount('questions')->orderBy('id')->get()->map(fn($c) => [
             'id' => (string) $c->id,
             'name_ar' => $c->name,
             'slug' => \Illuminate\Support\Str::slug($c->name),
@@ -73,7 +75,7 @@ class GameController extends Controller
         if ($categoryId !== null) {
             $query->where('category_id', $categoryId);
         }
-        $items = $query->with('category')->withCount('questions')->orderBy('id')->get()->map(fn ($s) => [
+        $items = $query->with('category')->withCount('questions')->orderBy('id')->get()->map(fn($s) => [
             'id' => (string) $s->id,
             'name_ar' => $s->name,
             'slug' => \Illuminate\Support\Str::slug($s->name),
@@ -92,7 +94,7 @@ class GameController extends Controller
             ->where('code', $request->input('code'))
             ->first();
 
-        if (! $room || ($room->expires_at && $room->expires_at->isPast())) {
+        if (!$room || ($room->expires_at && $room->expires_at->isPast())) {
             return ApiResponse::error('رمز المغامرة غير صحيح أو منتهي', 400);
         }
 
@@ -174,7 +176,7 @@ class GameController extends Controller
         for ($i = 1; $i <= $teams; $i++) {
             $teamsData[] = [
                 'teamId' => (string) $i,
-                'teamCode' => 'K'.$i,
+                'teamCode' => 'K' . $i,
             ];
         }
 
@@ -190,7 +192,7 @@ class GameController extends Controller
     {
         $user = auth()->user();
         $category = CustomCategory::ownedBy($user)->find((int) $request->input('customCategoryId'));
-        if (! $category) {
+        if (!$category) {
             return ApiResponse::error('Custom category not found for this owner.', 422);
         }
 
@@ -198,7 +200,7 @@ class GameController extends Controller
             ->where('id', (int) $request->input('customStageId'))
             ->where('status', true)
             ->first();
-        if (! $customStage) {
+        if (!$customStage) {
             return ApiResponse::error('Custom stage not found or inactive.', 422);
         }
 
@@ -236,7 +238,7 @@ class GameController extends Controller
         $fallbackTypeId = Type::where('status', true)->value('id');
         $fallbackCategoryId = Category::where('status', true)->value('id');
         $fallbackSubcategoryId = Subcategory::where('status', true)->value('id');
-        if (! $fallbackTypeId || ! $fallbackCategoryId || ! $fallbackSubcategoryId) {
+        if (!$fallbackTypeId || !$fallbackCategoryId || !$fallbackSubcategoryId) {
             return ApiResponse::error('Base game setup is incomplete for room creation.', 500);
         }
 
@@ -273,7 +275,7 @@ class GameController extends Controller
         for ($i = 1; $i <= $teams; $i++) {
             $teamsData[] = [
                 'teamId' => (string) $i,
-                'teamCode' => 'K'.$i,
+                'teamCode' => 'K' . $i,
             ];
         }
 
@@ -294,10 +296,10 @@ class GameController extends Controller
     public function getRoom(int $roomId): JsonResponse
     {
         $room = Room::withCount('roomPlayers')
-            ->with(['type', 'category', 'subcategory.stage.questionGroups', 'roomPlayers.user', 'roomPlayers.adventurer', 'gameSessions' => fn ($q) => $q->whereIn('status', ['waiting', 'playing', 'starting', 'paused'])->latest()->limit(1)])
+            ->with(['type', 'category', 'subcategory.stage.questionGroups', 'roomPlayers.user', 'roomPlayers.adventurer', 'gameSessions' => fn($q) => $q->whereIn('status', ['waiting', 'playing', 'starting', 'paused'])->latest()->limit(1)])
             ->find($roomId);
 
-        if (! $room) {
+        if (!$room) {
             return ApiResponse::error('الغرفة غير موجودة', 404);
         }
 
@@ -306,7 +308,7 @@ class GameController extends Controller
         for ($i = 1; $i <= $teams; $i++) {
             $teamCodes[] = [
                 'teamId' => (string) $i,
-                'teamCode' => 'K'.$i,
+                'teamCode' => 'K' . $i,
             ];
         }
         $activeSession = $room->gameSessions->first();
@@ -340,7 +342,7 @@ class GameController extends Controller
                         'code' => $entity->country_code ?? null,
                     ] : null,
                     'teamId' => (string) $rp->team_id,
-                    'teamCode' => 'K'.$rp->team_id,
+                    'teamCode' => 'K' . $rp->team_id,
                     'isLeader' => (bool) $rp->is_leader,
                 ];
             })->values()->all(),
@@ -357,12 +359,12 @@ class GameController extends Controller
                 'customStage',
                 'roomPlayers.user',
                 'roomPlayers.adventurer',
-                'gameSessions' => fn ($q) => $q->whereIn('status', ['waiting', 'playing', 'starting', 'paused'])->latest()->limit(1),
+                'gameSessions' => fn($q) => $q->whereIn('status', ['waiting', 'playing', 'starting', 'paused'])->latest()->limit(1),
             ])
             ->where('is_custom', true)
             ->find($roomId);
 
-        if (! $room) {
+        if (!$room) {
             return ApiResponse::error('الغرفة غير موجودة', 404);
         }
 
@@ -375,7 +377,7 @@ class GameController extends Controller
         for ($i = 1; $i <= $teams; $i++) {
             $teamCodes[] = [
                 'teamId' => (string) $i,
-                'teamCode' => 'K'.$i,
+                'teamCode' => 'K' . $i,
             ];
         }
 
@@ -409,7 +411,7 @@ class GameController extends Controller
                     'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
                     'userName' => $entity?->name ?? 'Player',
                     'teamId' => (string) $rp->team_id,
-                    'teamCode' => 'K'.$rp->team_id,
+                    'teamCode' => 'K' . $rp->team_id,
                     'isLeader' => (bool) $rp->is_leader,
                 ];
             })->values()->all(),
@@ -419,7 +421,7 @@ class GameController extends Controller
     public function linkTv(LinkTvRequest $request, int $roomId): JsonResponse
     {
         $room = Room::find($roomId);
-        if (! $room) {
+        if (!$room) {
             return ApiResponse::error('الغرفة غير موجودة', 404);
         }
 
@@ -428,14 +430,14 @@ class GameController extends Controller
             ? RoomPlayer::where('room_id', $roomId)->where('adventurer_id', $user->id)->first()
             : RoomPlayer::where('room_id', $roomId)->where('user_id', $user->id)->first();
 
-        if (! $roomPlayer) {
+        if (!$roomPlayer) {
             return ApiResponse::error('أنت غير مشارك في هذه الغرفة', 403);
         }
 
         $tvCode = $request->input('tvCode');
         $display = TvDisplay::where('code', $tvCode)->first();
 
-        if (! $display) {
+        if (!$display) {
             return ApiResponse::error('رمز التلفزيون غير صحيح', 400);
         }
 
@@ -462,7 +464,7 @@ class GameController extends Controller
             if ($activeSession) {
                 if ($activeSession->status === 'starting') {
                     $startedSession = $this->gameService->maybeStartSessionWhenAllJoined($room->fresh());
-                    if (! $startedSession) {
+                    if (!$startedSession) {
                         $this->firebaseSync->syncSessionStarting($activeSession->fresh());
                     }
                 } else {
@@ -484,7 +486,7 @@ class GameController extends Controller
     public function joinRoom(JoinRoomRequest $request, int $roomId): JsonResponse
     {
         $room = Room::find($roomId);
-        if (! $room) {
+        if (!$room) {
             return ApiResponse::error('الغرفة ممتلئة أو الرمز خاطئ', 404);
         }
         if ($room->status !== 'waiting') {
@@ -505,7 +507,7 @@ class GameController extends Controller
                 'joined' => true,
                 'teamId' => (string) $existing->team_id,
                 'playerId' => (string) $existing->id,
-                'teamCode' => 'K'.$existing->team_id,
+                'teamCode' => 'K' . $existing->team_id,
                 'isLeader' => (bool) $existing->is_leader,
             ]);
         }
@@ -558,7 +560,7 @@ class GameController extends Controller
             'joined' => true,
             'teamId' => (string) $player->team_id,
             'playerId' => (string) $player->id,
-            'teamCode' => 'K'.$player->team_id,
+            'teamCode' => 'K' . $player->team_id,
             'isLeader' => (bool) $player->is_leader,
         ]);
     }
@@ -566,7 +568,7 @@ class GameController extends Controller
     public function leaveRoom(int $roomId): JsonResponse
     {
         $room = Room::find($roomId);
-        if (! $room) {
+        if (!$room) {
             return ApiResponse::error('الغرفة غير موجودة', 404);
         }
 
@@ -575,7 +577,7 @@ class GameController extends Controller
             ? RoomPlayer::where('room_id', $roomId)->where('adventurer_id', $user->id)->first()
             : RoomPlayer::where('room_id', $roomId)->where('user_id', $user->id)->first();
 
-        if (! $roomPlayer) {
+        if (!$roomPlayer) {
             return ApiResponse::error('أنت غير مشارك في هذه الغرفة', 403);
         }
 
@@ -598,10 +600,10 @@ class GameController extends Controller
         $canKickAll = $isCreator
             && $activeSession
             && in_array($activeSession->status, ['waiting', 'starting'], true)
-            && ! $allPlayersJoinedTv;
+            && !$allPlayersJoinedTv;
 
         // Default behavior: allow leaving only while room is waiting.
-        if ($room->status !== 'waiting' && ! $canKickAll) {
+        if ($room->status !== 'waiting' && !$canKickAll) {
             return ApiResponse::error('لا يمكن المغادرة بعد بدء اللعبة. استخدم الاستسلام لإنهاء المغامرة.', 400);
         }
 
@@ -654,7 +656,7 @@ class GameController extends Controller
     public function getSession(int $sessionId): JsonResponse
     {
         $session = GameSession::with('room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups')->find($sessionId);
-        if (! $session) {
+        if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
 
@@ -665,14 +667,14 @@ class GameController extends Controller
             : null;
         $teams = $session->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
             $first = $players->first();
-            $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق '.$teamId;
+            $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId;
             $score = $players->sum('score');
 
             return [
                 'id' => (string) $teamId,
                 'name' => $name,
                 'score' => $score,
-                'teamCode' => 'K'.$teamId,
+                'teamCode' => 'K' . $teamId,
             ];
         })->values()->all();
 
@@ -708,7 +710,7 @@ class GameController extends Controller
     public function submitAnswer(SubmitAnswerRequest $request, int $sessionId): JsonResponse
     {
         $session = GameSession::find($sessionId);
-        if (! $session) {
+        if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
         if ($session->status === 'finished') {
@@ -728,10 +730,10 @@ class GameController extends Controller
         $roomPlayer = $user instanceof Adventurer
             ? RoomPlayer::where('room_id', $session->room_id)->where('adventurer_id', $user->id)->first()
             : RoomPlayer::where('room_id', $session->room_id)->where('user_id', $user->id)->first();
-        if (! $roomPlayer) {
+        if (!$roomPlayer) {
             return ApiResponse::error('أنت غير مشارك في هذه المغامرة', 403);
         }
-        if (! $roomPlayer->is_leader) {
+        if (!$roomPlayer->is_leader) {
             return ApiResponse::error('فقط قائد الفريق يمكنه الإجابة على الأسئلة', 403);
         }
 
@@ -745,18 +747,22 @@ class GameController extends Controller
         return ApiResponse::success($data);
     }
 
-    public function nextQuestion(int $sessionId): JsonResponse
+    public function nextQuestion(Request $request, int $sessionId): JsonResponse
     {
-        $session = GameSession::find($sessionId);
-        if (! $session) {
+        $session = GameSession::with('room')->find($sessionId);
+        if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
         if ($session->status !== 'paused') {
             return ApiResponse::error('الجلسة ليست في حالة الإيقاف المؤقت', 400);
         }
 
+        if (! $this->canControlNextQuestionFromTvOrAuth($request, $session)) {
+            return ApiResponse::error('غير مصرح: أرسل displayId أو deviceId لشاشة التلفزيون المربوطة بهذه الغرفة، أو سجّل الدخول كمشارك في الغرفة.', 403);
+        }
+
         $result = $this->gameService->advanceToNextQuestion($session);
-        if (! empty($result['invalid'])) {
+        if (!empty($result['invalid'])) {
             return ApiResponse::error('لا يمكن الانتقال للسؤال التالي', 400);
         }
 
@@ -770,7 +776,7 @@ class GameController extends Controller
     public function pause(int $sessionId): JsonResponse
     {
         $session = GameSession::find($sessionId);
-        if (! $session) {
+        if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
         if ($session->status !== 'playing') {
@@ -789,7 +795,7 @@ class GameController extends Controller
     public function resume(int $sessionId): JsonResponse
     {
         $session = GameSession::find($sessionId);
-        if (! $session) {
+        if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
         if ($session->status !== 'paused') {
@@ -813,7 +819,7 @@ class GameController extends Controller
     public function startQuestion(int $sessionId): JsonResponse
     {
         $session = GameSession::find($sessionId);
-        if (! $session) {
+        if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
 
@@ -823,7 +829,7 @@ class GameController extends Controller
 
         $result = $this->gameService->startCurrentQuestion($session);
 
-        if (! $result['ok']) {
+        if (!$result['ok']) {
             return ApiResponse::error('لا يمكن بدء السؤال', 400);
         }
 
@@ -838,7 +844,7 @@ class GameController extends Controller
     public function timeout(int $sessionId): JsonResponse
     {
         $session = GameSession::with('room')->find($sessionId);
-        if (! $session) {
+        if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
 
@@ -847,15 +853,17 @@ class GameController extends Controller
         }
 
         $timeLimitSeconds = 30;
-        if (! $session->question_started_at ||
-            $session->question_started_at->diffInSeconds(now()) < $timeLimitSeconds) {
+        if (
+            !$session->question_started_at ||
+            $session->question_started_at->diffInSeconds(now()) < $timeLimitSeconds
+        ) {
             return ApiResponse::error('لم ينته الوقت بعد', 400);
         }
 
         $room = $session->room()->with('roomPlayers')->first();
         $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
         $leaders = $room->roomPlayers->where('is_leader', true)->reject(
-            fn ($rp) => in_array((string) $rp->team_id, $surrenderedTeamIds, true)
+            fn($rp) => in_array((string) $rp->team_id, $surrenderedTeamIds, true)
         );
         $leaderIds = $leaders->pluck('id');
 
@@ -884,7 +892,7 @@ class GameController extends Controller
                     ->where($questionKey, $questionId)
                     ->where('room_player_id', $leader->id)
                     ->exists();
-                if (! $alreadyAnswered) {
+                if (!$alreadyAnswered) {
                     SessionAnswer::create([
                         'game_session_id' => $session->id,
                         'question_id' => $isCustomRoom ? null : $questionId,
@@ -915,7 +923,7 @@ class GameController extends Controller
     public function surrender(int $sessionId): JsonResponse
     {
         $session = GameSession::with('room.roomPlayers')->find($sessionId);
-        if (! $session) {
+        if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
         if ($session->status === 'finished') {
@@ -926,7 +934,7 @@ class GameController extends Controller
         $roomPlayer = $user instanceof Adventurer
             ? RoomPlayer::where('room_id', $session->room_id)->where('adventurer_id', $user->id)->first()
             : RoomPlayer::where('room_id', $session->room_id)->where('user_id', $user->id)->first();
-        if (! $roomPlayer) {
+        if (!$roomPlayer) {
             return ApiResponse::error('أنت غير مشارك في هذه المغامرة', 403);
         }
 
@@ -967,20 +975,20 @@ class GameController extends Controller
         $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
         $byTeam = $session->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
             $first = $players->first();
-            $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق '.$teamId;
+            $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId;
             $score = $players->sum('score');
 
             return [
                 'teamId' => (string) $teamId,
                 'name' => $name,
                 'score' => $score,
-                'teamCode' => 'K'.$teamId,
+                'teamCode' => 'K' . $teamId,
             ];
         })->values()->all();
 
         $winnerIds = collect($byTeam)
             ->pluck('teamId')
-            ->reject(fn ($id) => (int) $id === (int) $surrenderingTeamId)
+            ->reject(fn($id) => (int) $id === (int) $surrenderingTeamId)
             ->values()
             ->all();
 
@@ -1001,7 +1009,7 @@ class GameController extends Controller
     public function endSession(int $sessionId): JsonResponse
     {
         $session = GameSession::with('room')->find($sessionId);
-        if (! $session) {
+        if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
         if ($session->status === 'finished') {
@@ -1024,20 +1032,20 @@ class GameController extends Controller
     public function getResult(int $sessionId): JsonResponse
     {
         $session = GameSession::with('room.roomPlayers.user', 'room.roomPlayers.adventurer')->find($sessionId);
-        if (! $session) {
+        if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
 
         $byTeam = $session->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
             $first = $players->first();
-            $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق '.$teamId;
+            $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId;
             $score = $players->sum('score');
 
             return [
                 'teamId' => (string) $teamId,
                 'name' => $name,
                 'score' => $score,
-                'teamCode' => 'K'.$teamId,
+                'teamCode' => 'K' . $teamId,
             ];
         })->values()->all();
 
@@ -1049,6 +1057,53 @@ class GameController extends Controller
             'winnerId' => $winner['teamId'] ?? null,
             'roundsPlayed' => $roundsPlayed,
         ]);
+    }
+
+    /**
+     * TV (no Bearer): displayId or deviceId must match a non-expired display linked to this session's room.
+     * With Bearer: any authenticated user who is a room player may call next-question.
+     */
+    private function canControlNextQuestionFromTvOrAuth(Request $request, GameSession $session): bool
+    {
+        $room = $session->room;
+        if (! $room) {
+            return false;
+        }
+
+        $roomId = (int) $session->room_id;
+
+        $displayId = $request->input('displayId', $request->input('tvDisplayId'));
+        if ($displayId !== null && $displayId !== '') {
+            $display = TvDisplay::query()
+                ->whereKey((int) $displayId)
+                ->where('status', TvDisplay::STATUS_LINKED)
+                ->where('room_id', $roomId)
+                ->first();
+
+            return $display !== null && ! $display->isExpired();
+        }
+
+        $deviceId = $request->input('deviceId');
+        if (is_string($deviceId) && $deviceId !== '') {
+            $display = TvDisplay::query()
+                ->where('device_id', $deviceId)
+                ->where('status', TvDisplay::STATUS_LINKED)
+                ->where('room_id', $roomId)
+                ->first();
+
+            return $display !== null && ! $display->isExpired();
+        }
+
+        $user = auth()->user();
+        if (! $user) {
+            return false;
+        }
+
+        $roomPlayer = $user instanceof Adventurer
+            ? RoomPlayer::where('room_id', $roomId)->where('adventurer_id', $user->id)->first()
+            : RoomPlayer::where('room_id', $roomId)->where('user_id', $user->id)->first();
+
+        return $roomPlayer !== null;
     }
 
     /**
@@ -1079,7 +1134,7 @@ class GameController extends Controller
             'joined' => true,
             'playerId' => (string) $creatorPlayer->id,
             'teamId' => (string) $creatorPlayer->team_id,
-            'teamCode' => 'K'.$creatorPlayer->team_id,
+            'teamCode' => 'K' . $creatorPlayer->team_id,
             'isLeader' => (bool) $creatorPlayer->is_leader,
         ];
     }

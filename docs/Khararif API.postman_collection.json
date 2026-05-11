@@ -1354,11 +1354,19 @@
             "method": "POST",
             "header": [
               {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
               }
             ],
-            "description": "Call when session is paused (after answer submit). TV calls when correct/wrong video ends. Returns finished=true if no more questions.",
+            "description": "No auth required for TV. Call when session is paused (after answer/reveal). TV sends JSON displayId (from POST /api/game/tv/code) or deviceId; the display must be linked (status linked) to this session's room. Any room participant may also call with Bearer token (no body). Returns finished=true if no more questions.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayId\": 1\n}"
+            },
             "url": {
               "raw": "{{base_url}}/api/game/session/1/next-question",
               "host": [

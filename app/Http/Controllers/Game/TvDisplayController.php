@@ -64,11 +64,15 @@ class TvDisplayController extends Controller
             $sessionId = $session ? (string) $session->id : null;
         }
 
+        // Kept for backward compatibility: true whenever this display is linked to a room (no creator-only rule).
+        $isHostDisplay = (bool) $linked;
+
         return ApiResponse::success([
             'linked' => $linked,
             'roomId' => $roomId,
             'sessionId' => $sessionId,
             'status' => $display->status,
+            'isHostDisplay' => $isHostDisplay,
         ]);
     }
 }
