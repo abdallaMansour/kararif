@@ -18,7 +18,6 @@ use App\Models\CustomStage;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\RoomPlayer;
-use App\Models\SessionAnswer;
 use App\Models\Subcategory;
 use App\Models\TvDisplay;
 use App\Models\Type;
@@ -743,6 +742,9 @@ class GameController extends Controller
             'scoreDelta' => $result['scoreDelta'],
             'nextQuestionAvailable' => $result['nextQuestionAvailable'],
         ];
+        if (!empty($result['sessionFinished'])) {
+            $data['sessionFinished'] = true;
+        }
 
         return ApiResponse::success($data);
     }
@@ -753,12 +755,31 @@ class GameController extends Controller
         if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
-        if ($session->status !== 'paused') {
-            return ApiResponse::error('الجلسة ليست في حالة الإيقاف المؤقت', 400);
-        }
 
         if (! $this->canControlNextQuestionFromTvOrAuth($request, $session)) {
             return ApiResponse::error('غير مصرح: أرسل displayId أو deviceId لشاشة التلفزيون المربوطة بهذه الغرفة، أو سجّل الدخول كمشارك في الغرفة.', 403);
+        }
+
+        // If nobody submitted after the timer, the session can stay "playing" forever because timedOut is only
+        // evaluated inside submitAnswer. Auto-finalize the question when the deadline has passed, same as POST .../timeout.
+        if ($session->status === 'playing') {
+            $this->gameService->applyPlayingQuestionTimeout($session->fresh());
+            $session = GameSession::with('room')->find($sessionId);
+        }
+
+        if ($session->status === 'finished') {
+            return ApiResponse::success([
+                'finished' => true,
+                'sessionId' => (string) $session->id,
+                'round' => null,
+            ]);
+        }
+
+        if ($session->status !== 'paused') {
+            return ApiResponse::error(
+                'لا يزال السؤال نشطاً: انتظر انتهاء وقت السؤال أو إجابة جميع الفرق، أو استدعِ POST .../timeout بعد انتهاء المؤقت.',
+                400
+            );
         }
 
         $result = $this->gameService->advanceToNextQuestion($session);
@@ -852,71 +873,29 @@ class GameController extends Controller
             return ApiResponse::error('لا يمكن إنهاء الوقت في هذه الحالة', 400);
         }
 
-        $timeLimitSeconds = 30;
-        if (
-            !$session->question_started_at ||
-            $session->question_started_at->diffInSeconds(now()) < $timeLimitSeconds
-        ) {
-            return ApiResponse::error('لم ينته الوقت بعد', 400);
-        }
-
-        $room = $session->room()->with('roomPlayers')->first();
-        $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
-        $leaders = $room->roomPlayers->where('is_leader', true)->reject(
-            fn($rp) => in_array((string) $rp->team_id, $surrenderedTeamIds, true)
-        );
-        $leaderIds = $leaders->pluck('id');
-
-        $questionIds = $session->question_ids ?? [];
-        $roundIndex = $session->current_round - 1;
-        $questionId = $questionIds[$roundIndex] ?? null;
-        $isCustomRoom = (bool) $session->room?->is_custom;
-        $questionKey = $isCustomRoom ? 'custom_question_id' : 'question_id';
-
-        $allLeadersAnswered = false;
-        if ($questionId && $leaderIds->count() > 0) {
-            $answeredLeaderIds = SessionAnswer::where('game_session_id', $session->id)
-                ->where($questionKey, $questionId)
-                ->whereIn('room_player_id', $leaderIds)
-                ->pluck('room_player_id')
-                ->unique();
-
-            $allLeadersAnswered = $answeredLeaderIds->count() >= $leaderIds->count();
-        }
-
-        // For life-points stages, treat missing answers as wrong (lose 1 life on timeout); skip surrendered teams
-        $stageType = $this->gameService->getEffectiveStageType($room, $session, $this->gameService->getCurrentRoundNumber($session));
-        if ($questionId && $stageType === \App\Models\Stage::TYPE_LIFE_POINTS) {
-            foreach ($leaders as $leader) {
-                $alreadyAnswered = SessionAnswer::where('game_session_id', $session->id)
-                    ->where($questionKey, $questionId)
-                    ->where('room_player_id', $leader->id)
-                    ->exists();
-                if (!$alreadyAnswered) {
-                    SessionAnswer::create([
-                        'game_session_id' => $session->id,
-                        'question_id' => $isCustomRoom ? null : $questionId,
-                        'custom_question_id' => $isCustomRoom ? $questionId : null,
-                        'room_player_id' => $leader->id,
-                        'answer_index' => 0,
-                        'correct' => false,
-                        'score_delta' => 0,
-                    ]);
-                }
+        $result = $this->gameService->applyPlayingQuestionTimeout($session);
+        if (!$result['applied']) {
+            if (($result['reason'] ?? '') === 'timer_not_elapsed') {
+                return ApiResponse::error('لم ينته الوقت بعد', 400);
             }
+            if (($result['reason'] ?? '') === 'no_room') {
+                return ApiResponse::error('الغرفة غير متاحة', 400);
+            }
+
+            return ApiResponse::error('لا يمكن إنهاء الوقت في هذه الحالة', 400);
         }
 
-        $session->update(['status' => 'paused']);
-        $this->firebaseSync->syncSessionPaused($session->fresh(), false);
-        $this->gameService->advanceFinishedSessionIfLastQuestion($session->fresh());
-
-        $session = $session->fresh();
+        $session = $result['session'];
+        $allLeadersAnswered = (bool) ($result['all_leaders_answered'] ?? false);
+        $reason = ($result['session_finished'] ?? false)
+            ? 'life_points_finished'
+            : ($allLeadersAnswered ? 'all_leaders_answered' : 'timeout');
 
         return ApiResponse::success([
             'paused' => $session->status === 'paused',
             'finished' => $session->status === 'finished',
             'sessionId' => (string) $session->id,
-            'reason' => $allLeadersAnswered ? 'all_leaders_answered' : 'timeout',
+            'reason' => $reason,
         ]);
     }
 
@@ -970,10 +949,12 @@ class GameController extends Controller
         ]);
         $session->room?->update(['status' => 'finished']);
 
-        $this->gameService->updatePointsForFinishedSession($session->fresh());
+        $finished = $session->fresh();
+        $this->gameService->updatePointsForFinishedSession($finished);
+        $this->gameService->recordLastRoundStageTail($finished);
 
-        $session->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
-        $byTeam = $session->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
+        $finished->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
+        $byTeam = $finished->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
             $first = $players->first();
             $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId;
             $score = $players->sum('score');
@@ -992,7 +973,7 @@ class GameController extends Controller
             ->values()
             ->all();
 
-        $this->firebaseSync->syncSessionEnd($session->fresh(), $winnerIds);
+        $this->firebaseSync->syncSessionEnd($finished, $winnerIds);
 
         $data = [
             'sessionId' => (string) $session->id,
@@ -1020,8 +1001,10 @@ class GameController extends Controller
         $session->room?->update(['status' => 'finished']);
 
         // Let existing logic handle points/winners if needed
-        $this->gameService->updatePointsForFinishedSession($session->fresh());
-        $this->firebaseSync->syncSessionEnd($session->fresh());
+        $finished = $session->fresh();
+        $this->gameService->updatePointsForFinishedSession($finished);
+        $this->gameService->recordLastRoundStageTail($finished);
+        $this->firebaseSync->syncSessionEnd($finished);
 
         return ApiResponse::success([
             'ended' => true,

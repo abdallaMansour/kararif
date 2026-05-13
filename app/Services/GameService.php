@@ -8,11 +8,16 @@ use App\Models\GameSession;
 use App\Models\SessionAnswer;
 use App\Models\Question;
 use App\Models\CustomQuestion;
+use App\Models\CreatorSubcategoryStageTail;
+use App\Models\CustomStage;
 use App\Models\Stage;
 use App\Models\TvDisplay;
 
 class GameService
 {
+    /** Must stay in sync with clients / TV question timer. */
+    public const QUESTION_TIME_LIMIT_SECONDS = 30;
+
     public function __construct(
         protected FirebaseGameSyncService $firebaseSync,
         protected CustomContentUsageService $customContentUsage
@@ -107,6 +112,176 @@ class GameService
     }
 
     /**
+     * Which 1-based "game round" (chunk of questions among room.rounds) contains this question index (0-based).
+     */
+    public function getGameRoundNumberForQuestionIndex(GameSession $session, int $zeroBasedQuestionIndex): int
+    {
+        $session->loadMissing('room');
+        $questionIds = $session->question_ids ?? [];
+        $totalQuestions = count($questionIds);
+        $roundsCount = max(1, (int) ($session->room->rounds ?? 1));
+        if ($totalQuestions === 0) {
+            return 1;
+        }
+        $currentQuestionIndex = max(0, min($zeroBasedQuestionIndex, $totalQuestions - 1));
+        $perRound = (int) floor($totalQuestions / $roundsCount);
+        $remainder = $totalQuestions % $roundsCount;
+        $seen = 0;
+        for ($r = 1; $r <= $roundsCount; $r++) {
+            $roundSize = $perRound + ($r <= $remainder ? 1 : 0);
+            if ($currentQuestionIndex < $seen + $roundSize) {
+                return $r;
+            }
+            $seen += $roundSize;
+        }
+
+        return $roundsCount;
+    }
+
+    /**
+     * Life cost per wrong answer in a given game round (stage life_points_per_question or 1).
+     */
+    public function getLifeCostForGameRound(Room $room, GameSession $session, int $gameRoundNumber): float
+    {
+        if ((bool) $room->is_custom) {
+            $room->loadMissing('customStage');
+            $cs = $room->customStage;
+            if ($cs instanceof CustomStage && $cs->life_points_per_question !== null) {
+                return max(0.01, (float) $cs->life_points_per_question);
+            }
+
+            return 1.0;
+        }
+
+        $stage = $this->getEffectiveStageForRound($room, $session, $gameRoundNumber);
+        if ($stage && $stage->life_points_per_question !== null) {
+            return max(0.01, (float) $stage->life_points_per_question);
+        }
+
+        return 1.0;
+    }
+
+    /**
+     * Wrong answers in this game round only (team = all players on that team_id).
+     */
+    public function countWrongAnswersForTeamInGameRound(GameSession $session, Room $room, int $teamId, int $gameRoundNumber): int
+    {
+        $questionIds = $session->question_ids ?? [];
+        if ($questionIds === []) {
+            return 0;
+        }
+
+        $isCustom = (bool) $room->is_custom;
+        $teamPlayerIds = $room->roomPlayers->where('team_id', $teamId)->pluck('id')->all();
+
+        return (int) SessionAnswer::query()
+            ->where('game_session_id', $session->id)
+            ->whereIn('room_player_id', $teamPlayerIds)
+            ->where('correct', false)
+            ->get()
+            ->filter(function ($a) use ($session, $questionIds, $isCustom, $gameRoundNumber) {
+                $qid = $isCustom ? $a->custom_question_id : $a->question_id;
+                if ($qid === null) {
+                    return false;
+                }
+                $idx = array_search($qid, $questionIds, false);
+                if ($idx === false) {
+                    return false;
+                }
+
+                return $this->getGameRoundNumberForQuestionIndex($session, (int) $idx) === $gameRoundNumber;
+            })
+            ->count();
+    }
+
+    /**
+     * Remaining lives for a team within one game round (resets each life-points round; wrongs from other rounds ignored).
+     */
+    public function getRemainingLivesForTeamInGameRound(GameSession $session, Room $room, int $teamId, int $gameRoundNumber): int
+    {
+        $stageType = $this->getEffectiveStageType($room, $session, $gameRoundNumber);
+        if ($stageType !== Stage::TYPE_LIFE_POINTS) {
+            return max(1, (int) ($room->life_points ?? 5));
+        }
+
+        $initial = max(1, (int) ($room->life_points ?? 5));
+        $cost = $this->getLifeCostForGameRound($room, $session, $gameRoundNumber);
+        $wrongs = $this->countWrongAnswersForTeamInGameRound($session, $room, $teamId, $gameRoundNumber);
+
+        return max(0, (int) floor($initial - $wrongs * $cost));
+    }
+
+    /**
+     * When at least two teams are competing in life-points and at most one team still has lives in this game round,
+     * finish the session immediately (DB + Firebase). Does nothing for single-team / solo rooms.
+     */
+    public function attemptFinishLifePointsSession(GameSession $session, ?int $gameRoundNumber = null): bool
+    {
+        if ($session->status === 'finished') {
+            return false;
+        }
+
+        $session->load('room.subcategory.stage', 'room.roomPlayers', 'sessionAnswers');
+        $room = $session->room;
+        if (!$room) {
+            return false;
+        }
+
+        $roundIndex = max(0, (int) $session->current_round - 1);
+        $gameRoundNumber ??= $this->getGameRoundNumberForQuestionIndex($session, $roundIndex);
+
+        if ($this->getEffectiveStageType($room, $session, $gameRoundNumber) !== Stage::TYPE_LIFE_POINTS) {
+            return false;
+        }
+
+        $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
+        $activeTeamIds = $room->roomPlayers->pluck('team_id')->unique()->filter()->reject(
+            fn ($tid) => in_array((string) $tid, $surrenderedTeamIds, true)
+        )->values();
+
+        if ($activeTeamIds->count() < 2) {
+            return false;
+        }
+
+        $lifeByTeam = [];
+        foreach ($activeTeamIds as $teamId) {
+            $lifeByTeam[(string) $teamId] = $this->getRemainingLivesForTeamInGameRound($session, $room, (int) $teamId, $gameRoundNumber);
+        }
+
+        $aliveTeams = collect($lifeByTeam)->filter(function ($life, $teamId) use ($surrenderedTeamIds) {
+            return $life > 0 && !in_array((string) $teamId, $surrenderedTeamIds, true);
+        });
+
+        if ($aliveTeams->count() > 1) {
+            return false;
+        }
+
+        $maxLife = $aliveTeams->count() > 0 ? $aliveTeams->max() : 0;
+        $winnerTeamIds = collect($lifeByTeam)
+            ->filter(fn ($life) => $life === $maxLife)
+            ->keys()
+            ->values()
+            ->all();
+
+        $questionIds = $session->question_ids ?? [];
+        $total = count($questionIds);
+        $nextRound = (int) $session->current_round + 1;
+
+        $session->update([
+            'status' => 'finished',
+            'current_round' => min($nextRound, $total + 1),
+        ]);
+        $room->update(['status' => 'finished']);
+
+        $finished = $session->fresh();
+        $this->updatePointsForFinishedSession($finished);
+        $this->recordLastRoundStageTail($finished);
+        $this->firebaseSync->syncSessionEnd($finished, $winnerTeamIds);
+
+        return true;
+    }
+
+    /**
      * Count of finished game sessions in rooms created by this room's creator for the same subcategory.
      * Optionally exclude one session (e.g. the current session when computing effective stage type).
      */
@@ -163,9 +338,15 @@ class GameService
             return $stage->stage_type;
         }
 
-        // Fallback when no stages exist in DB: alternate by round
+        // Fallback when no stages exist in DB: alternate by round; round 1 avoids repeating previous session's last type (tail).
         $creatorCount = $this->getCreatorFinishedSessionsCountForSubcategory($room, $session);
-        $startWithQuestionsGroup = ($creatorCount % 2) === 0;
+        $tail = $this->getTailForRoom($room);
+        if ($tail !== null && $roundNumber === 1) {
+            // Previous session ended with tail type → start new session with the opposite family.
+            $startWithQuestionsGroup = $tail->last_round_stage_type === Stage::TYPE_LIFE_POINTS;
+        } else {
+            $startWithQuestionsGroup = ($creatorCount % 2) === 0;
+        }
         $typeIndex = ($startWithQuestionsGroup ? 0 : 1) + ($roundNumber - 1);
         return ($typeIndex % 2) === 0 ? Stage::TYPE_QUESTIONS_GROUP : Stage::TYPE_LIFE_POINTS;
     }
@@ -196,7 +377,9 @@ class GameService
     }
 
     /**
-     * Compute random stage IDs for each round when subcategory has no linked stage.
+     * Compute stage IDs per round when subcategory has no linked stage.
+     * Picks stages so consecutive rounds prefer a different stage_type and different stage id when possible;
+     * round 1 avoids repeating the same stage_type as the creator's last finished session for this subcategory (tail).
      * Returns associative array: ["1" => stageId, "2" => stageId, ...]
      */
     public function computeRoundStageIds(Room $room): ?array
@@ -212,16 +395,47 @@ class GameService
             return null;
         }
 
-        $roundsCount = max(1, (int) ($room->rounds ?? 1));
-        $stageIds = Stage::where('status', true)->pluck('id')->toArray();
-        if (empty($stageIds)) {
+        $stages = Stage::where('status', true)->orderBy('id')->get();
+        if ($stages->isEmpty()) {
             return null;
         }
 
+        $roundsCount = max(1, (int) ($room->rounds ?? 1));
+        $tail = $this->getTailForRoom($room);
+
         $result = [];
+        $previousStageId = null;
+        $previousType = null;
+
         for ($r = 1; $r <= $roundsCount; $r++) {
-            $result[(string) $r] = $stageIds[array_rand($stageIds)];
+            $avoidType = null;
+            if ($r === 1 && $tail !== null) {
+                $avoidType = $tail->last_round_stage_type;
+            } elseif ($r > 1 && $previousType !== null) {
+                $avoidType = $previousType;
+            }
+
+            $candidates = $stages;
+            if ($avoidType !== null) {
+                $filtered = $stages->where('stage_type', '!=', $avoidType)->values();
+                if ($filtered->isNotEmpty()) {
+                    $candidates = $filtered;
+                }
+            }
+            if ($previousStageId !== null && $candidates->count() > 1) {
+                $byOtherId = $candidates->where('id', '!=', $previousStageId)->values();
+                if ($byOtherId->isNotEmpty()) {
+                    $candidates = $byOtherId;
+                }
+            }
+
+            /** @var \App\Models\Stage $picked */
+            $picked = $candidates->random();
+            $result[(string) $r] = $picked->id;
+            $previousStageId = $picked->id;
+            $previousType = $picked->stage_type;
         }
+
         return $result;
     }
 
@@ -427,7 +641,8 @@ class GameService
         // Load room, stage, and players for life-points calculations
         $session->load('room.subcategory.stage', 'room.roomPlayers');
         $room = $session->room;
-        $stageType = $this->getEffectiveStageType($room, $session, $this->getCurrentRoundNumber($session));
+        $gameRoundNumber = $this->getGameRoundNumberForQuestionIndex($session, $roundIndex);
+        $stageType = $this->getEffectiveStageType($room, $session, $gameRoundNumber);
         $isLifePointsStage = $stageType === Stage::TYPE_LIFE_POINTS;
 
         // Prevent duplicate answers from the same leader for the same question
@@ -454,19 +669,13 @@ class GameService
             ];
         }
 
-        // Prevent eliminated teams from answering in life-points stages
+        // Prevent eliminated teams from answering in life-points stages (lives reset each LP game round)
         if ($isLifePointsStage) {
             $roomPlayerForTeam = RoomPlayer::find($roomPlayerId);
             $teamId = $roomPlayerForTeam?->team_id;
             if ($teamId !== null) {
-                $teamPlayerIds = $room->roomPlayers->where('team_id', $teamId)->pluck('id');
-                $wrongCountForTeam = SessionAnswer::where('game_session_id', $session->id)
-                    ->whereIn('room_player_id', $teamPlayerIds)
-                    ->where('correct', false)
-                    ->count();
-                $initialLives = max(1, (int) ($room->life_points ?? 5));
-                $lifePoints = max(0, $initialLives - $wrongCountForTeam);
-                if ($lifePoints <= 0) {
+                $remaining = $this->getRemainingLivesForTeamInGameRound($session, $room, (int) $teamId, $gameRoundNumber);
+                if ($remaining <= 0) {
                     return [
                         'correct' => false,
                         'scoreDelta' => 0,
@@ -477,19 +686,21 @@ class GameService
         }
 
         $correct = false;
-        $scoreDelta = 0;
         if ($answerIndex === 1 && $question->is_correct_1) {
             $correct = true;
-            $scoreDelta = 10;
         } elseif ($answerIndex === 2 && $question->is_correct_2) {
             $correct = true;
-            $scoreDelta = 10;
         } elseif ($answerIndex === 3 && $question->is_correct_3) {
             $correct = true;
-            $scoreDelta = 10;
         } elseif ($answerIndex === 4 && $question->is_correct_4) {
             $correct = true;
-            $scoreDelta = 10;
+        }
+
+        // Team score on leaders only: QG wrong = 0; LP correct +10 / wrong -10
+        if ($stageType === Stage::TYPE_QUESTIONS_GROUP) {
+            $scoreDelta = $correct ? 10 : 0;
+        } else {
+            $scoreDelta = $correct ? 10 : -10;
         }
 
         SessionAnswer::create([
@@ -507,49 +718,71 @@ class GameService
             $roomPlayer->increment('score', $scoreDelta);
         }
 
-        // Pause when every team has submitted an answer (team-based, not leader-based)
-        $answeredRoomPlayerIds = SessionAnswer::where('game_session_id', $session->id)
-            ->where($questionKey, $questionId)
-            ->pluck('room_player_id');
+        $session = $session->fresh(['sessionAnswers']);
+        if ($this->attemptFinishLifePointsSession($session, $gameRoundNumber)) {
+            return [
+                'correct' => $correct,
+                'scoreDelta' => $scoreDelta,
+                'nextQuestionAvailable' => false,
+                'sessionFinished' => true,
+            ];
+        }
 
-        $answeredTeamIds = $answeredRoomPlayerIds->isEmpty()
-            ? collect()
-            : RoomPlayer::whereIn('id', $answeredRoomPlayerIds->toArray())
-                ->pluck('team_id')
-                ->filter()
-                ->unique()
-                ->values();
+        $activeTeamIds = $room->roomPlayers()->pluck('team_id')->filter()->unique()->values();
+        $activeTeamIds = $activeTeamIds->reject(fn ($tid) => in_array((string) $tid, $surrenderedTeamIds, true))->values();
 
         if ($isLifePointsStage) {
-            $answeredTeamIds = $answeredTeamIds->filter(function ($teamId) use ($room, $session) {
-                $teamPlayerIds = $room->roomPlayers->where('team_id', $teamId)->pluck('id');
-                $wrongCount = SessionAnswer::where('game_session_id', $session->id)
-                    ->whereIn('room_player_id', $teamPlayerIds)
-                    ->where('correct', false)
-                    ->count();
-                $initialLives = max(1, (int) ($room->life_points ?? 5));
-                return max(0, $initialLives - $wrongCount) > 0;
-            })->values();
+            // Pause when every team that still has lives has had its leader answer (eliminated teams no longer count).
+            $sessionReload = $session->fresh(['sessionAnswers']);
+            $teamsWithLives = $activeTeamIds->filter(function ($tid) use ($sessionReload, $room, $gameRoundNumber) {
+                return $this->getRemainingLivesForTeamInGameRound($sessionReload, $room, (int) $tid, $gameRoundNumber) > 0;
+            });
+
+            $allTeamsAnswered = true;
+            foreach ($teamsWithLives as $tid) {
+                $leader = $room->roomPlayers->first(
+                    fn ($rp) => (int) $rp->team_id === (int) $tid && $rp->is_leader
+                );
+                if (!$leader) {
+                    continue;
+                }
+                $has = SessionAnswer::where('game_session_id', $session->id)
+                    ->where($questionKey, $questionId)
+                    ->where('room_player_id', $leader->id)
+                    ->exists();
+                if (!$has) {
+                    $allTeamsAnswered = false;
+                    break;
+                }
+            }
+        } else {
+            // Pause when every team has submitted an answer (team-based, not leader-based)
+            $answeredRoomPlayerIds = SessionAnswer::where('game_session_id', $session->id)
+                ->where($questionKey, $questionId)
+                ->pluck('room_player_id');
+
+            $answeredTeamIds = $answeredRoomPlayerIds->isEmpty()
+                ? collect()
+                : RoomPlayer::whereIn('id', $answeredRoomPlayerIds->toArray())
+                    ->pluck('team_id')
+                    ->filter()
+                    ->unique()
+                    ->values();
+
+            $answeredTeamIds = $answeredTeamIds->reject(fn ($tid) => in_array((string) $tid, $surrenderedTeamIds, true))->values();
+            $expectedTeams = $activeTeamIds->count();
+            $answeredCount = $answeredTeamIds->count();
+
+            $allTeamsAnswered = $expectedTeams > 0 && $answeredCount >= $expectedTeams;
+
+            if ((int) $room->teams >= 2 && $answeredCount < 2) {
+                $allTeamsAnswered = false;
+            }
         }
 
-        // Exclude surrendered teams from expected count and from answered count
-        $answeredTeamIds = $answeredTeamIds->reject(fn($tid) => in_array((string) $tid, $surrenderedTeamIds, true))->values();
-        $activeTeamIds = $room->roomPlayers()->pluck('team_id')->filter()->unique()->values();
-        $activeTeamIds = $activeTeamIds->reject(fn($tid) => in_array((string) $tid, $surrenderedTeamIds, true))->values();
-        $expectedTeams = $activeTeamIds->count();
-        $answeredCount = $answeredTeamIds->count();
-
-        $allTeamsAnswered = $expectedTeams > 0 && $answeredCount >= $expectedTeams;
-
-        // Safeguard: if room has 2+ teams, never pause with only 1 answer
-        if ((int) $room->teams >= 2 && $answeredCount < 2) {
-            $allTeamsAnswered = false;
-        }
-
-        // Check if question time (30 seconds) has elapsed
-        $timeLimitSeconds = 30;
+        // Check if question time has elapsed (same limit as POST timeout / TV)
         $timedOut = $session->question_started_at
-            ? $session->question_started_at->diffInSeconds(now()) >= $timeLimitSeconds
+            ? $session->question_started_at->diffInSeconds(now()) >= self::QUESTION_TIME_LIMIT_SECONDS
             : false;
 
         $nextRound = $session->current_round + 1;
@@ -571,6 +804,102 @@ class GameService
             'correct' => $correct,
             'scoreDelta' => $scoreDelta,
             'nextQuestionAvailable' => $nextQuestionAvailable,
+        ];
+    }
+
+    /**
+     * Close the current question after the timer: LP synthetic wrongs for missing leaders, pause, Firebase sync.
+     * Used by POST .../timeout and by POST .../next-question when the session was still "playing"
+     * because no request had evaluated the deadline yet (missing answers).
+     *
+     * @return array{applied: bool, reason: string, session: GameSession, all_leaders_answered?: bool}
+     */
+    public function applyPlayingQuestionTimeout(GameSession $session): array
+    {
+        $session->loadMissing('room');
+        if ($session->status !== 'playing') {
+            return ['applied' => false, 'reason' => 'not_playing', 'session' => $session];
+        }
+
+        $limit = self::QUESTION_TIME_LIMIT_SECONDS;
+        if (
+            !$session->question_started_at
+            || $session->question_started_at->diffInSeconds(now()) < $limit
+        ) {
+            return ['applied' => false, 'reason' => 'timer_not_elapsed', 'session' => $session];
+        }
+
+        $room = $session->room()->with(['roomPlayers', 'subcategory.stage'])->first();
+        if (!$room) {
+            return ['applied' => false, 'reason' => 'no_room', 'session' => $session];
+        }
+
+        $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
+        $leaders = $room->roomPlayers->where('is_leader', true)->reject(
+            fn ($rp) => in_array((string) $rp->team_id, $surrenderedTeamIds, true)
+        );
+        $leaderIds = $leaders->pluck('id');
+
+        $questionIds = $session->question_ids ?? [];
+        $roundIndex = $session->current_round - 1;
+        $questionId = $questionIds[$roundIndex] ?? null;
+        $isCustomRoom = (bool) $room->is_custom;
+        $questionKey = $isCustomRoom ? 'custom_question_id' : 'question_id';
+
+        $allLeadersAnswered = false;
+        if ($questionId && $leaderIds->count() > 0) {
+            $answeredLeaderIds = SessionAnswer::where('game_session_id', $session->id)
+                ->where($questionKey, $questionId)
+                ->whereIn('room_player_id', $leaderIds)
+                ->pluck('room_player_id')
+                ->unique();
+            $allLeadersAnswered = $answeredLeaderIds->count() >= $leaderIds->count();
+        }
+
+        $gameRoundNumber = $this->getGameRoundNumberForQuestionIndex($session, $roundIndex);
+        $stageType = $this->getEffectiveStageType($room, $session, $gameRoundNumber);
+        if ($questionId && $stageType === Stage::TYPE_LIFE_POINTS) {
+            foreach ($leaders as $leader) {
+                $alreadyAnswered = SessionAnswer::where('game_session_id', $session->id)
+                    ->where($questionKey, $questionId)
+                    ->where('room_player_id', $leader->id)
+                    ->exists();
+                if (!$alreadyAnswered) {
+                    SessionAnswer::create([
+                        'game_session_id' => $session->id,
+                        'question_id' => $isCustomRoom ? null : $questionId,
+                        'custom_question_id' => $isCustomRoom ? $questionId : null,
+                        'room_player_id' => $leader->id,
+                        'answer_index' => 0,
+                        'correct' => false,
+                        'score_delta' => -10,
+                    ]);
+                    $leader->increment('score', -10);
+                }
+            }
+        }
+
+        $session->refresh();
+        if ($this->attemptFinishLifePointsSession($session->fresh(['sessionAnswers']), $gameRoundNumber)) {
+            return [
+                'applied' => true,
+                'reason' => 'life_points_finished',
+                'session' => $session->fresh(),
+                'all_leaders_answered' => $allLeadersAnswered,
+                'session_finished' => true,
+            ];
+        }
+
+        $session->update(['status' => 'paused']);
+        $paused = $session->fresh();
+        $this->firebaseSync->syncSessionPaused($paused, false);
+        $this->advanceFinishedSessionIfLastQuestion($paused->fresh());
+
+        return [
+            'applied' => true,
+            'reason' => 'timeout',
+            'session' => $session->fresh(),
+            'all_leaders_answered' => $allLeadersAnswered,
         ];
     }
 
@@ -628,24 +957,19 @@ class GameService
         // Load room, stage, and players for life-points calculations
         $session->load('room.subcategory.stage', 'room.roomPlayers', 'sessionAnswers');
         $room = $session->room;
-        $stageType = $this->getEffectiveStageType($room, $session, $this->getCurrentRoundNumber($session));
-        $isLifePointsStage = $stageType === Stage::TYPE_LIFE_POINTS;
+        $completedGameRound = $this->getGameRoundNumberForQuestionIndex($session, max(0, (int) $session->current_round - 1));
+        $stageTypeForCompletedRound = $this->getEffectiveStageType($room, $session, $completedGameRound);
+        $isLifePointsStage = $stageTypeForCompletedRound === Stage::TYPE_LIFE_POINTS;
         $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
 
         $winnerTeamIds = null;
 
         if ($isLifePointsStage) {
-            // Compute life points per team based on wrong answers (surrendered teams are considered eliminated)
+            // Lives per team for this game round only (wrong answers from other rounds do not apply)
             $byTeam = $room->roomPlayers->groupBy('team_id');
             $lifeByTeam = [];
-            foreach ($byTeam as $teamId => $players) {
-                $teamPlayerIds = $players->pluck('id');
-                $wrongCountForTeam = $session->sessionAnswers
-                    ->whereIn('room_player_id', $teamPlayerIds)
-                    ->where('correct', false)
-                    ->count();
-                $initialLives = max(1, (int) ($room->life_points ?? 5));
-                $lifePoints = max(0, $initialLives - $wrongCountForTeam);
+            foreach ($byTeam as $teamId => $_players) {
+                $lifePoints = $this->getRemainingLivesForTeamInGameRound($session, $room, (int) $teamId, $completedGameRound);
                 $lifeByTeam[(string) $teamId] = $lifePoints;
             }
 
@@ -665,8 +989,10 @@ class GameService
 
                 $session->update(['status' => 'finished', 'current_round' => min($nextRound, $total + 1)]);
                 $session->room->update(['status' => 'finished']);
-                $this->updatePointsForFinishedSession($session->fresh());
-                $this->firebaseSync->syncSessionEnd($session->fresh(), $winnerTeamIds);
+                $finished = $session->fresh();
+                $this->updatePointsForFinishedSession($finished);
+                $this->recordLastRoundStageTail($finished);
+                $this->firebaseSync->syncSessionEnd($finished, $winnerTeamIds);
                 return ['finished' => true, 'round' => null];
             }
         } else {
@@ -678,15 +1004,19 @@ class GameService
                 $winnerTeamIds = $activeTeamIds->map(fn($id) => (string) $id)->all();
                 $session->update(['status' => 'finished', 'current_round' => $nextRound]);
                 $session->room->update(['status' => 'finished']);
-                $this->updatePointsForFinishedSession($session->fresh());
-                $this->firebaseSync->syncSessionEnd($session->fresh(), $winnerTeamIds);
+                $finished = $session->fresh();
+                $this->updatePointsForFinishedSession($finished);
+                $this->recordLastRoundStageTail($finished);
+                $this->firebaseSync->syncSessionEnd($finished, $winnerTeamIds);
                 return ['finished' => true, 'round' => null];
             }
             if ($nextRound > $total) {
                 $session->update(['status' => 'finished', 'current_round' => $nextRound]);
                 $session->room->update(['status' => 'finished']);
-                $this->updatePointsForFinishedSession($session->fresh());
-                $this->firebaseSync->syncSessionEnd($session->fresh());
+                $finished = $session->fresh();
+                $this->updatePointsForFinishedSession($finished);
+                $this->recordLastRoundStageTail($finished);
+                $this->firebaseSync->syncSessionEnd($finished);
                 return ['finished' => true, 'round' => null];
             }
         }
@@ -725,5 +1055,101 @@ class GameService
             }
             $player->increment('points', $delta);
         }
+    }
+
+    /**
+     * Persist last round's stage type per creator + subcategory so the next session can avoid repeating it on round 1.
+     * Only for normal rooms whose subcategory does not pin a single stage.
+     */
+    public function recordLastRoundStageTail(GameSession $session): void
+    {
+        $session->loadMissing('room.subcategory');
+        $room = $session->room;
+        if (! $room || (bool) $room->is_custom) {
+            return;
+        }
+
+        $subcategory = $room->subcategory;
+        if (! $subcategory || ($subcategory->use_stage && $subcategory->stage_id)) {
+            return;
+        }
+
+        $questionIds = $session->question_ids ?? [];
+        if ($questionIds === []) {
+            return;
+        }
+
+        $ownerType = null;
+        $ownerId = null;
+        if ($room->created_by_adventurer_id) {
+            $ownerType = 'adventurer';
+            $ownerId = (int) $room->created_by_adventurer_id;
+        } elseif ($room->created_by) {
+            $ownerType = 'user';
+            $ownerId = (int) $room->created_by;
+        }
+
+        if ($ownerType === null || $ownerId === null) {
+            return;
+        }
+
+        $lastRoundNumber = $this->getLastRoundNumberForTail($session);
+        $stageType = $this->getEffectiveStageType($room, $session, $lastRoundNumber);
+
+        CreatorSubcategoryStageTail::query()->updateOrCreate(
+            [
+                'subcategory_id' => (int) $room->subcategory_id,
+                'creator_owner_type' => $ownerType,
+                'creator_owner_id' => $ownerId,
+            ],
+            ['last_round_stage_type' => $stageType]
+        );
+    }
+
+    /**
+     * Round number (1-based) that contains the final question in the schedule.
+     */
+    private function getLastRoundNumberForTail(GameSession $session): int
+    {
+        $questionIds = $session->question_ids ?? [];
+        if ($questionIds === []) {
+            return 1;
+        }
+
+        $session->loadMissing('room');
+        $mock = new GameSession();
+        $mock->forceFill([
+            'question_ids' => $questionIds,
+            'round_stage_ids' => $session->round_stage_ids,
+            'current_round' => count($questionIds),
+        ]);
+        $mock->setRelation('room', $session->room);
+
+        return $this->getCurrentRoundNumber($mock);
+    }
+
+    private function getTailForRoom(Room $room): ?CreatorSubcategoryStageTail
+    {
+        if (! $room->subcategory_id) {
+            return null;
+        }
+
+        if ($room->created_by_adventurer_id) {
+            return CreatorSubcategoryStageTail::query()
+                ->where('subcategory_id', $room->subcategory_id)
+                ->where('creator_owner_type', 'adventurer')
+                ->where('creator_owner_id', $room->created_by_adventurer_id)
+                ->first();
+        }
+
+        if ($room->created_by) {
+            return CreatorSubcategoryStageTail::query()
+                ->where('subcategory_id', $room->subcategory_id)
+                ->where('creator_owner_type', 'user')
+                ->where('creator_owner_id', $room->created_by)
+                ->first();
+        }
+
+        return null;
     }
 }
