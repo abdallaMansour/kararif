@@ -677,11 +677,10 @@ class GameController extends Controller
             ];
         })->values()->all();
 
-        $timeLeft = 120;
-        if ($session->question_started_at) {
-            $elapsed = (int) $session->question_started_at->diffInSeconds(now());
-            $timeLeft = max(0, 120 - $elapsed);
-        }
+        $questionLimit = GameService::QUESTION_TIME_LIMIT_SECONDS;
+        $timeLeft = $session->question_started_at
+            ? max(0, $questionLimit - (int) $session->question_started_at->diffInSeconds(now()))
+            : $questionLimit;
 
         $questionIds = $session->question_ids ?? [];
         $remainingCount = max(0, count($questionIds) - $session->current_round);
@@ -693,6 +692,7 @@ class GameController extends Controller
             'remainingQuestionsCount' => $remainingCount,
             'question' => $questionData,
             'timeLeft' => $timeLeft,
+            'questionTimeLimitSeconds' => $questionLimit,
             'questionStartedAt' => $session->question_started_at?->timestamp ? (int) ($session->question_started_at->timestamp * 1000) : null,
             'startTimerEndsAt' => $session->start_timer_ends_at?->timestamp ? (int) ($session->start_timer_ends_at->timestamp * 1000) : null,
             'teams' => $teams,
