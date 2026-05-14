@@ -240,6 +240,9 @@ class FirebaseGameSyncService
             return;
         }
         try {
+            if ($session->relationLoaded('room')) {
+                $session->room->unsetRelation('roomPlayers');
+            }
             $session->load('room.roomPlayers.user.avatarRelation', 'room.roomPlayers.adventurer.avatarRelation', 'room.subcategory.stage.questionGroups');
             $teams = $this->buildTeamsData($session);
             $stage = $this->buildStageData($session->room, $session);
@@ -559,6 +562,10 @@ class FirebaseGameSyncService
             return;
         }
         try {
+            $session->unsetRelation('sessionAnswers');
+            if ($session->relationLoaded('room')) {
+                $session->room->unsetRelation('roomPlayers');
+            }
             $session->load('room.roomPlayers.user.avatarRelation', 'room.roomPlayers.adventurer.avatarRelation', 'room.subcategory.stage.questionGroups', 'sessionAnswers');
             $question = $this->buildQuestionData($session);
             $teams = $this->buildTeamsDataWithStats($session, true);

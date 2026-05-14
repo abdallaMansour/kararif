@@ -744,9 +744,7 @@ class GameService
             } else {
                 $allTeamsAnswered = true;
                 foreach ($teamsWithLives as $tid) {
-                    $leader = $room->roomPlayers->first(
-                        fn ($rp) => (int) $rp->team_id === (int) $tid && $rp->is_leader
-                    );
+                    $leader = $this->getAnsweringRoomPlayerForTeam($room, (int) $tid);
                     if (!$leader) {
                         $allTeamsAnswered = false;
                         continue;
@@ -834,7 +832,44 @@ class GameService
     }
 
     /**
-     * Close the current question after the timer: LP synthetic wrongs for missing leaders, pause, Firebase sync.
+     * Leader if set, otherwise first player on that team (so timeout still applies when join forgot isLeader).
+     */
+    private function getAnsweringRoomPlayerForTeam(Room $room, int $teamId): ?RoomPlayer
+    {
+        $room->loadMissing('roomPlayers');
+        $players = $room->roomPlayers->where('team_id', $teamId)->values();
+        if ($players->isEmpty()) {
+            return null;
+        }
+        $leader = $players->firstWhere('is_leader', true);
+
+        return $leader ?? $players->sortBy('id')->first();
+    }
+
+    /**
+     * One answering player per non-surrendered team (for timeout / synthetic misses).
+     *
+     * @return array<int, RoomPlayer>
+     */
+    private function getAnsweringPlayersByTeamForTimeout(Room $room, array $surrenderedTeamIds): array
+    {
+        $room->loadMissing('roomPlayers');
+        $targets = [];
+        foreach ($room->roomPlayers->pluck('team_id')->unique()->filter() as $teamId) {
+            if (in_array((string) $teamId, $surrenderedTeamIds, true)) {
+                continue;
+            }
+            $player = $this->getAnsweringRoomPlayerForTeam($room, (int) $teamId);
+            if ($player) {
+                $targets[(int) $teamId] = $player;
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * Close the current question after the timer: LP synthetic wrongs (−10) or QG timeout rows (0 score); pause; Firebase sync.
      * Used by POST .../timeout and by POST .../next-question when the session was still "playing"
      * because no request had evaluated the deadline yet (missing answers).
      *
@@ -855,52 +890,71 @@ class GameService
             return ['applied' => false, 'reason' => 'timer_not_elapsed', 'session' => $session];
         }
 
-        $room = $session->room()->with(['roomPlayers', 'subcategory.stage'])->first();
+        $room = $session->room()->with(['roomPlayers', 'subcategory.stage', 'customStage'])->first();
         if (!$room) {
             return ['applied' => false, 'reason' => 'no_room', 'session' => $session];
         }
 
         $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
-        $leaders = $room->roomPlayers->where('is_leader', true)->reject(
-            fn ($rp) => in_array((string) $rp->team_id, $surrenderedTeamIds, true)
-        );
-        $leaderIds = $leaders->pluck('id');
+        $targets = $this->getAnsweringPlayersByTeamForTimeout($room, $surrenderedTeamIds);
+        $targetIds = collect($targets)->pluck('id')->values();
 
         $questionIds = $session->question_ids ?? [];
-        $roundIndex = $session->current_round - 1;
+        $questionCount = count($questionIds);
+        $roundIndex = $questionCount > 0 ? max(0, min($session->current_round - 1, $questionCount - 1)) : 0;
         $questionId = $questionIds[$roundIndex] ?? null;
         $isCustomRoom = (bool) $room->is_custom;
         $questionKey = $isCustomRoom ? 'custom_question_id' : 'question_id';
 
         $allLeadersAnswered = false;
-        if ($questionId && $leaderIds->count() > 0) {
-            $answeredLeaderIds = SessionAnswer::where('game_session_id', $session->id)
+        if ($questionId && $targetIds->isNotEmpty()) {
+            $answeredCount = SessionAnswer::where('game_session_id', $session->id)
                 ->where($questionKey, $questionId)
-                ->whereIn('room_player_id', $leaderIds)
+                ->whereIn('room_player_id', $targetIds)
                 ->pluck('room_player_id')
-                ->unique();
-            $allLeadersAnswered = $answeredLeaderIds->count() >= $leaderIds->count();
+                ->unique()
+                ->count();
+            $allLeadersAnswered = $answeredCount >= $targetIds->count();
         }
 
         $gameRoundNumber = $this->getGameRoundNumberForQuestionIndex($session, $roundIndex);
         $stageType = $this->getEffectiveStageType($room, $session, $gameRoundNumber);
-        if ($questionId && $stageType === Stage::TYPE_LIFE_POINTS) {
-            foreach ($leaders as $leader) {
+
+        if ($questionId && ($stageType === Stage::TYPE_LIFE_POINTS || $stageType === Stage::TYPE_QUESTIONS_GROUP)) {
+            $snapshot = $session->fresh(['sessionAnswers']);
+            foreach ($targets as $teamId => $player) {
                 $alreadyAnswered = SessionAnswer::where('game_session_id', $session->id)
                     ->where($questionKey, $questionId)
-                    ->where('room_player_id', $leader->id)
+                    ->where('room_player_id', $player->id)
                     ->exists();
-                if (!$alreadyAnswered) {
+                if ($alreadyAnswered) {
+                    continue;
+                }
+                if ($stageType === Stage::TYPE_LIFE_POINTS) {
+                    $remaining = $this->getRemainingLivesForTeamInGameRound($snapshot, $room, (int) $teamId, $gameRoundNumber);
+                    if ($remaining <= 0) {
+                        continue;
+                    }
                     SessionAnswer::create([
                         'game_session_id' => $session->id,
                         'question_id' => $isCustomRoom ? null : $questionId,
                         'custom_question_id' => $isCustomRoom ? $questionId : null,
-                        'room_player_id' => $leader->id,
+                        'room_player_id' => $player->id,
                         'answer_index' => 0,
                         'correct' => false,
                         'score_delta' => -10,
                     ]);
-                    $leader->increment('score', -10);
+                    $player->increment('score', -10);
+                } else {
+                    SessionAnswer::create([
+                        'game_session_id' => $session->id,
+                        'question_id' => $isCustomRoom ? null : $questionId,
+                        'custom_question_id' => $isCustomRoom ? $questionId : null,
+                        'room_player_id' => $player->id,
+                        'answer_index' => 0,
+                        'correct' => false,
+                        'score_delta' => 0,
+                    ]);
                 }
             }
         }
