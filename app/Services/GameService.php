@@ -841,7 +841,7 @@ class GameService
         if ($players->isEmpty()) {
             return null;
         }
-        $leader = $players->firstWhere('is_leader', true);
+        $leader = $players->first(fn ($rp) => (bool) $rp->is_leader);
 
         return $leader ?? $players->sortBy('id')->first();
     }
@@ -873,9 +873,13 @@ class GameService
      * Used by POST .../timeout and by POST .../next-question when the session was still "playing"
      * because no request had evaluated the deadline yet (missing answers).
      *
+     * @param bool $inferMissingQuestionStartedAt When true (explicit POST .../timeout), if the server never
+     *        received start-question, assume the window has elapsed so LP/QG penalties still apply. Do not use
+     *        from submitAnswer auto-hooks (would false-trigger on early submits).
+     *
      * @return array{applied: bool, reason: string, session: GameSession, all_leaders_answered?: bool}
      */
-    public function applyPlayingQuestionTimeout(GameSession $session): array
+    public function applyPlayingQuestionTimeout(GameSession $session, bool $inferMissingQuestionStartedAt = false): array
     {
         $session->loadMissing('room');
         if ($session->status !== 'playing') {
@@ -883,10 +887,20 @@ class GameService
         }
 
         $limit = self::QUESTION_TIME_LIMIT_SECONDS;
-        if (
-            !$session->question_started_at
-            || $session->question_started_at->diffInSeconds(now()) < $limit
-        ) {
+
+        if ($inferMissingQuestionStartedAt && !$session->question_started_at) {
+            $qids = $session->question_ids ?? [];
+            if ($session->current_round >= 1 && count($qids) > 0) {
+                $session->update(['question_started_at' => now()->subSeconds($limit)]);
+                $session->refresh();
+            }
+        }
+
+        if (!$session->question_started_at) {
+            return ['applied' => false, 'reason' => 'question_not_started', 'session' => $session];
+        }
+
+        if ($session->question_started_at->diffInSeconds(now()) < $limit) {
             return ['applied' => false, 'reason' => 'timer_not_elapsed', 'session' => $session];
         }
 

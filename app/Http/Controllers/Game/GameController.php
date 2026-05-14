@@ -873,10 +873,13 @@ class GameController extends Controller
             return ApiResponse::error('لا يمكن إنهاء الوقت في هذه الحالة', 400);
         }
 
-        $result = $this->gameService->applyPlayingQuestionTimeout($session);
+        $result = $this->gameService->applyPlayingQuestionTimeout($session, true);
         if (!$result['applied']) {
             if (($result['reason'] ?? '') === 'timer_not_elapsed') {
                 return ApiResponse::error('لم ينته الوقت بعد', 400);
+            }
+            if (($result['reason'] ?? '') === 'question_not_started') {
+                return ApiResponse::error('لم يبدأ مؤقت السؤال على الخادم؛ استدعِ POST /api/game/session/{id}/start-question بعد عرض السؤال.', 400);
             }
             if (($result['reason'] ?? '') === 'no_room') {
                 return ApiResponse::error('الغرفة غير متاحة', 400);
