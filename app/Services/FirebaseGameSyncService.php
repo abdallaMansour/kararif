@@ -269,10 +269,8 @@ class FirebaseGameSyncService
                 'teams' => $teams,
                 'stage' => $stage,
                 'sessionEndedAt' => (int) round(microtime(true) * 1000),
+                'winnerIds' => $winnerIds ?? [],
             ];
-            if ($winnerIds !== null) {
-                $data['winnerIds'] = $winnerIds;
-            }
 
             $db->getReference('sessions/' . $session->id)->update($data);
         } catch (\Throwable $e) {

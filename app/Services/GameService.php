@@ -738,21 +738,27 @@ class GameService
                 return $this->getRemainingLivesForTeamInGameRound($sessionReload, $room, (int) $tid, $gameRoundNumber) > 0;
             });
 
-            $allTeamsAnswered = true;
-            foreach ($teamsWithLives as $tid) {
-                $leader = $room->roomPlayers->first(
-                    fn ($rp) => (int) $rp->team_id === (int) $tid && $rp->is_leader
-                );
-                if (!$leader) {
-                    continue;
-                }
-                $has = SessionAnswer::where('game_session_id', $session->id)
-                    ->where($questionKey, $questionId)
-                    ->where('room_player_id', $leader->id)
-                    ->exists();
-                if (!$has) {
-                    $allTeamsAnswered = false;
-                    break;
+            if ($teamsWithLives->isEmpty()) {
+                // No team with lives left: do not treat as "all answered" (avoids vacuous true on empty foreach).
+                $allTeamsAnswered = false;
+            } else {
+                $allTeamsAnswered = true;
+                foreach ($teamsWithLives as $tid) {
+                    $leader = $room->roomPlayers->first(
+                        fn ($rp) => (int) $rp->team_id === (int) $tid && $rp->is_leader
+                    );
+                    if (!$leader) {
+                        $allTeamsAnswered = false;
+                        continue;
+                    }
+                    $has = SessionAnswer::where('game_session_id', $session->id)
+                        ->where($questionKey, $questionId)
+                        ->where('room_player_id', $leader->id)
+                        ->exists();
+                    if (!$has) {
+                        $allTeamsAnswered = false;
+                        break;
+                    }
                 }
             }
         } else {
@@ -792,12 +798,32 @@ class GameService
         if ($allTeamsAnswered || $timedOut) {
             // Pause the game and show stats / animations
             $session->update(['status' => 'paused']);
-            $this->firebaseSync->syncSessionPaused($session->fresh(), $correct);
+            // Firebase: do not use only the submitter's row — clients may treat this as "everyone was correct".
+            $everyAnswerCorrectThisQuestion = !SessionAnswer::query()
+                ->where('game_session_id', $session->id)
+                ->where($questionKey, $questionId)
+                ->where('correct', false)
+                ->exists();
+            $this->firebaseSync->syncSessionPaused($session->fresh(), $everyAnswerCorrectThisQuestion);
             // If this was the last question, finish without requiring a separate nextQuestion call (TV often skips it).
             $this->advanceFinishedSessionIfLastQuestion($session->fresh());
         } else {
             // Keep playing this question, just sync updated scores
             $this->firebaseSync->syncScores($session->fresh());
+        }
+
+        // If the wall clock crossed the limit during this request (or TV never calls /timeout), close the question now.
+        $session = $session->fresh(['room']);
+        if ($session->status === 'playing') {
+            $timeoutResult = $this->applyPlayingQuestionTimeout($session);
+            if (!empty($timeoutResult['session_finished'])) {
+                return [
+                    'correct' => $correct,
+                    'scoreDelta' => $scoreDelta,
+                    'nextQuestionAvailable' => false,
+                    'sessionFinished' => true,
+                ];
+            }
         }
 
         return [
