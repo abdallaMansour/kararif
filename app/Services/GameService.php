@@ -793,7 +793,21 @@ class GameService
         $totalQuestions = count($questionIds);
         $nextQuestionAvailable = $nextRound <= $totalQuestions;
 
-        if ($allTeamsAnswered || $timedOut) {
+        if ($timedOut) {
+            // Apply synthetic wrongs (−10 / life cost) before pause; pausing first would block applyPlayingQuestionTimeout.
+            $session = $session->fresh(['room']);
+            if ($session->status === 'playing') {
+                $timeoutResult = $this->applyPlayingQuestionTimeout($session);
+                if (!empty($timeoutResult['session_finished'])) {
+                    return [
+                        'correct' => $correct,
+                        'scoreDelta' => $scoreDelta,
+                        'nextQuestionAvailable' => false,
+                        'sessionFinished' => true,
+                    ];
+                }
+            }
+        } elseif ($allTeamsAnswered) {
             // Pause the game and show stats / animations
             $session->update(['status' => 'paused']);
             // Firebase: do not use only the submitter's row — clients may treat this as "everyone was correct".
@@ -808,20 +822,6 @@ class GameService
         } else {
             // Keep playing this question, just sync updated scores
             $this->firebaseSync->syncScores($session->fresh());
-        }
-
-        // If the wall clock crossed the limit during this request (or TV never calls /timeout), close the question now.
-        $session = $session->fresh(['room']);
-        if ($session->status === 'playing') {
-            $timeoutResult = $this->applyPlayingQuestionTimeout($session);
-            if (!empty($timeoutResult['session_finished'])) {
-                return [
-                    'correct' => $correct,
-                    'scoreDelta' => $scoreDelta,
-                    'nextQuestionAvailable' => false,
-                    'sessionFinished' => true,
-                ];
-            }
         }
 
         return [
@@ -882,7 +882,8 @@ class GameService
     public function applyPlayingQuestionTimeout(GameSession $session, bool $inferMissingQuestionStartedAt = false): array
     {
         $session->loadMissing('room');
-        if ($session->status !== 'playing') {
+        $wasPaused = $session->status === 'paused';
+        if (!in_array($session->status, ['playing', 'paused'], true)) {
             return ['applied' => false, 'reason' => 'not_playing', 'session' => $session];
         }
 
@@ -934,43 +935,45 @@ class GameService
         $gameRoundNumber = $this->getGameRoundNumberForQuestionIndex($session, $roundIndex);
         $stageType = $this->getEffectiveStageType($room, $session, $gameRoundNumber);
 
-        if ($questionId && ($stageType === Stage::TYPE_LIFE_POINTS || $stageType === Stage::TYPE_QUESTIONS_GROUP)) {
-            $snapshot = $session->fresh(['sessionAnswers']);
-            foreach ($targets as $teamId => $player) {
-                $alreadyAnswered = SessionAnswer::where('game_session_id', $session->id)
-                    ->where($questionKey, $questionId)
-                    ->where('room_player_id', $player->id)
-                    ->exists();
-                if ($alreadyAnswered) {
-                    continue;
-                }
-                if ($stageType === Stage::TYPE_LIFE_POINTS) {
-                    $remaining = $this->getRemainingLivesForTeamInGameRound($snapshot, $room, (int) $teamId, $gameRoundNumber);
-                    if ($remaining <= 0) {
-                        continue;
-                    }
-                    SessionAnswer::create([
-                        'game_session_id' => $session->id,
-                        'question_id' => $isCustomRoom ? null : $questionId,
-                        'custom_question_id' => $isCustomRoom ? $questionId : null,
-                        'room_player_id' => $player->id,
-                        'answer_index' => 0,
-                        'correct' => false,
-                        'score_delta' => -10,
-                    ]);
-                    $player->increment('score', -10);
-                } else {
-                    SessionAnswer::create([
-                        'game_session_id' => $session->id,
-                        'question_id' => $isCustomRoom ? null : $questionId,
-                        'custom_question_id' => $isCustomRoom ? $questionId : null,
-                        'room_player_id' => $player->id,
-                        'answer_index' => 0,
-                        'correct' => false,
-                        'score_delta' => 0,
-                    ]);
-                }
+        $penaltiesApplied = $this->applySyntheticTimeoutAnswersForUnansweredTeams(
+            $session,
+            $room,
+            $targets,
+            $questionId,
+            $questionKey,
+            $isCustomRoom,
+            $stageType,
+            $gameRoundNumber
+        );
+
+        if ($wasPaused) {
+            if (!$penaltiesApplied) {
+                return ['applied' => false, 'reason' => 'already_handled', 'session' => $session];
             }
+            $session = $session->fresh(['sessionAnswers']);
+            if ($this->attemptFinishLifePointsSession($session, $gameRoundNumber)) {
+                return [
+                    'applied' => true,
+                    'reason' => 'life_points_finished',
+                    'session' => $session->fresh(),
+                    'all_leaders_answered' => $allLeadersAnswered,
+                    'session_finished' => true,
+                ];
+            }
+            $paused = $session->fresh();
+            $everyAnswerCorrectThisQuestion = !SessionAnswer::query()
+                ->where('game_session_id', $session->id)
+                ->where($questionKey, $questionId)
+                ->where('correct', false)
+                ->exists();
+            $this->firebaseSync->syncSessionPaused($paused, $everyAnswerCorrectThisQuestion);
+
+            return [
+                'applied' => true,
+                'reason' => 'timeout_penalties_recovered',
+                'session' => $paused,
+                'all_leaders_answered' => $allLeadersAnswered,
+            ];
         }
 
         $session->refresh();
@@ -995,6 +998,65 @@ class GameService
             'session' => $session->fresh(),
             'all_leaders_answered' => $allLeadersAnswered,
         ];
+    }
+
+    /**
+     * @param array<int, RoomPlayer> $targets
+     */
+    private function applySyntheticTimeoutAnswersForUnansweredTeams(
+        GameSession $session,
+        Room $room,
+        array $targets,
+        mixed $questionId,
+        string $questionKey,
+        bool $isCustomRoom,
+        string $stageType,
+        int $gameRoundNumber
+    ): bool {
+        if (!$questionId || !in_array($stageType, [Stage::TYPE_LIFE_POINTS, Stage::TYPE_QUESTIONS_GROUP], true)) {
+            return false;
+        }
+
+        $applied = false;
+        $snapshot = $session->fresh(['sessionAnswers']);
+        foreach ($targets as $teamId => $player) {
+            $alreadyAnswered = SessionAnswer::where('game_session_id', $session->id)
+                ->where($questionKey, $questionId)
+                ->where('room_player_id', $player->id)
+                ->exists();
+            if ($alreadyAnswered) {
+                continue;
+            }
+            if ($stageType === Stage::TYPE_LIFE_POINTS) {
+                $remaining = $this->getRemainingLivesForTeamInGameRound($snapshot, $room, (int) $teamId, $gameRoundNumber);
+                if ($remaining <= 0) {
+                    continue;
+                }
+                SessionAnswer::create([
+                    'game_session_id' => $session->id,
+                    'question_id' => $isCustomRoom ? null : $questionId,
+                    'custom_question_id' => $isCustomRoom ? $questionId : null,
+                    'room_player_id' => $player->id,
+                    'answer_index' => 0,
+                    'correct' => false,
+                    'score_delta' => -10,
+                ]);
+                $player->increment('score', -10);
+            } else {
+                SessionAnswer::create([
+                    'game_session_id' => $session->id,
+                    'question_id' => $isCustomRoom ? null : $questionId,
+                    'custom_question_id' => $isCustomRoom ? $questionId : null,
+                    'room_player_id' => $player->id,
+                    'answer_index' => 0,
+                    'correct' => false,
+                    'score_delta' => 0,
+                ]);
+            }
+            $applied = true;
+        }
+
+        return $applied;
     }
 
     /**

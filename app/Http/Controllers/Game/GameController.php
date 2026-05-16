@@ -763,7 +763,7 @@ class GameController extends Controller
         // If nobody submitted after the timer, the session can stay "playing" forever because timedOut is only
         // evaluated inside submitAnswer. Auto-finalize the question when the deadline has passed, same as POST .../timeout.
         if ($session->status === 'playing') {
-            $this->gameService->applyPlayingQuestionTimeout($session->fresh());
+            $this->gameService->applyPlayingQuestionTimeout($session->fresh(), true);
             $session = GameSession::with('room')->find($sessionId);
         }
 
@@ -869,7 +869,7 @@ class GameController extends Controller
             return ApiResponse::error('الجلسة غير موجودة', 404);
         }
 
-        if ($session->status !== 'playing') {
+        if (!in_array($session->status, ['playing', 'paused'], true)) {
             return ApiResponse::error('لا يمكن إنهاء الوقت في هذه الحالة', 400);
         }
 
@@ -883,6 +883,14 @@ class GameController extends Controller
             }
             if (($result['reason'] ?? '') === 'no_room') {
                 return ApiResponse::error('الغرفة غير متاحة', 400);
+            }
+            if (($result['reason'] ?? '') === 'already_handled') {
+                return ApiResponse::success([
+                    'paused' => $session->status === 'paused',
+                    'finished' => $session->status === 'finished',
+                    'sessionId' => (string) $session->id,
+                    'reason' => 'already_handled',
+                ]);
             }
 
             return ApiResponse::error('لا يمكن إنهاء الوقت في هذه الحالة', 400);
