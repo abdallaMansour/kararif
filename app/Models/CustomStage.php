@@ -15,7 +15,6 @@ class CustomStage extends Model implements HasMedia
     protected $fillable = [
         'name',
         'life_points_per_question',
-        'number_of_questions',
         'status',
     ];
 

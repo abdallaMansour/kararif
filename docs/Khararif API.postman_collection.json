@@ -2257,7 +2257,7 @@
         },
         {
           "name": "Custom Stages",
-          "description": "Life-points-only stages for custom games (questions_and_stages permission). Multipart create/update: name, life_points_per_question, number_of_questions, status, cover_image (image), start_video, end_video, lunch_video, correct_answer_video, wrong_answer_video.",
+          "description": "Life-points-only stages for custom games (questions_and_stages permission). Multipart create/update: name, life_points_per_question, status, cover_image (image), start_video, end_video, lunch_video, correct_answer_video, wrong_answer_video. Question count is chosen by the player when creating a custom room (questionsCount), not on the stage.",
           "item": [
             {
               "name": "List Custom Stages",
@@ -2322,7 +2322,6 @@
                   "formdata": [
                     { "key": "name", "type": "text", "value": "مرحلة مخصصة" },
                     { "key": "life_points_per_question", "type": "text", "value": "5" },
-                    { "key": "number_of_questions", "type": "text", "value": "10" },
                     { "key": "status", "type": "text", "value": "1" },
                     { "key": "cover_image", "type": "file", "src": "" },
                     { "key": "start_video", "type": "file", "src": "" },
@@ -2359,7 +2358,6 @@
                   "formdata": [
                     { "key": "name", "type": "text", "value": "مرحلة مخصصة" },
                     { "key": "life_points_per_question", "type": "text", "value": "5" },
-                    { "key": "number_of_questions", "type": "text", "value": "10" },
                     { "key": "status", "type": "text", "value": "1" },
                     { "key": "cover_image", "type": "file", "src": "" },
                     { "key": "start_video", "type": "file", "src": "" },

@@ -38,7 +38,15 @@ class DashboardCustomStageController extends Controller
         try {
             DB::beginTransaction();
             $data = $request->validated();
-            unset($data['cover_image'], $data['start_video'], $data['end_video'], $data['lunch_video'], $data['correct_answer_video'], $data['wrong_answer_video']);
+            unset(
+                $data['cover_image'],
+                $data['start_video'],
+                $data['end_video'],
+                $data['lunch_video'],
+                $data['correct_answer_video'],
+                $data['wrong_answer_video'],
+                $data['number_of_questions'],
+            );
 
             $customStage = CustomStage::create($data);
 
@@ -66,7 +74,15 @@ class DashboardCustomStageController extends Controller
         try {
             DB::beginTransaction();
             $data = $request->validated();
-            unset($data['cover_image'], $data['start_video'], $data['end_video'], $data['lunch_video'], $data['correct_answer_video'], $data['wrong_answer_video']);
+            unset(
+                $data['cover_image'],
+                $data['start_video'],
+                $data['end_video'],
+                $data['lunch_video'],
+                $data['correct_answer_video'],
+                $data['wrong_answer_video'],
+                $data['number_of_questions'],
+            );
 
             $custom_stage->update($data);
 
