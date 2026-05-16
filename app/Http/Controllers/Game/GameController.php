@@ -929,6 +929,9 @@ class GameController extends Controller
         }
 
         $user->increment('surrender_count');
+        if ($user instanceof Adventurer) {
+            $user->increment('number_surrender_times');
+        }
 
         $surrenderingTeamId = $roomPlayer->team_id;
         $distinctTeamCount = $session->room->roomPlayers->pluck('team_id')->unique()->filter()->count();
@@ -951,12 +954,19 @@ class GameController extends Controller
 
         // Two teams or fewer: session ends, non-surrendering team wins
         // Persist surrendered team id as well, so Firebase `teams[*].surrendered` / `isEliminated` can be shown.
+        $winnerIds = collect($session->room->roomPlayers->pluck('team_id')->unique()->filter())
+            ->reject(fn ($id) => (int) $id === (int) $surrenderingTeamId)
+            ->map(fn ($id) => (string) $id)
+            ->values()
+            ->all();
+
         $session->update([
             'status' => 'finished',
             'surrendered_team_ids' => array_values(array_unique([
                 ...(is_array($session->surrendered_team_ids) ? $session->surrendered_team_ids : []),
                 (string) $surrenderingTeamId,
             ])),
+            'winner_team_ids' => $winnerIds,
         ]);
         $session->room?->update(['status' => 'finished']);
 
@@ -1008,14 +1018,17 @@ class GameController extends Controller
             return ApiResponse::error('انتهت الجلسة بالفعل', 400);
         }
 
-        $session->update(['status' => 'finished']);
+        $winnerTeamIds = $this->gameService->resolveWinnerTeamIds($session);
+        $session->update([
+            'status' => 'finished',
+            'winner_team_ids' => $winnerTeamIds,
+        ]);
         $session->room?->update(['status' => 'finished']);
 
-        // Let existing logic handle points/winners if needed
         $finished = $session->fresh();
         $this->gameService->updatePointsForFinishedSession($finished);
         $this->gameService->recordLastRoundStageTail($finished);
-        $this->firebaseSync->syncSessionEnd($finished);
+        $this->firebaseSync->syncSessionEnd($finished, $winnerTeamIds);
 
         return ApiResponse::success([
             'ended' => true,

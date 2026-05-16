@@ -533,7 +533,7 @@ class FirebaseGameSyncService
             $teamData = [
                 'id' => (string) $teamId,
                 'name' => ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId,
-                'score' => (int) $players->sum('score'),
+                'score' => (int) max(0, $players->sum('score')),
                 'teamCode' => 'K' . $teamId,
                 'players' => $playerList,
                 'surrendered' => $isSurrendered,

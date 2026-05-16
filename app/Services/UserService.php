@@ -89,15 +89,32 @@ class UserService
     public function classifyFinishedSessionForPlayer(Room $room, GameSession $session, RoomPlayer $rp): array
     {
         $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
+        $myTeamId = (string) $rp->team_id;
+
+        if (in_array($myTeamId, $surrenderedTeamIds, true)) {
+            return ['result' => 'loss', 'rankLabel' => null];
+        }
+
+        $winnerTeamIds = array_map('strval', $session->winner_team_ids ?? []);
+        if ($winnerTeamIds === []) {
+            $winnerTeamIds = app(GameService::class)->resolveWinnerTeamIds($session);
+        }
+
+        if ($winnerTeamIds !== []) {
+            if (count($winnerTeamIds) > 1 && in_array($myTeamId, $winnerTeamIds, true)) {
+                return ['result' => 'draw', 'rankLabel' => null];
+            }
+            if (in_array($myTeamId, $winnerTeamIds, true)) {
+                return ['result' => 'win', 'rankLabel' => 'أول'];
+            }
+
+            return ['result' => 'loss', 'rankLabel' => $this->rankLabelByScore($room, $surrenderedTeamIds, $myTeamId)];
+        }
 
         $activeTeamScores = $room->roomPlayers
             ->groupBy('team_id')
             ->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
-            ->map(fn ($players) => $players->sum('score'));
-
-        if (in_array((string) $rp->team_id, $surrenderedTeamIds, true)) {
-            return ['result' => 'loss', 'rankLabel' => null];
-        }
+            ->map(fn ($players) => max(0, (int) $players->sum('score')));
 
         if ($activeTeamScores->count() <= 1) {
             return ['result' => 'win', 'rankLabel' => 'أول'];
@@ -105,11 +122,35 @@ class UserService
 
         $maxScore = $activeTeamScores->max();
         $teamsSharingTopScore = $activeTeamScores->filter(fn ($s) => $s === $maxScore);
-        $myTeamScore = $activeTeamScores[(string) $rp->team_id] ?? null;
+        $myTeamScore = $activeTeamScores[$myTeamId] ?? null;
 
         if ($teamsSharingTopScore->count() > 1 && $myTeamScore === $maxScore) {
             return ['result' => 'draw', 'rankLabel' => null];
         }
+
+        $rankLabel = $this->rankLabelByScore($room, $surrenderedTeamIds, $myTeamId);
+        $myRank = match ($rankLabel) {
+            'أول' => 1,
+            'ثاني' => 2,
+            'ثالث' => 3,
+            default => 99,
+        };
+
+        return [
+            'result' => $myRank === 1 ? 'win' : 'loss',
+            'rankLabel' => $rankLabel,
+        ];
+    }
+
+    /**
+     * @param list<string> $surrenderedTeamIds
+     */
+    private function rankLabelByScore(Room $room, array $surrenderedTeamIds, string $myTeamId): ?string
+    {
+        $activeTeamScores = $room->roomPlayers
+            ->groupBy('team_id')
+            ->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
+            ->map(fn ($players) => max(0, (int) $players->sum('score')));
 
         $sortedByScore = $activeTeamScores->sortByDesc(fn ($s) => $s);
         $prevScore = null;
@@ -122,18 +163,14 @@ class UserService
             $teamRanks[(string) $tid] = $rank;
             $prevScore = $score;
         }
-        $myRank = $teamRanks[(string) $rp->team_id] ?? $rank + 1;
-        $rankLabel = match ($myRank) {
+        $myRank = $teamRanks[$myTeamId] ?? $rank + 1;
+
+        return match ($myRank) {
             1 => 'أول',
             2 => 'ثاني',
             3 => 'ثالث',
             default => null,
         };
-
-        return [
-            'result' => $myRank === 1 ? 'win' : 'loss',
-            'rankLabel' => $rankLabel,
-        ];
     }
 
     /**

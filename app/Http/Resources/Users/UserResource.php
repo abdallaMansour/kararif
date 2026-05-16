@@ -36,6 +36,8 @@ class UserResource extends JsonResource
             $customQuestionsCountQuery->where('owner_user_id', $this->id);
         }
 
+        $stats = app(UserService::class)->getWinsLosses($this->resource);
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -59,7 +61,13 @@ class UserResource extends JsonResource
             ],
             'custom_categories_count' => (int) $customCategoriesCountQuery->count(),
             'custom_questions_count' => (int) $customQuestionsCountQuery->count(),
-            'stats' => app(UserService::class)->getWinsLosses($this->resource),
+            'winnings' => (int) $stats['wins'],
+            'stats' => [
+                'wins' => (int) $stats['wins'],
+                'losses' => (int) $stats['losses'],
+                'draws' => (int) $stats['draws'],
+                'surrenders' => (int) ($this->surrender_count ?? 0),
+            ],
         ];
     }
 }

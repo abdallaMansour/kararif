@@ -299,4 +299,87 @@ class ChatChangesRegressionTest extends TestCase
         $this->assertSame(1, (int) $q->usage_count);
     }
 
+    public function test_team_score_never_goes_below_zero(): void
+    {
+        $t = $this->seedFallbackTaxonomy();
+        $player = RoomPlayer::create([
+            'room_id' => Room::create([
+                'code' => '555555',
+                'is_custom' => false,
+                'type_id' => $t['type']->id,
+                'category_id' => $t['category']->id,
+                'subcategory_id' => $t['subcategory']->id,
+                'title' => 'R',
+                'rounds' => 1,
+                'teams' => 2,
+                'players' => 2,
+                'status' => 'playing',
+                'expires_at' => now()->addHour(),
+            ])->id,
+            'user_id' => User::factory()->create()->id,
+            'team_id' => 1,
+            'is_leader' => true,
+            'score' => 5,
+        ]);
+
+        $gameService = app(GameService::class);
+        $applied = $gameService->applyTeamScoreDelta($player, -10);
+
+        $this->assertSame(-5, $applied);
+        $this->assertSame(0, (int) $player->fresh()->score);
+    }
+
+    public function test_life_points_winner_is_team_with_lives_not_highest_score(): void
+    {
+        $t = $this->seedFallbackTaxonomy();
+        $winner = User::factory()->create();
+        $loser = User::factory()->create();
+
+        $room = Room::create([
+            'code' => '666666',
+            'is_custom' => true,
+            'type_id' => $t['type']->id,
+            'category_id' => $t['category']->id,
+            'subcategory_id' => $t['subcategory']->id,
+            'title' => 'LP',
+            'rounds' => 1,
+            'questions_count' => 1,
+            'life_points' => 5,
+            'teams' => 2,
+            'players' => 2,
+            'status' => 'finished',
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $winnerPlayer = RoomPlayer::create([
+            'room_id' => $room->id,
+            'user_id' => $winner->id,
+            'team_id' => 1,
+            'is_leader' => true,
+            'score' => 0,
+        ]);
+        RoomPlayer::create([
+            'room_id' => $room->id,
+            'user_id' => $loser->id,
+            'team_id' => 2,
+            'is_leader' => true,
+            'score' => 40,
+        ]);
+
+        $session = GameSession::create([
+            'room_id' => $room->id,
+            'current_round' => 1,
+            'status' => 'finished',
+            'question_ids' => [1],
+            'winner_team_ids' => ['1'],
+        ]);
+
+        $userService = app(UserService::class);
+        $room = $room->fresh(['roomPlayers']);
+
+        $this->assertSame('win', $userService->classifyFinishedSessionForPlayer($room, $session, $winnerPlayer)['result']);
+        $this->assertSame(1, app(UserService::class)->getWinsLosses($winner->fresh())['wins']);
+        $this->assertSame(1, app(UserService::class)->getWinsLosses($loser->fresh())['losses']);
+    }
+
 }

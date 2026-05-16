@@ -162,6 +162,27 @@ class GameService
     }
 
     /**
+     * Apply a score change to a team leader row, never below zero.
+     *
+     * @return int Actual delta applied (may be less than requested when flooring at 0).
+     */
+    public function applyTeamScoreDelta(RoomPlayer $player, int $requestedDelta): int
+    {
+        if ($requestedDelta === 0) {
+            return 0;
+        }
+
+        $current = (int) $player->score;
+        $newScore = max(0, $current + $requestedDelta);
+        $applied = $newScore - $current;
+        if ($applied !== 0) {
+            $player->update(['score' => $newScore]);
+        }
+
+        return $applied;
+    }
+
+    /**
      * Wrong answers in this game round only (team = all players on that team_id).
      */
     public function countWrongAnswersForTeamInGameRound(GameSession $session, Room $room, int $teamId, int $gameRoundNumber): int
@@ -270,6 +291,7 @@ class GameService
         $session->update([
             'status' => 'finished',
             'current_round' => min($nextRound, $total + 1),
+            'winner_team_ids' => array_values(array_map('strval', $winnerTeamIds)),
         ]);
         $room->update(['status' => 'finished']);
 
@@ -279,6 +301,80 @@ class GameService
         $this->firebaseSync->syncSessionEnd($finished, $winnerTeamIds);
 
         return true;
+    }
+
+    /**
+     * Determine winning team id(s) for a finished session (life-points, surrender, or score).
+     *
+     * @return list<string>
+     */
+    public function resolveWinnerTeamIds(GameSession $session): array
+    {
+        $session->loadMissing('room.roomPlayers', 'sessionAnswers');
+        $room = $session->room;
+        if (!$room) {
+            return [];
+        }
+
+        $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
+        $allTeamIds = $room->roomPlayers->pluck('team_id')->unique()->filter()->map(fn ($id) => (string) $id)->values();
+        $activeTeamIds = $allTeamIds->reject(fn ($tid) => in_array($tid, $surrenderedTeamIds, true))->values();
+
+        if ($activeTeamIds->count() === 1) {
+            return $activeTeamIds->all();
+        }
+
+        $lastQuestionIndex = max(0, min((int) $session->current_round - 1, count($session->question_ids ?? []) - 1));
+        $gameRoundNumber = $this->getGameRoundNumberForQuestionIndex($session, $lastQuestionIndex);
+        $stageType = $this->getEffectiveStageType($room, $session, $gameRoundNumber);
+
+        if ($stageType === Stage::TYPE_LIFE_POINTS) {
+            $lifeByTeam = [];
+            foreach ($activeTeamIds as $teamId) {
+                $lifeByTeam[$teamId] = $this->getRemainingLivesForTeamInGameRound(
+                    $session,
+                    $room,
+                    (int) $teamId,
+                    $gameRoundNumber
+                );
+            }
+
+            if ($lifeByTeam !== []) {
+                $aliveTeams = collect($lifeByTeam)->filter(fn ($life) => $life > 0);
+                if ($aliveTeams->count() === 1) {
+                    return $aliveTeams->keys()->map(fn ($id) => (string) $id)->values()->all();
+                }
+
+                $maxLife = max($lifeByTeam);
+                $byLife = collect($lifeByTeam)
+                    ->filter(fn ($life) => $life === $maxLife)
+                    ->keys()
+                    ->map(fn ($id) => (string) $id)
+                    ->values()
+                    ->all();
+
+                if ($byLife !== []) {
+                    return $byLife;
+                }
+            }
+        }
+
+        $teamScores = $room->roomPlayers
+            ->groupBy('team_id')
+            ->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
+            ->map(fn ($players) => max(0, (int) $players->sum('score')));
+
+        if ($teamScores->isEmpty()) {
+            return [];
+        }
+
+        $maxScore = $teamScores->max();
+        return $teamScores
+            ->filter(fn ($score) => $score === $maxScore)
+            ->keys()
+            ->map(fn ($id) => (string) $id)
+            ->values()
+            ->all();
     }
 
     /**
@@ -703,6 +799,11 @@ class GameService
             $scoreDelta = $correct ? 10 : -10;
         }
 
+        $roomPlayer = RoomPlayer::find($roomPlayerId);
+        $appliedScoreDelta = $roomPlayer
+            ? $this->applyTeamScoreDelta($roomPlayer, $scoreDelta)
+            : $scoreDelta;
+
         SessionAnswer::create([
             'game_session_id' => $session->id,
             'question_id' => $isCustomRoom ? null : $questionId,
@@ -710,19 +811,14 @@ class GameService
             'room_player_id' => $roomPlayerId,
             'answer_index' => $answerIndex,
             'correct' => $correct,
-            'score_delta' => $scoreDelta,
+            'score_delta' => $appliedScoreDelta,
         ]);
-
-        $roomPlayer = RoomPlayer::find($roomPlayerId);
-        if ($roomPlayer) {
-            $roomPlayer->increment('score', $scoreDelta);
-        }
 
         $session = $session->fresh(['sessionAnswers']);
         if ($this->attemptFinishLifePointsSession($session, $gameRoundNumber)) {
             return [
                 'correct' => $correct,
-                'scoreDelta' => $scoreDelta,
+                'scoreDelta' => $appliedScoreDelta,
                 'nextQuestionAvailable' => false,
                 'sessionFinished' => true,
             ];
@@ -801,7 +897,7 @@ class GameService
                 if (!empty($timeoutResult['session_finished'])) {
                     return [
                         'correct' => $correct,
-                        'scoreDelta' => $scoreDelta,
+                        'scoreDelta' => $appliedScoreDelta,
                         'nextQuestionAvailable' => false,
                         'sessionFinished' => true,
                     ];
@@ -826,7 +922,7 @@ class GameService
 
         return [
             'correct' => $correct,
-            'scoreDelta' => $scoreDelta,
+            'scoreDelta' => $appliedScoreDelta,
             'nextQuestionAvailable' => $nextQuestionAvailable,
         ];
     }
@@ -1032,6 +1128,7 @@ class GameService
                 if ($remaining <= 0) {
                     continue;
                 }
+                $appliedDelta = $this->applyTeamScoreDelta($player, -10);
                 SessionAnswer::create([
                     'game_session_id' => $session->id,
                     'question_id' => $isCustomRoom ? null : $questionId,
@@ -1039,9 +1136,8 @@ class GameService
                     'room_player_id' => $player->id,
                     'answer_index' => 0,
                     'correct' => false,
-                    'score_delta' => -10,
+                    'score_delta' => $appliedDelta,
                 ]);
-                $player->increment('score', -10);
             } else {
                 SessionAnswer::create([
                     'game_session_id' => $session->id,
@@ -1138,12 +1234,17 @@ class GameService
                 $maxLife = $aliveTeams->count() > 0 ? $aliveTeams->max() : 0;
                 // Winners are teams with the highest life (allowing ties), even if 0
                 $winnerTeamIds = collect($lifeByTeam)
-                    ->filter(fn($life) => $life === $maxLife)
+                    ->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
+                    ->filter(fn ($life) => $life === $maxLife)
                     ->keys()
                     ->values()
                     ->all();
 
-                $session->update(['status' => 'finished', 'current_round' => min($nextRound, $total + 1)]);
+                $session->update([
+                    'status' => 'finished',
+                    'current_round' => min($nextRound, $total + 1),
+                    'winner_team_ids' => array_values(array_map('strval', $winnerTeamIds)),
+                ]);
                 $session->room->update(['status' => 'finished']);
                 $finished = $session->fresh();
                 $this->updatePointsForFinishedSession($finished);
@@ -1158,7 +1259,11 @@ class GameService
             )->values();
             if ($activeTeamIds->count() === 1) {
                 $winnerTeamIds = $activeTeamIds->map(fn($id) => (string) $id)->all();
-                $session->update(['status' => 'finished', 'current_round' => $nextRound]);
+                $session->update([
+                    'status' => 'finished',
+                    'current_round' => $nextRound,
+                    'winner_team_ids' => $winnerTeamIds,
+                ]);
                 $session->room->update(['status' => 'finished']);
                 $finished = $session->fresh();
                 $this->updatePointsForFinishedSession($finished);
@@ -1167,12 +1272,17 @@ class GameService
                 return ['finished' => true, 'round' => null];
             }
             if ($nextRound > $total) {
-                $session->update(['status' => 'finished', 'current_round' => $nextRound]);
+                $winnerTeamIds = $this->resolveWinnerTeamIds($session);
+                $session->update([
+                    'status' => 'finished',
+                    'current_round' => $nextRound,
+                    'winner_team_ids' => $winnerTeamIds,
+                ]);
                 $session->room->update(['status' => 'finished']);
                 $finished = $session->fresh();
                 $this->updatePointsForFinishedSession($finished);
                 $this->recordLastRoundStageTail($finished);
-                $this->firebaseSync->syncSessionEnd($finished);
+                $this->firebaseSync->syncSessionEnd($finished, $winnerTeamIds);
                 return ['finished' => true, 'round' => null];
             }
         }
@@ -1191,24 +1301,40 @@ class GameService
     public function updatePointsForFinishedSession(GameSession $session): void
     {
         $session->load('room.roomPlayers.adventurer', 'room.roomPlayers.user');
-        $teamScores = $session->room->roomPlayers->groupBy('team_id')
-            ->map(fn($players) => $players->sum('score'));
-        $maxScore = $teamScores->max();
-        $teamsAtMaxScore = $teamScores->filter(fn($s) => $s === $maxScore);
+
+        if (empty($session->winner_team_ids)) {
+            $session->update(['winner_team_ids' => $this->resolveWinnerTeamIds($session)]);
+            $session->refresh();
+        }
+
+        $winnerTeamIds = array_map('strval', $session->winner_team_ids ?? []);
+        $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
+        $isDrawAmongWinners = count($winnerTeamIds) > 1;
 
         foreach ($session->room->roomPlayers as $rp) {
             $player = $rp->adventurer ?? $rp->user;
             if (!$player) {
                 continue;
             }
-            $teamScore = $teamScores[(string) $rp->team_id] ?? 0;
 
-            // Tie for first: no +1/-1 swing; lower teams still lose a point.
-            if ($teamsAtMaxScore->count() > 1) {
-                $delta = $teamScore === $maxScore ? 0 : -1;
+            $teamId = (string) $rp->team_id;
+            if (in_array($teamId, $surrenderedTeamIds, true)) {
+                $delta = -1;
+            } elseif ($winnerTeamIds !== [] && in_array($teamId, $winnerTeamIds, true)) {
+                $delta = $isDrawAmongWinners ? 0 : 1;
+            } elseif ($winnerTeamIds !== []) {
+                $delta = -1;
             } else {
-                $delta = $teamScore === $maxScore ? 1 : -1;
+                $teamScores = $session->room->roomPlayers->groupBy('team_id')
+                    ->map(fn ($players) => max(0, (int) $players->sum('score')));
+                $maxScore = $teamScores->max();
+                $teamsAtMaxScore = $teamScores->filter(fn ($s) => $s === $maxScore);
+                $teamScore = $teamScores[$teamId] ?? 0;
+                $delta = $teamsAtMaxScore->count() > 1
+                    ? ($teamScore === $maxScore ? 0 : -1)
+                    : ($teamScore === $maxScore ? 1 : -1);
             }
+
             $player->increment('points', $delta);
         }
     }
