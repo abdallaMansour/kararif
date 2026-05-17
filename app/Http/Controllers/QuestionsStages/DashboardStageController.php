@@ -75,7 +75,7 @@ class DashboardStageController extends Controller
 
             if ($stage->stage_type === Stage::TYPE_LIFE_POINTS) {
                 $stage->questionGroups()->each(function ($g) {
-                    $g->clearMediaCollection('start_video');
+                    $g->clearMediaCollection('lunch_video');
                     $g->clearMediaCollection('end_video');
                     $g->clearMediaCollection('correct_answer_video');
                     $g->clearMediaCollection('wrong_answer_video');
@@ -108,7 +108,7 @@ class DashboardStageController extends Controller
                     }
                 } elseif ($wanted < $current) {
                     $stage->questionGroups()->orderBy('sort_order')->skip($wanted)->take($current - $wanted)->get()->each(function ($g) {
-                        $g->clearMediaCollection('start_video');
+                        $g->clearMediaCollection('lunch_video');
                         $g->clearMediaCollection('end_video');
                         $g->clearMediaCollection('correct_answer_video');
                         $g->clearMediaCollection('wrong_answer_video');
@@ -132,7 +132,7 @@ class DashboardStageController extends Controller
                 $stage->clearMediaCollection($col);
             }
             foreach ($stage->questionGroups as $g) {
-                $g->clearMediaCollection('start_video');
+                $g->clearMediaCollection('lunch_video');
                 $g->clearMediaCollection('end_video');
                 $g->clearMediaCollection('correct_answer_video');
                 $g->clearMediaCollection('wrong_answer_video');
@@ -147,7 +147,7 @@ class DashboardStageController extends Controller
     public function updateGroupVideos(\Illuminate\Http\Request $request, Stage $stage, StageQuestionGroup $group)
     {
         $request->validate([
-            'start_video' => ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/ogg,video/quicktime', 'max:71680'], // 70 MB
+            'lunch_video' => ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/ogg,video/quicktime', 'max:71680'], // 70 MB
             'end_video' => ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/ogg,video/quicktime', 'max:71680'],
             'correct_answer_video' => ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/ogg,video/quicktime', 'max:71680'],
             'wrong_answer_video' => ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/ogg,video/quicktime', 'max:71680'],
@@ -156,7 +156,7 @@ class DashboardStageController extends Controller
             return $this->sendError('Invalid group for this stage.', [], 400);
         }
         try {
-            foreach (['start_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'] as $col) {
+            foreach (['lunch_video', 'end_video', 'correct_answer_video', 'wrong_answer_video'] as $col) {
                 if ($request->hasFile($col)) {
                     $group->clearMediaCollection($col);
                     $group->addMediaFromRequest($col)->toMediaCollection($col);

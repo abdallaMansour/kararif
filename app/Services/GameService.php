@@ -13,6 +13,7 @@ use App\Models\CustomQuestion;
 use App\Models\CreatorSubcategoryStageTail;
 use App\Models\CustomStage;
 use App\Models\Stage;
+use App\Models\StageQuestionGroup;
 use App\Models\TvDisplay;
 
 class GameService
@@ -111,6 +112,175 @@ class GameService
             $seen += $roundSize;
         }
         return $roundsCount;
+    }
+
+    /**
+     * 1-based question index within the current game round (among questions in that round only).
+     */
+    public function getCurrentQuestionInRound(GameSession $session): int
+    {
+        $roundNumber = $this->getCurrentRoundNumber($session);
+        [$startIndex, $endIndex] = $this->getRoundQuestionRange($session, $roundNumber);
+        $roundQuestionsCount = $endIndex >= $startIndex ? ($endIndex - $startIndex + 1) : 0;
+        if ($roundQuestionsCount === 0) {
+            return 0;
+        }
+        $currentQuestionIndex = max(0, (int) $session->current_round - 1);
+
+        return $currentQuestionIndex - $startIndex + 1;
+    }
+
+    /**
+     * Question counts per group within a questions_group round. Remainder is assigned to the last group.
+     *
+     * @return int[] 0-based group index => question count
+     */
+    public function getQuestionGroupSizes(int $roundQuestionsCount, int $groupCount): array
+    {
+        if ($groupCount < 1 || $roundQuestionsCount < 1) {
+            return [];
+        }
+        $perGroup = (int) floor($roundQuestionsCount / $groupCount);
+        $remainder = $roundQuestionsCount % $groupCount;
+        $sizes = [];
+        for ($i = 0; $i < $groupCount; $i++) {
+            $sizes[$i] = $perGroup + ($i === $groupCount - 1 ? $remainder : 0);
+        }
+
+        return $sizes;
+    }
+
+    /**
+     * 0-based index of the active question group within the current round.
+     */
+    public function getCurrentQuestionGroupIndex(GameSession $session, Stage $stage): int
+    {
+        $groupCount = max(0, (int) ($stage->question_groups_count ?? 0));
+        if ($groupCount < 1) {
+            return 0;
+        }
+
+        $roundNumber = $this->getCurrentRoundNumber($session);
+        [$startIndex, $endIndex] = $this->getRoundQuestionRange($session, $roundNumber);
+        $roundQuestionsCount = $endIndex >= $startIndex ? ($endIndex - $startIndex + 1) : 0;
+        if ($roundQuestionsCount === 0) {
+            return 0;
+        }
+
+        $currentQuestionInRound = $this->getCurrentQuestionInRound($session);
+        if ($currentQuestionInRound < 1) {
+            return 0;
+        }
+
+        $sizes = $this->getQuestionGroupSizes($roundQuestionsCount, $groupCount);
+        $seen = 0;
+        foreach ($sizes as $index => $groupSize) {
+            if ($currentQuestionInRound <= $seen + $groupSize) {
+                return (int) $index;
+            }
+            $seen += $groupSize;
+        }
+
+        return max(0, $groupCount - 1);
+    }
+
+    /**
+     * @return array{isGroupStart: bool, isGroupEnd: bool, currentGroupIndex: int, currentQuestionInGroup: int, groupQuestionsCount: int}
+     */
+    public function getQuestionGroupProgress(GameSession $session, Stage $stage): array
+    {
+        $groupCount = max(1, (int) ($stage->question_groups_count ?? 1));
+        $groupIndex = $this->getCurrentQuestionGroupIndex($session, $stage);
+
+        $roundNumber = $this->getCurrentRoundNumber($session);
+        [$startIndex, $endIndex] = $this->getRoundQuestionRange($session, $roundNumber);
+        $roundQuestionsCount = $endIndex >= $startIndex ? ($endIndex - $startIndex + 1) : 0;
+
+        $sizes = $this->getQuestionGroupSizes($roundQuestionsCount, $groupCount);
+        $groupQuestionsCount = $sizes[$groupIndex] ?? 0;
+
+        $seenBefore = 0;
+        for ($i = 0; $i < $groupIndex; $i++) {
+            $seenBefore += $sizes[$i] ?? 0;
+        }
+
+        $currentQuestionInRound = $this->getCurrentQuestionInRound($session);
+        $currentQuestionInGroup = max(0, $currentQuestionInRound - $seenBefore);
+
+        return [
+            'isGroupStart' => $groupQuestionsCount > 0 && $currentQuestionInGroup === 1,
+            'isGroupEnd' => $groupQuestionsCount > 0 && $currentQuestionInGroup === $groupQuestionsCount,
+            'currentGroupIndex' => $groupIndex,
+            'currentQuestionInGroup' => $currentQuestionInGroup,
+            'groupQuestionsCount' => $groupQuestionsCount,
+        ];
+    }
+
+    public function getActiveQuestionGroupForSession(GameSession $session, Stage $stage): ?StageQuestionGroup
+    {
+        if ($stage->stage_type !== Stage::TYPE_QUESTIONS_GROUP) {
+            return null;
+        }
+
+        $stage->loadMissing('questionGroups');
+        $groups = $stage->questionGroups->sortBy('sort_order')->values();
+        if ($groups->isEmpty()) {
+            return null;
+        }
+
+        $index = $session->status === 'starting' || (int) $session->current_round < 1
+            ? 0
+            : $this->getCurrentQuestionGroupIndex($session, $stage);
+
+        return $groups->get(min($index, $groups->count() - 1));
+    }
+
+    /**
+     * Stage-level video URLs for Firebase / clients (life_points: from stage; questions_group: from active group).
+     *
+     * @return array{start_video: ?string, end_video: ?string, lunch_video: ?string, correct_answer_video: ?string, wrong_answer_video: ?string, currentGroupIndex: ?int}
+     */
+    public function resolveStageVideoPayload(Stage $stage, ?GameSession $session = null): array
+    {
+        if ($stage->stage_type === Stage::TYPE_LIFE_POINTS) {
+            return [
+                'start_video' => $stage->getFirstMediaUrl('start_video') ?: null,
+                'end_video' => $stage->getFirstMediaUrl('end_video') ?: null,
+                'lunch_video' => $stage->getFirstMediaUrl('lunch_video') ?: null,
+                'correct_answer_video' => $stage->getFirstMediaUrl('correct_answer_video') ?: null,
+                'wrong_answer_video' => $stage->getFirstMediaUrl('wrong_answer_video') ?: null,
+                'currentGroupIndex' => null,
+            ];
+        }
+
+        $group = $session
+            ? $this->getActiveQuestionGroupForSession($session, $stage)
+            : $stage->questionGroups()->orderBy('sort_order')->first();
+
+        if (! $group) {
+            return [
+                'start_video' => null,
+                'end_video' => null,
+                'lunch_video' => null,
+                'correct_answer_video' => null,
+                'wrong_answer_video' => null,
+                'currentGroupIndex' => 0,
+            ];
+        }
+
+        $groupIndex = 0;
+        if ($session && (int) $session->current_round >= 1) {
+            $groupIndex = $this->getCurrentQuestionGroupIndex($session, $stage);
+        }
+
+        return [
+            'start_video' => null,
+            'end_video' => $group->getFirstMediaUrl('end_video') ?: null,
+            'lunch_video' => $group->getFirstMediaUrl('lunch_video') ?: null,
+            'correct_answer_video' => $group->getFirstMediaUrl('correct_answer_video') ?: null,
+            'wrong_answer_video' => $group->getFirstMediaUrl('wrong_answer_video') ?: null,
+            'currentGroupIndex' => $groupIndex,
+        ];
     }
 
     /**

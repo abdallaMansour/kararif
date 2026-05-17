@@ -12,7 +12,7 @@ class DashboardStageQuestionGroupResource extends JsonResource
             'id' => $this->id,
             'stage_id' => $this->stage_id,
             'sort_order' => $this->sort_order,
-            'start_video' => $this->getFirstMediaUrl('start_video'),
+            'lunch_video' => $this->getFirstMediaUrl('lunch_video'),
             'end_video' => $this->getFirstMediaUrl('end_video'),
             'correct_answer_video' => $this->getFirstMediaUrl('correct_answer_video'),
             'wrong_answer_video' => $this->getFirstMediaUrl('wrong_answer_video'),

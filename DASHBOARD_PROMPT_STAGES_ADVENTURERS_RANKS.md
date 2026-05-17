@@ -11,9 +11,9 @@ Use this prompt in your dashboard app so the AI can add or adjust pages, forms, 
 - **Categories** belong to a type. Use `type_id` (required) instead of `stage_id`. Fields: `type_id`, `name`, `image` (optional), `status`. No monthly/yearly price.
 - **Subcategories** belong to a category. Fields: `category_id`, `name`, `image` (optional), `status`. No `stage_id`, no monthly/yearly price.
 - **Questions** belong to type, category, and subcategory. Fields: `type_id`, `category_id`, `subcategory_id`, `name`, 4 answers with one correct, `status`, plus the 5 question videos (start, lunch, question, correct_answer, wrong_answer). No `stage_id`.
-- **API:**  
-  - Dashboard: `GET/POST .../dashboard/types`, `.../dashboard/types/{id}`; same for `categories` (filter by `type_id`), `subcategories` (filter by `category_id`), `questions` (filter by `type_id`, `category_id`, `subcategory_id`).  
-  - Remove all monthly/yearly price inputs and columns from UI.
+- **API:**
+    - Dashboard: `GET/POST .../dashboard/types`, `.../dashboard/types/{id}`; same for `categories` (filter by `type_id`), `subcategories` (filter by `category_id`), `questions` (filter by `type_id`, `category_id`, `subcategory_id`).
+    - Remove all monthly/yearly price inputs and columns from UI.
 
 ---
 
@@ -22,16 +22,17 @@ Use this prompt in your dashboard app so the AI can add or adjust pages, forms, 
 - **Stage type** is required: either **"Questions Group Stage"** (`questions_group`) or **"Life Points Stage"** (`life_points`).
 - **If "Questions Group Stage":**
   - Show field: **Question groups count** (required, integer ≥ 1).
-  - After save, the backend creates that many **question groups**. Each group has 4 videos: **Start video**, **End video**, **Correct answer video**, **Wrong answer video**.
+  - After save, the backend creates that many **question groups**. Each group has 4 videos: **Lunch video** (intro/break clip for the group — same role as life-points `lunch_video`), **End video**, **Correct answer video**, **Wrong answer video**.
   - Provide a way to assign these 4 videos **per group** (e.g. a page or section per group).  
-  - API to update a group’s videos: `POST .../dashboard/stages/{stage_id}/groups/{group_id}/videos` with `multipart/form-data`: `start_video`, `end_video`, `correct_answer_video`, `wrong_answer_video` (each optional file).
+  - API to update a group’s videos: `POST .../dashboard/stages/{stage_id}/groups/{group_id}/videos` with `multipart/form-data`: `lunch_video`, `end_video`, `correct_answer_video`, `wrong_answer_video` (each optional file). Do **not** use `start_video` on groups (removed).
+  - List/show stage responses still include `question_groups[]` with `lunch_video` per group for editing. During live games, Firebase exposes only the **active** group’s videos on the top-level `stage` object (same keys as life-points); the app does not read nested group URLs from Firebase.
 - **If "Life Points Stage":**
-  - Show fields: **Number of questions** (required), **Life points per question** (required).
-  - Show **4 video uploads for the stage** (not per group): **Start video**, **End video**, **Correct answer video**, **Wrong answer video**.
+    - Show fields: **Number of questions** (required), **Life points per question** (required).
+    - Show **4 video uploads for the stage** (not per group): **Start video**, **End video**, **Correct answer video**, **Wrong answer video**.
 - **Common stage fields (both types):** name, back icon, home icon, exit icon, status.
-- **API:**  
-  - `GET .../dashboard/stages` and `GET .../dashboard/stages/{id}` return `stage_type`, `question_groups_count`, `number_of_questions`, `life_points_per_question`, the 4 life-point videos (when applicable), and `question_groups` (array of groups, each with id, sort_order, and 4 video URLs).  
-  - Create/update: `POST .../dashboard/stages` and `POST .../dashboard/stages/{id}` with the appropriate fields and, for Life Points, the 4 video files.
+- **API:**
+    - `GET .../dashboard/stages` and `GET .../dashboard/stages/{id}` return `stage_type`, `question_groups_count`, `number_of_questions`, `life_points_per_question`, stage-level videos for **life_points** stages, and `question_groups` (array of groups, each with id, sort_order, `lunch_video`, `end_video`, `correct_answer_video`, `wrong_answer_video`).
+    - Create/update: `POST .../dashboard/stages` and `POST .../dashboard/stages/{id}` with the appropriate fields and, for Life Points, the 4 video files.
 
 ---
 
@@ -41,9 +42,9 @@ Use this prompt in your dashboard app so the AI can add or adjust pages, forms, 
 - **Fields:** name, country (optional), email, **PIN code (4 digits, acts as password)**; lifetime_score; number_correct_answers, number_wrong_answers, number_full_winnings, number_surrender_times; created_at.
 - **List:** optional filters by name, email, country, score range. Order by `lifetime_score` DESC.
 - **Create from dashboard:** include PIN (4 digits); backend stores it hashed. No `pin_code` in list/show responses.
-- **API:**  
-  - `GET/POST .../dashboard/adventurers`, `GET/POST/DELETE .../dashboard/adventurers/{id}`.  
-  - Permission: `adventurers`.
+- **API:**
+    - `GET/POST .../dashboard/adventurers`, `GET/POST/DELETE .../dashboard/adventurers/{id}`.
+    - Permission: `adventurers`.
 
 ---
 
@@ -52,10 +53,10 @@ Use this prompt in your dashboard app so the AI can add or adjust pages, forms, 
 - **Dashboard CRUD** under permission **`ranks`**.
 - **Fields:** name, **start_score** (integer), icon (optional image).
 - **End score** is not stored: it is computed as **(next rank’s start_score − 1)**. The top rank has no end (null). Show in UI as "Start score" and "End score (auto)" or similar.
-- **API:**  
-  - Dashboard: `GET/POST .../dashboard/ranks`, `GET/POST/DELETE .../dashboard/ranks/{id}`.  
-  - Response includes computed `end_score` per rank.  
-  - Permission: `ranks`.
+- **API:**
+    - Dashboard: `GET/POST .../dashboard/ranks`, `GET/POST/DELETE .../dashboard/ranks/{id}`.
+    - Response includes computed `end_score` per rank.
+    - Permission: `ranks`.
 
 ---
 

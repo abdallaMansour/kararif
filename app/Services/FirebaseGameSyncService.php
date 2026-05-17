@@ -46,7 +46,7 @@ class FirebaseGameSyncService
         try {
             $room->load(['type', 'category', 'subcategory', 'customCategory', 'roomPlayers.user.avatarRelation', 'roomPlayers.adventurer.avatarRelation']);
             $teams = (int) $room->teams;
-            $players = $room->roomPlayers->keyBy('id')->map(fn ($rp) => [
+            $players = $room->roomPlayers->keyBy('id')->map(fn($rp) => [
                 'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
                 'userName' => ($rp->adventurer ?? $rp->user)?->name ?? 'Player',
                 'avatarUrl' => $this->avatarUrlForRoomPlayer($rp),
@@ -337,36 +337,12 @@ class FirebaseGameSyncService
             return null;
         }
 
-        // Case 1: subcategory is explicitly linked to a stage — return stage with video links
+        // Case 1: subcategory is explicitly linked to a stage
         if ($subcategory->use_stage && $subcategory->stage_id && $subcategory->stage) {
             $stage = $subcategory->stage;
             $stage->load('questionGroups');
 
-            $questionGroups = $stage->questionGroups->sortBy('sort_order')->values()->map(function ($g) {
-                return [
-                    'id' => (int) $g->id,
-                    'sort_order' => (int) $g->sort_order,
-                    'start_video' => $g->getFirstMediaUrl('start_video'),
-                    'end_video' => $g->getFirstMediaUrl('end_video'),
-                    'correct_answer_video' => $g->getFirstMediaUrl('correct_answer_video'),
-                    'wrong_answer_video' => $g->getFirstMediaUrl('wrong_answer_video'),
-                ];
-            })->all();
-
-            return [
-                'id' => (int) $stage->id,
-                'name' => $stage->name,
-                'stage_type' => $stage->stage_type,
-                'question_groups_count' => (int) ($stage->question_groups_count ?? 0),
-                'number_of_questions' => (int) ($stage->number_of_questions ?? 0),
-                'life_points_per_question' => $stage->life_points_per_question !== null ? (float) $stage->life_points_per_question : null,
-                'start_video' => $stage->getFirstMediaUrl('start_video'),
-                'end_video' => $stage->getFirstMediaUrl('end_video'),
-                'lunch_video' => $stage->getFirstMediaUrl('lunch_video'),
-                'correct_answer_video' => $stage->getFirstMediaUrl('correct_answer_video'),
-                'wrong_answer_video' => $stage->getFirstMediaUrl('wrong_answer_video'),
-                'question_groups' => $questionGroups,
-            ];
+            return $this->formatStagePayload($stage, $session);
         }
 
         // Case 2: no stage linked -> use random stage per round (from round_stage_ids) if available
@@ -376,42 +352,19 @@ class FirebaseGameSyncService
 
         if ($stage) {
             $stage->load('questionGroups');
-            $questionGroups = $stage->questionGroups->sortBy('sort_order')->values()->map(function ($g) {
-                return [
-                    'id' => (int) $g->id,
-                    'sort_order' => (int) $g->sort_order,
-                    'start_video' => $g->getFirstMediaUrl('start_video'),
-                    'end_video' => $g->getFirstMediaUrl('end_video'),
-                    'correct_answer_video' => $g->getFirstMediaUrl('correct_answer_video'),
-                    'wrong_answer_video' => $g->getFirstMediaUrl('wrong_answer_video'),
-                ];
-            })->all();
 
-            return [
-                'id' => (int) $stage->id,
-                'name' => $stage->name,
-                'stage_type' => $stage->stage_type,
-                'question_groups_count' => (int) ($stage->question_groups_count ?? 0),
-                'number_of_questions' => (int) ($stage->number_of_questions ?? 0),
-                'life_points_per_question' => $stage->life_points_per_question !== null ? (float) $stage->life_points_per_question : null,
-                'start_video' => $stage->getFirstMediaUrl('start_video'),
-                'end_video' => $stage->getFirstMediaUrl('end_video'),
-                'lunch_video' => $stage->getFirstMediaUrl('lunch_video'),
-                'correct_answer_video' => $stage->getFirstMediaUrl('correct_answer_video'),
-                'wrong_answer_video' => $stage->getFirstMediaUrl('wrong_answer_video'),
-                'question_groups' => $questionGroups,
-            ];
+            return $this->formatStagePayload($stage, $session);
         }
 
         // Fallback when no stages exist in DB: virtual stage
         $effectiveStageType = $gameService->getEffectiveStageType($room, $session, $currentRoundNumber);
         $questionsCount = (int) ($room->questions_count ?? $room->rounds ?? 0);
 
-        return [
+        $payload = [
             'id' => null,
             'name' => $subcategory->name,
             'stage_type' => $effectiveStageType,
-            'question_groups_count' => 1,
+            'question_groups_count' => $effectiveStageType === Stage::TYPE_QUESTIONS_GROUP ? 1 : 0,
             'number_of_questions' => $questionsCount,
             'life_points_per_question' => $effectiveStageType === Stage::TYPE_LIFE_POINTS ? 1 : null,
             'start_video' => null,
@@ -419,17 +372,45 @@ class FirebaseGameSyncService
             'lunch_video' => null,
             'correct_answer_video' => null,
             'wrong_answer_video' => null,
-            'question_groups' => [
-                [
-                    'id' => 1,
-                    'sort_order' => 0,
-                    'start_video' => null,
-                    'end_video' => null,
-                    'correct_answer_video' => null,
-                    'wrong_answer_video' => null,
-                ],
-            ],
+            'question_groups' => [],
         ];
+
+        if ($effectiveStageType === Stage::TYPE_QUESTIONS_GROUP) {
+            $payload['currentGroupIndex'] = 0;
+        }
+
+        return $payload;
+    }
+
+    private function formatStagePayload(Stage $stage, ?GameSession $session): array
+    {
+        $gameService = app(GameService::class);
+        $videos = $gameService->resolveStageVideoPayload($stage, $session);
+        $currentGroupIndex = $videos['currentGroupIndex'];
+        unset($videos['currentGroupIndex']);
+
+        $payload = [
+            'id' => (int) $stage->id,
+            'name' => $stage->name,
+            'stage_type' => $stage->stage_type,
+            'question_groups_count' => (int) ($stage->question_groups_count ?? 0),
+            'number_of_questions' => (int) ($stage->number_of_questions ?? 0),
+            'life_points_per_question' => $stage->life_points_per_question !== null
+                ? (float) $stage->life_points_per_question
+                : null,
+            'start_video' => $videos['start_video'],
+            'end_video' => $videos['end_video'],
+            'lunch_video' => $videos['lunch_video'],
+            'correct_answer_video' => $videos['correct_answer_video'],
+            'wrong_answer_video' => $videos['wrong_answer_video'],
+            'question_groups' => [],
+        ];
+
+        if ($stage->stage_type === Stage::TYPE_QUESTIONS_GROUP && $currentGroupIndex !== null) {
+            $payload['currentGroupIndex'] = (int) $currentGroupIndex;
+        }
+
+        return $payload;
     }
 
     private function buildRoundMeta(GameSession $session): array
@@ -450,7 +431,7 @@ class FirebaseGameSyncService
             ? Stage::TYPE_LIFE_POINTS
             : $gameService->getEffectiveStageType($room, $session, $roundNumber);
 
-        return [
+        $round = [
             // Round number is 1-based.
             'roundNumber' => (int) $roundNumber,
             // Round type for UI switching (questions_group vs life_points).
@@ -467,6 +448,31 @@ class FirebaseGameSyncService
             'isRoundStart' => $currentQuestionInRound === 1,
             'isRoundEnd' => $roundQuestionsCount > 0 && $currentQuestionInRound === $roundQuestionsCount,
         ];
+
+        if ($roundType === Stage::TYPE_QUESTIONS_GROUP && ! (bool) $room->is_custom) {
+            $stage = $this->resolveStageForRound($room, $session, $roundNumber);
+            if ($stage) {
+                $groupProgress = $gameService->getQuestionGroupProgress($session, $stage);
+                $round['currentGroupIndex'] = $groupProgress['currentGroupIndex'];
+                $round['currentQuestionInGroup'] = $groupProgress['currentQuestionInGroup'];
+                $round['groupQuestionsCount'] = $groupProgress['groupQuestionsCount'];
+                $round['isGroupStart'] = $groupProgress['isGroupStart'];
+                $round['isGroupEnd'] = $groupProgress['isGroupEnd'];
+            }
+        }
+
+        return $round;
+    }
+
+    private function resolveStageForRound(Room $room, GameSession $session, int $roundNumber): ?Stage
+    {
+        $room->loadMissing('subcategory.stage');
+        $subcategory = $room->subcategory;
+        if ($subcategory && $subcategory->use_stage && $subcategory->stage_id && $subcategory->stage) {
+            return $subcategory->stage;
+        }
+
+        return app(GameService::class)->getEffectiveStageForRound($room, $session, $roundNumber);
     }
 
     private function buildQuestionData(GameSession $session): ?array
@@ -509,7 +515,7 @@ class FirebaseGameSyncService
         $teams = [];
         foreach ($byTeam as $teamId => $players) {
             $first = $players->first();
-            $playerList = $players->map(fn ($rp) => [
+            $playerList = $players->map(fn($rp) => [
                 'userId' => (string) ($rp->adventurer_id ?? $rp->user_id),
                 'userName' => ($rp->adventurer ?? $rp->user)?->name ?? 'Player',
                 'avatarUrl' => $this->avatarUrlForRoomPlayer($rp),
@@ -609,7 +615,7 @@ class FirebaseGameSyncService
     private function avatarUrlForRoomPlayer(RoomPlayer $rp): ?string
     {
         $entity = $rp->adventurer ?? $rp->user;
-        if (! $entity) {
+        if (!$entity) {
             return null;
         }
         $avatar = $entity->avatarRelation ?? null;
