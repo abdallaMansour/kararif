@@ -264,7 +264,7 @@ class FirebaseGameSyncService
             $stage = $this->buildStageData($session->room, $session);
 
             $data = [
-                'status' => $session->status,
+                'status' => 'finished',
                 'isCustom' => (bool) $session->room->is_custom,
                 'selectedQuestionsCount' => (int) ($session->room->questions_count ?? 0),
                 'lifePoints' => (int) ($session->room->life_points ?? 5),

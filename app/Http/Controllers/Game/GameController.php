@@ -661,6 +661,24 @@ class GameController extends Controller
 
         $session = $this->gameService->ensureSessionPlaying($session);
 
+        $questionIds = $session->question_ids ?? [];
+        $remainingCount = max(0, count($questionIds) - $session->current_round);
+        if ($remainingCount === 0 && $session->status === 'paused') {
+            $this->gameService->advanceFinishedSessionIfLastQuestion($session);
+            $session = $session->fresh(['room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups']);
+        } elseif ($remainingCount === 0 && $session->status === 'playing') {
+            $timerElapsed = $session->question_started_at
+                && $session->question_started_at->diffInSeconds(now()) >= GameService::QUESTION_TIME_LIMIT_SECONDS;
+            if ($timerElapsed) {
+                $this->gameService->applyPlayingQuestionTimeout($session->fresh(), true);
+                $session = $session->fresh(['room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups']);
+                if ($session->status === 'paused') {
+                    $this->gameService->advanceFinishedSessionIfLastQuestion($session);
+                    $session = $session->fresh(['room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups']);
+                }
+            }
+        }
+
         $questionData = in_array($session->status, ['playing', 'paused'], true)
             ? $this->gameService->getCurrentQuestion($session)
             : null;
@@ -681,9 +699,6 @@ class GameController extends Controller
         $timeLeft = $session->question_started_at
             ? max(0, $questionLimit - (int) $session->question_started_at->diffInSeconds(now()))
             : $questionLimit;
-
-        $questionIds = $session->question_ids ?? [];
-        $remainingCount = max(0, count($questionIds) - $session->current_round);
 
         $data = [
             'sessionId' => (string) $session->id,

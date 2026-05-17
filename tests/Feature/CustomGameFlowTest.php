@@ -349,7 +349,8 @@ class CustomGameFlowTest extends TestCase
         $result = $gameService->applyPlayingQuestionTimeout($session->fresh(), true);
 
         $this->assertTrue($result['applied']);
-        $this->assertSame('paused', $result['session']->status);
+        $this->assertSame('finished', $result['session']->status);
+        $this->assertTrue($result['session_finished'] ?? false);
 
         $room = $room->fresh()->load('roomPlayers');
         foreach ($room->roomPlayers as $player) {

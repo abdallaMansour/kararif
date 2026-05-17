@@ -11,8 +11,10 @@ use App\Http\Requests\Users\ChangePasswordRequest;
 use App\Http\Requests\Users\ChangeUserInfoRequest;
 use App\Http\Requests\Users\UpdateProfileRequest;
 use App\Http\Resources\Users\UserResource;
+use App\Models\Adventurer;
 use App\Models\RoomPlayer;
 use App\Models\User;
+use App\Services\GameService;
 use App\Services\RankPrizeService;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +24,8 @@ class UserController extends Controller
 {
     public function __construct(
         protected UserService $userService,
-        protected RankPrizeService $rankPrizeService
+        protected RankPrizeService $rankPrizeService,
+        protected GameService $gameService,
     ) {}
 
     public function changePassword(ChangePasswordRequest $request)
@@ -42,8 +45,9 @@ class UserController extends Controller
 
     public function getProfile(): JsonResponse
     {
-        /** @var User $user */
+        /** @var User|Adventurer $user */
         $user = auth()->guard('sanctum')->user()->load('avatarRelation');
+        $this->gameService->finalizeStuckSessionsForParticipant($user);
         $this->rankPrizeService->syncUserRankPrizes($user);
         $user->refresh();
         $data = (new UserResource($user))->toArray(request());

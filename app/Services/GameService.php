@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\Adventurer;
 use App\Models\Room;
 use App\Models\RoomPlayer;
 use App\Models\GameSession;
+use App\Models\User;
 use App\Models\SessionAnswer;
 use App\Models\Question;
 use App\Models\CustomQuestion;
@@ -1063,12 +1065,14 @@ class GameService
                 ->where('correct', false)
                 ->exists();
             $this->firebaseSync->syncSessionPaused($paused, $everyAnswerCorrectThisQuestion);
+            $this->advanceFinishedSessionIfLastQuestion($paused->fresh());
 
             return [
                 'applied' => true,
                 'reason' => 'timeout_penalties_recovered',
-                'session' => $paused,
+                'session' => $session->fresh(),
                 'all_leaders_answered' => $allLeadersAnswered,
+                'session_finished' => $session->fresh()->status === 'finished',
             ];
         }
 
@@ -1093,6 +1097,7 @@ class GameService
             'reason' => 'timeout',
             'session' => $session->fresh(),
             'all_leaders_answered' => $allLeadersAnswered,
+            'session_finished' => $session->fresh()->status === 'finished',
         ];
     }
 
@@ -1156,17 +1161,66 @@ class GameService
     }
 
     /**
+     * True when the current question is the last one in the session schedule (next advance would exceed question_ids).
+     */
+    public function isOnLastScheduledQuestion(GameSession $session): bool
+    {
+        $questionIds = $session->question_ids ?? [];
+        if ($questionIds === []) {
+            return false;
+        }
+
+        return ((int) $session->current_round + 1) > count($questionIds);
+    }
+
+    /**
+     * Close sessions left playing/paused after the final question (DB + Firebase) so profile stats stay accurate.
+     */
+    public function finalizeStuckSessionsForParticipant(User|Adventurer $user): void
+    {
+        $roomPlayerQuery = RoomPlayer::query()->whereHas('room.gameSessions', function ($q) {
+            $q->whereIn('status', ['playing', 'paused']);
+        });
+
+        if ($user instanceof Adventurer) {
+            $roomPlayerQuery->where('adventurer_id', $user->id);
+        } else {
+            $roomPlayerQuery->where('user_id', $user->id);
+        }
+
+        $roomPlayers = $roomPlayerQuery->with([
+            'room.gameSessions' => fn ($q) => $q->whereIn('status', ['playing', 'paused'])->latest('id')->limit(1),
+        ])->get();
+
+        foreach ($roomPlayers->unique('room_id') as $rp) {
+            $session = $rp->room->gameSessions->first();
+            if (! $session || ! $this->isOnLastScheduledQuestion($session)) {
+                continue;
+            }
+
+            if ($session->status === 'playing') {
+                $timerElapsed = $session->question_started_at
+                    && $session->question_started_at->diffInSeconds(now()) >= self::QUESTION_TIME_LIMIT_SECONDS;
+                if (! $timerElapsed) {
+                    continue;
+                }
+                $this->applyPlayingQuestionTimeout($session->fresh(), true);
+                $session = $session->fresh();
+            }
+
+            if ($session->status === 'paused') {
+                $this->advanceFinishedSessionIfLastQuestion($session);
+            }
+        }
+    }
+
+    /**
      * When the final question just paused, advance immediately so status becomes finished and custom usage is recorded.
      * Intermediate rounds still rely on POST .../next-question after TV animations.
      */
     public function advanceFinishedSessionIfLastQuestion(GameSession $session): void
     {
-        if ($session->status !== 'paused') {
-            return;
-        }
-        $questionIds = $session->question_ids ?? [];
-        $nextRound = (int) $session->current_round + 1;
-        if ($nextRound <= count($questionIds)) {
+        if ($session->status !== 'paused' || ! $this->isOnLastScheduledQuestion($session)) {
             return;
         }
         $this->advanceToNextQuestion($session->fresh());
@@ -1203,8 +1257,12 @@ class GameService
         }
 
         $questionIds = $session->question_ids ?? [];
-        $nextRound = $session->current_round + 1;
+        $nextRound = (int) $session->current_round + 1;
         $total = count($questionIds);
+
+        if ($total === 0) {
+            return ['finished' => false, 'invalid' => true];
+        }
 
         // Load room, stage, and players for life-points calculations
         $session->load('room.subcategory.stage', 'room.roomPlayers', 'sessionAnswers');
@@ -1285,6 +1343,22 @@ class GameService
                 $this->firebaseSync->syncSessionEnd($finished, $winnerTeamIds);
                 return ['finished' => true, 'round' => null];
             }
+        }
+
+        if ($nextRound > $total) {
+            $winnerTeamIds = $this->resolveWinnerTeamIds($session);
+            $session->update([
+                'status' => 'finished',
+                'current_round' => $nextRound,
+                'winner_team_ids' => array_values(array_map('strval', $winnerTeamIds)),
+            ]);
+            $session->room->update(['status' => 'finished']);
+            $finished = $session->fresh();
+            $this->updatePointsForFinishedSession($finished);
+            $this->recordLastRoundStageTail($finished);
+            $this->firebaseSync->syncSessionEnd($finished, $winnerTeamIds);
+
+            return ['finished' => true, 'round' => null];
         }
 
         $session->update([
