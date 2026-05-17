@@ -48,6 +48,8 @@ class UserController extends Controller
         /** @var User|Adventurer $user */
         $user = auth()->guard('sanctum')->user()->load('avatarRelation');
         $this->gameService->finalizeStuckSessionsForParticipant($user);
+        $user->refresh();
+        $this->userService->syncParticipantRecordCounters($user);
         $this->rankPrizeService->syncUserRankPrizes($user);
         $user->refresh();
         $data = (new UserResource($user))->toArray(request());

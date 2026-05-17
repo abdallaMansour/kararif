@@ -361,10 +361,7 @@ class GameService
             }
         }
 
-        $teamScores = $room->roomPlayers
-            ->groupBy('team_id')
-            ->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
-            ->map(fn ($players) => max(0, (int) $players->sum('score')));
+        $teamScores = $this->resolveTeamScoresForSession($session, $room);
 
         if ($teamScores->isEmpty()) {
             return [];
@@ -377,6 +374,38 @@ class GameService
             ->map(fn ($id) => (string) $id)
             ->values()
             ->all();
+    }
+
+    /**
+     * Per-team score totals for one session (from session_answers), not cumulative room_player.score.
+     *
+     * @return \Illuminate\Support\Collection<string, int>
+     */
+    public function resolveTeamScoresForSession(GameSession $session, ?Room $room = null): \Illuminate\Support\Collection
+    {
+        $session->loadMissing('sessionAnswers.roomPlayer');
+        $room ??= $session->room;
+        $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
+
+        $fromAnswers = $session->sessionAnswers
+            ->filter(fn (SessionAnswer $a) => $a->roomPlayer !== null)
+            ->groupBy(fn (SessionAnswer $a) => (string) $a->roomPlayer->team_id)
+            ->map(fn ($answers) => (int) $answers->sum('score_delta'));
+
+        if ($fromAnswers->isNotEmpty()) {
+            return $fromAnswers->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true));
+        }
+
+        if (! $room) {
+            return collect();
+        }
+
+        $room->loadMissing('roomPlayers');
+
+        return $room->roomPlayers
+            ->groupBy('team_id')
+            ->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
+            ->map(fn ($players) => (int) $players->sum('score'));
     }
 
     /**
@@ -915,8 +944,12 @@ class GameService
                 ->where('correct', false)
                 ->exists();
             $this->firebaseSync->syncSessionPaused($session->fresh(), $everyAnswerCorrectThisQuestion);
+            $afterPause = $session->fresh();
             // If this was the last question, finish without requiring a separate nextQuestion call (TV often skips it).
-            $this->advanceFinishedSessionIfLastQuestion($session->fresh());
+            $this->advanceFinishedSessionIfLastQuestion($afterPause);
+            if ($afterPause->fresh()->status !== 'finished') {
+                $this->finishSessionAfterAllQuestionsPlayed($afterPause->fresh());
+            }
         } else {
             // Keep playing this question, just sync updated scores
             $this->firebaseSync->syncScores($session->fresh());
@@ -1174,27 +1207,89 @@ class GameService
     }
 
     /**
+     * Every scheduled question has at least one stored answer (game was played through on clients).
+     */
+    public function allQuestionsHaveBeenPlayed(GameSession $session): bool
+    {
+        $questionIds = $session->question_ids ?? [];
+        if ($questionIds === []) {
+            return false;
+        }
+
+        $session->loadMissing('room');
+        $isCustom = (bool) $session->room?->is_custom;
+        $questionKey = $isCustom ? 'custom_question_id' : 'question_id';
+
+        foreach ($questionIds as $questionId) {
+            $answered = SessionAnswer::query()
+                ->where('game_session_id', $session->id)
+                ->where($questionKey, $questionId)
+                ->exists();
+            if (! $answered) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Finish when all question_ids were answered but TV never advanced current_round / next-question.
+     */
+    public function finishSessionAfterAllQuestionsPlayed(GameSession $session): bool
+    {
+        if ($session->status === 'finished' || ! $this->allQuestionsHaveBeenPlayed($session)) {
+            return false;
+        }
+
+        if (! in_array($session->status, ['playing', 'paused'], true)) {
+            return false;
+        }
+
+        $session->load('room.roomPlayers', 'sessionAnswers');
+        $questionIds = $session->question_ids ?? [];
+        $total = count($questionIds);
+        $existingWinners = array_map('strval', $session->winner_team_ids ?? []);
+        $winnerTeamIds = $existingWinners !== []
+            ? $existingWinners
+            : $this->resolveWinnerTeamIds($session);
+
+        $session->update([
+            'status' => 'finished',
+            'current_round' => max((int) $session->current_round, $total),
+            'winner_team_ids' => array_values(array_map('strval', $winnerTeamIds)),
+        ]);
+        $session->room?->update(['status' => 'finished']);
+
+        $finished = $session->fresh();
+        $this->updatePointsForFinishedSession($finished);
+        $this->recordLastRoundStageTail($finished);
+        $this->firebaseSync->syncSessionEnd($finished, $winnerTeamIds);
+
+        return true;
+    }
+
+    /**
      * Close sessions left playing/paused after the final question (DB + Firebase) so profile stats stay accurate.
      */
     public function finalizeStuckSessionsForParticipant(User|Adventurer $user): void
     {
-        $roomPlayerQuery = RoomPlayer::query()->whereHas('room.gameSessions', function ($q) {
-            $q->whereIn('status', ['playing', 'paused']);
-        });
+        $userService = app(UserService::class);
 
-        if ($user instanceof Adventurer) {
-            $roomPlayerQuery->where('adventurer_id', $user->id);
-        } else {
-            $roomPlayerQuery->where('user_id', $user->id);
-        }
+        $sessions = GameSession::query()
+            ->whereIn('status', ['playing', 'paused'])
+            ->whereHas('room.roomPlayers', fn ($q) => $userService->scopeRoomPlayersForParticipant($q, $user))
+            ->with('room')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('id');
 
-        $roomPlayers = $roomPlayerQuery->with([
-            'room.gameSessions' => fn ($q) => $q->whereIn('status', ['playing', 'paused'])->latest('id')->limit(1),
-        ])->get();
+        foreach ($sessions as $session) {
+            if ($this->finishSessionAfterAllQuestionsPlayed($session)) {
+                continue;
+            }
 
-        foreach ($roomPlayers->unique('room_id') as $rp) {
-            $session = $rp->room->gameSessions->first();
-            if (! $session || ! $this->isOnLastScheduledQuestion($session)) {
+            if (! $this->isOnLastScheduledQuestion($session)) {
                 continue;
             }
 
@@ -1210,6 +1305,10 @@ class GameService
 
             if ($session->status === 'paused') {
                 $this->advanceFinishedSessionIfLastQuestion($session);
+            }
+
+            if ($session->fresh()->status !== 'finished' && $this->allQuestionsHaveBeenPlayed($session->fresh())) {
+                $this->finishSessionAfterAllQuestionsPlayed($session->fresh());
             }
         }
     }
@@ -1374,6 +1473,10 @@ class GameService
 
     public function updatePointsForFinishedSession(GameSession $session): void
     {
+        if ($session->stats_applied_at !== null) {
+            return;
+        }
+
         $session->load('room.roomPlayers.adventurer', 'room.roomPlayers.user');
 
         if (empty($session->winner_team_ids)) {
@@ -1384,6 +1487,7 @@ class GameService
         $winnerTeamIds = array_map('strval', $session->winner_team_ids ?? []);
         $surrenderedTeamIds = array_map('strval', $session->surrendered_team_ids ?? []);
         $isDrawAmongWinners = count($winnerTeamIds) > 1;
+        $teamScores = $this->resolveTeamScoresForSession($session, $session->room);
 
         foreach ($session->room->roomPlayers as $rp) {
             $player = $rp->adventurer ?? $rp->user;
@@ -1399,8 +1503,6 @@ class GameService
             } elseif ($winnerTeamIds !== []) {
                 $delta = -1;
             } else {
-                $teamScores = $session->room->roomPlayers->groupBy('team_id')
-                    ->map(fn ($players) => max(0, (int) $players->sum('score')));
                 $maxScore = $teamScores->max();
                 $teamsAtMaxScore = $teamScores->filter(fn ($s) => $s === $maxScore);
                 $teamScore = $teamScores[$teamId] ?? 0;
@@ -1410,7 +1512,17 @@ class GameService
             }
 
             $player->increment('points', $delta);
+
+            if ($player instanceof Adventurer) {
+                if ($delta === 1) {
+                    $player->increment('number_full_winnings');
+                } elseif ($delta === -1) {
+                    $player->increment('number_game_losses');
+                }
+            }
         }
+
+        $session->update(['stats_applied_at' => now()]);
     }
 
     /**

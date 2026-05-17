@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Adventurer;
 use App\Models\Category;
 use App\Models\CustomCategory;
 use App\Models\CustomQuestion;
@@ -380,6 +381,58 @@ class ChatChangesRegressionTest extends TestCase
         $this->assertSame('win', $userService->classifyFinishedSessionForPlayer($room, $session, $winnerPlayer)['result']);
         $this->assertSame(1, app(UserService::class)->getWinsLosses($winner->fresh())['wins']);
         $this->assertSame(1, app(UserService::class)->getWinsLosses($loser->fresh())['losses']);
+    }
+
+    public function test_profile_stats_accumulate_win_and_loss_counters(): void
+    {
+        $t = $this->seedFallbackTaxonomy();
+        $adventurer = Adventurer::create([
+            'name' => 'Stats Player',
+            'email' => 'stats-player@example.com',
+            'pin_code' => bcrypt('1234'),
+            'password' => bcrypt('secret'),
+        ]);
+
+        foreach ([['2'], ['1']] as $winnerTeamIds) {
+            $room = Room::create([
+                'code' => strtoupper(substr(md5((string) mt_rand()), 0, 6)),
+                'type_id' => $t['type']->id,
+                'category_id' => $t['category']->id,
+                'subcategory_id' => $t['subcategory']->id,
+                'title' => 'Stats',
+                'rounds' => 1,
+                'questions_count' => 1,
+                'teams' => 2,
+                'players' => 2,
+                'status' => 'finished',
+                'expires_at' => now()->addHour(),
+            ]);
+
+            RoomPlayer::create([
+                'room_id' => $room->id,
+                'adventurer_id' => $adventurer->id,
+                'team_id' => 1,
+                'is_leader' => true,
+            ]);
+
+            $session = GameSession::create([
+                'room_id' => $room->id,
+                'current_round' => 1,
+                'status' => 'finished',
+                'question_ids' => [1],
+                'winner_team_ids' => $winnerTeamIds,
+            ]);
+
+            app(GameService::class)->updatePointsForFinishedSession($session->fresh(['room.roomPlayers.adventurer']));
+        }
+
+        $adventurer->refresh();
+        $stats = app(UserService::class)->getWinsLosses($adventurer);
+
+        $this->assertSame(1, $stats['wins']);
+        $this->assertSame(1, $stats['losses']);
+        $this->assertSame(1, (int) $adventurer->number_full_winnings);
+        $this->assertSame(1, (int) $adventurer->number_game_losses);
     }
 
 }
