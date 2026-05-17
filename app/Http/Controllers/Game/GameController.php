@@ -445,6 +445,7 @@ class GameController extends Controller
             $display->update([
                 'room_id' => $roomId,
                 'status' => TvDisplay::STATUS_LINKED,
+                'expires_at' => $room->expires_at ?? now()->addHours(24),
             ]);
             $this->firebaseSync->syncTvDisplay($display->fresh());
             $this->firebaseSync->syncRoom($room->fresh());
@@ -1082,7 +1083,7 @@ class GameController extends Controller
     }
 
     /**
-     * TV (no Bearer): displayId or deviceId must match a non-expired display linked to this session's room.
+     * TV (no Bearer): displayId or deviceId must match a display linked to this session's room.
      * With Bearer: any authenticated user who is a room player may call next-question.
      */
     private function canControlNextQuestionFromTvOrAuth(Request $request, GameSession $session): bool
@@ -1096,24 +1097,18 @@ class GameController extends Controller
 
         $displayId = $request->input('displayId', $request->input('tvDisplayId'));
         if ($displayId !== null && $displayId !== '') {
-            $display = TvDisplay::query()
-                ->whereKey((int) $displayId)
-                ->where('status', TvDisplay::STATUS_LINKED)
-                ->where('room_id', $roomId)
-                ->first();
+            $display = TvDisplay::query()->whereKey((int) $displayId)->first();
 
-            return $display !== null && ! $display->isExpired();
+            return $display !== null && $display->canControlRoomSession($roomId);
         }
 
         $deviceId = $request->input('deviceId');
         if (is_string($deviceId) && $deviceId !== '') {
             $display = TvDisplay::query()
                 ->where('device_id', $deviceId)
-                ->where('status', TvDisplay::STATUS_LINKED)
-                ->where('room_id', $roomId)
                 ->first();
 
-            return $display !== null && ! $display->isExpired();
+            return $display !== null && $display->canControlRoomSession($roomId);
         }
 
         $user = auth()->user();
