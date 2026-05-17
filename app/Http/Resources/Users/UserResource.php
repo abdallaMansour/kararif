@@ -37,6 +37,7 @@ class UserResource extends JsonResource
         }
 
         $stats = app(UserService::class)->getWinsLosses($this->resource);
+        $rankScore = RankHelper::getRankScoreForParticipant($this->resource);
 
         return [
             'id' => $this->id,
@@ -47,7 +48,8 @@ class UserResource extends JsonResource
             'phone' => $this->phone,
             'avatar' => $avatarPayload,
             'badge' => null,
-            'rank' => RankHelper::getRankForScore((float) ($this->points ?? 0)),
+            'rank' => RankHelper::getRankForScore($rankScore),
+            'rank_score' => (int) $rankScore,
             'country' => [
                 'label' => $this->country_label,
                 'code' => $this->country_code,

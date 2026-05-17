@@ -14,8 +14,7 @@ class RankPrizeService
      */
     public function syncUserRankPrizes(User|Adventurer $user): void
     {
-        $score = (float) ($user->points ?? 0);
-        $rankData = RankHelper::getRankForScore($score);
+        $rankData = RankHelper::getRankForParticipant($user);
         if (! $rankData) {
             return;
         }
