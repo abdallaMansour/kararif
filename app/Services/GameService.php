@@ -339,25 +339,47 @@ class GameService
         return $applied;
     }
 
+    /** PS layout: o1=triangle, o2=circle, o3=x, o4=square (1-based option index). */
+    private const ANSWER_SHAPE_TO_INDEX = [
+        'triangle' => 1,
+        'circle' => 2,
+        'x' => 3,
+        'square' => 4,
+    ];
+
     /**
-     * Normalize client payloads to 1–4 (supports zero-based indices and o1–o4 option ids).
+     * Normalize client payloads to 1–4 (zero-based, o1–o4, shape names, selectedOption).
+     *
+     * @param mixed ...$candidates optionIndex, answerId, shape, selectedOption, etc.
      */
-    public function normalizeAnswerOptionIndex(mixed $optionIndex = null, mixed $answerId = null): int
+    public function normalizeAnswerOptionIndex(mixed ...$candidates): int
     {
-        foreach ([$optionIndex, $answerId] as $value) {
+        foreach ($candidates as $value) {
             if ($value === null || $value === '') {
                 continue;
             }
-            if (is_string($value) && preg_match('/^o([1-4])$/i', trim($value), $matches)) {
-                return (int) $matches[1];
+            if (is_string($value)) {
+                $trimmed = trim($value);
+                if (preg_match('/^o([1-4])$/i', $trimmed, $matches)) {
+                    return (int) $matches[1];
+                }
+                $shapeKey = strtolower($trimmed);
+                if (isset(self::ANSWER_SHAPE_TO_INDEX[$shapeKey])) {
+                    return self::ANSWER_SHAPE_TO_INDEX[$shapeKey];
+                }
             }
             if (is_numeric($value)) {
                 $n = (int) $value;
-                if ($n >= 0 && $n <= 3) {
-                    return $n + 1;
+                // Ignore large numbers (often question.id sent in answerId by mistake).
+                if ($n > 4) {
+                    continue;
                 }
+                // 1–4 = one-based option index (triangle=1). Only 0 means “first option” zero-based.
                 if ($n >= 1 && $n <= 4) {
                     return $n;
+                }
+                if ($n === 0) {
+                    return 1;
                 }
             }
         }
@@ -365,15 +387,49 @@ class GameService
         return 1;
     }
 
+    public function readQuestionCorrectFlag(Question|CustomQuestion $question, int $answerIndex): bool
+    {
+        if ($answerIndex < 1 || $answerIndex > 4) {
+            return false;
+        }
+
+        $value = $question->getAttribute('is_correct_' . $answerIndex);
+        if ($value === null) {
+            return false;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_numeric($value)) {
+            return (int) $value === 1;
+        }
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['0', 'false', 'no', 'off', ''], true)) {
+                return false;
+            }
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN) ?? false;
+    }
+
+    public function resolveCorrectAnswerOptionIndex(Question|CustomQuestion $question): ?int
+    {
+        for ($i = 1; $i <= 4; $i++) {
+            if ($this->readQuestionCorrectFlag($question, $i)) {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
     public function isAnswerOptionCorrect(Question|CustomQuestion $question, int $answerIndex): bool
     {
-        return match ($answerIndex) {
-            1 => (bool) $question->is_correct_1,
-            2 => (bool) $question->is_correct_2,
-            3 => (bool) $question->is_correct_3,
-            4 => (bool) $question->is_correct_4,
-            default => false,
-        };
+        return $this->readQuestionCorrectFlag($question, $answerIndex);
     }
 
     public function isTimeoutPlaceholderAnswer(SessionAnswer $answer): bool
@@ -976,14 +1032,8 @@ class GameService
             return null;
         }
         $shapes = ['triangle', 'circle', 'x', 'square']; // PS controller: o1=triangle, o2=circle, o3=x, o4=square
-        $correctId = 'o1';
-        if ($question->is_correct_2) {
-            $correctId = 'o2';
-        } elseif ($question->is_correct_3) {
-            $correctId = 'o3';
-        } elseif ($question->is_correct_4) {
-            $correctId = 'o4';
-        }
+        $correctOptionIndex = $this->resolveCorrectAnswerOptionIndex($question);
+        $correctId = $correctOptionIndex !== null ? 'o' . $correctOptionIndex : 'o1';
 
         return [
             'id' => (string) $question->id,

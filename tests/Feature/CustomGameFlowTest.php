@@ -530,9 +530,12 @@ class CustomGameFlowTest extends TestCase
 
         $gameService = app(GameService::class);
         $this->assertSame(1, $gameService->normalizeAnswerOptionIndex(0));
+        $this->assertSame(1, $gameService->normalizeAnswerOptionIndex(1));
+        $this->assertSame(1, $gameService->normalizeAnswerOptionIndex('triangle'));
         $this->assertSame(2, $gameService->normalizeAnswerOptionIndex('o2'));
+        $this->assertSame(1, $gameService->normalizeAnswerOptionIndex(null, 25, null, 1));
 
-        $result = $gameService->submitAnswer($session->fresh(), $leader1->id, 0);
+        $result = $gameService->submitAnswer($session->fresh(), $leader1->id, 1);
         $this->assertTrue($result['correct']);
         $this->assertSame(10, $result['scoreDelta']);
 

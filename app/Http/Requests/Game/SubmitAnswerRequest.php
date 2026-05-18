@@ -16,6 +16,8 @@ class SubmitAnswerRequest extends FormRequest
         return [
             'answerId' => 'sometimes',
             'optionIndex' => 'sometimes',
+            'shape' => 'sometimes|string|max:32',
+            'selectedOption' => 'sometimes',
             'teamId' => 'nullable|integer',
         ];
     }

@@ -735,7 +735,9 @@ class GameController extends Controller
 
         $optionIndex = $this->gameService->normalizeAnswerOptionIndex(
             $request->input('optionIndex'),
-            $request->input('answerId')
+            $request->input('answerId'),
+            $request->input('shape'),
+            $request->input('selectedOption'),
         );
         $user = auth()->user();
         $roomPlayer = $user instanceof Adventurer
@@ -753,6 +755,7 @@ class GameController extends Controller
             'correct' => $result['correct'],
             'scoreDelta' => $result['scoreDelta'],
             'nextQuestionAvailable' => $result['nextQuestionAvailable'],
+            'answeredOptionIndex' => $optionIndex,
         ];
         if (!empty($result['sessionFinished'])) {
             $data['sessionFinished'] = true;
