@@ -772,7 +772,9 @@ class GameService
         if ($session) {
             $existingQuestionIds = $session->question_ids ?? [];
             if (is_array($existingQuestionIds) && !empty($existingQuestionIds)) {
-                return $session;
+                $this->refreshStaleQuestionTimer($session);
+
+                return $session->fresh();
             }
             // If a stale session row exists but has no questions, re-initialize it below.
         }
@@ -822,10 +824,18 @@ class GameService
         ];
 
         if ($session) {
-            $session->update($payload);
+            SessionAnswer::where('game_session_id', $session->id)->delete();
+            $session->update(array_merge($payload, [
+                'current_round' => 1,
+                'surrendered_team_ids' => [],
+                'winner_team_ids' => null,
+                'stats_applied_at' => null,
+            ]));
             $session = $session->fresh();
         } else {
-            $session = $room->gameSessions()->create($payload);
+            $session = $room->gameSessions()->create(array_merge($payload, [
+                'current_round' => 1,
+            ]));
         }
 
         $room->update(['status' => 'playing']);
@@ -1414,7 +1424,51 @@ class GameService
     }
 
     /**
-     * Every scheduled question has at least one stored answer (game was played through on clients).
+     * Clear an expired question timer so GET session polling cannot auto-finish the game.
+     */
+    public function refreshStaleQuestionTimer(GameSession $session): void
+    {
+        if (! in_array($session->status, ['playing', 'paused'], true) || ! $session->question_started_at) {
+            return;
+        }
+
+        $staleAfterSeconds = self::QUESTION_TIME_LIMIT_SECONDS * 2;
+        if ($session->question_started_at->diffInSeconds(now()) <= $staleAfterSeconds) {
+            return;
+        }
+
+        $session->update([
+            'question_started_at' => null,
+            'status' => 'playing',
+        ]);
+    }
+
+    /**
+     * At least one answer exists for this question slot in the current schedule.
+     */
+    public function hasAnswerForQuestionSlot(GameSession $session, int $questionRound, int|string $questionId): bool
+    {
+        $session->loadMissing('room');
+        $isCustom = (bool) $session->room?->is_custom;
+        $questionKey = $isCustom ? 'custom_question_id' : 'question_id';
+
+        if (SessionAnswer::query()
+            ->where('game_session_id', $session->id)
+            ->where('question_round', $questionRound)
+            ->where($questionKey, $questionId)
+            ->exists()) {
+            return true;
+        }
+
+        return SessionAnswer::query()
+            ->where('game_session_id', $session->id)
+            ->whereNull('question_round')
+            ->where($questionKey, $questionId)
+            ->exists();
+    }
+
+    /**
+     * Every scheduled question has at least one stored answer for the question id in that slot.
      */
     public function allQuestionsHaveBeenPlayed(GameSession $session): bool
     {
@@ -1423,13 +1477,8 @@ class GameService
             return false;
         }
 
-        $session->loadMissing('room');
-        foreach ($questionIds as $index => $_questionId) {
-            $answered = SessionAnswer::query()
-                ->where('game_session_id', $session->id)
-                ->where('question_round', $index + 1)
-                ->exists();
-            if (! $answered) {
+        foreach ($questionIds as $index => $questionId) {
+            if (! $this->hasAnswerForQuestionSlot($session, $index + 1, $questionId)) {
                 return false;
             }
         }

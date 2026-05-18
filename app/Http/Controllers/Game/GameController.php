@@ -662,22 +662,15 @@ class GameController extends Controller
 
         $session = $this->gameService->ensureSessionPlaying($session);
 
+        $this->gameService->refreshStaleQuestionTimer($session);
+        $session = $session->fresh(['room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups']);
+
         $questionIds = $session->question_ids ?? [];
         $remainingCount = max(0, count($questionIds) - $session->current_round);
-        if ($remainingCount === 0 && $session->status === 'paused') {
+        // Read-only recovery: if the final question is paused, close the session. Do not auto-timeout via GET.
+        if ($session->status === 'paused' && $this->gameService->isOnLastScheduledQuestion($session)) {
             $this->gameService->advanceFinishedSessionIfLastQuestion($session);
             $session = $session->fresh(['room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups']);
-        } elseif ($remainingCount === 0 && $session->status === 'playing') {
-            $timerElapsed = $session->question_started_at
-                && $session->question_started_at->diffInSeconds(now()) >= GameService::QUESTION_TIME_LIMIT_SECONDS;
-            if ($timerElapsed) {
-                $this->gameService->applyPlayingQuestionTimeout($session->fresh(), true);
-                $session = $session->fresh(['room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups']);
-                if ($session->status === 'paused') {
-                    $this->gameService->advanceFinishedSessionIfLastQuestion($session);
-                    $session = $session->fresh(['room.roomPlayers.user', 'room.roomPlayers.adventurer', 'room.subcategory.stage.questionGroups']);
-                }
-            }
         }
 
         $questionData = in_array($session->status, ['playing', 'paused'], true)

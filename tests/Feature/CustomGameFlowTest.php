@@ -454,6 +454,130 @@ class CustomGameFlowTest extends TestCase
         $this->assertSame(4, $livesTeam2);
     }
 
+    public function test_stale_answers_for_other_question_ids_do_not_auto_finish_session(): void
+    {
+        $user1 = User::factory()->create();
+        $user2 = User::factory()->create();
+
+        $type = Type::create(['name' => 'Fallback Type', 'status' => true]);
+        $category = Category::create(['type_id' => $type->id, 'name' => 'Fallback Category', 'status' => true]);
+        $subcategory = Subcategory::create(['category_id' => $category->id, 'name' => 'Fallback Subcategory', 'status' => true, 'use_stage' => false]);
+
+        $customCategory = CustomCategory::create([
+            'owner_user_id' => $user1->id,
+            'name' => 'Stale Cat',
+            'status' => true,
+        ]);
+
+        $oldQuestion = CustomQuestion::create([
+            'owner_user_id' => $user1->id,
+            'custom_category_id' => $customCategory->id,
+            'name' => 'Old',
+            'question_kind' => 'normal',
+            'answer_1' => 'Yes',
+            'is_correct_1' => true,
+            'answer_2' => 'No',
+            'is_correct_2' => false,
+            'answer_3' => 'Maybe',
+            'is_correct_3' => false,
+            'answer_4' => 'Skip',
+            'is_correct_4' => false,
+            'status' => true,
+        ]);
+        $newQuestion = CustomQuestion::create([
+            'owner_user_id' => $user1->id,
+            'custom_category_id' => $customCategory->id,
+            'name' => 'New',
+            'question_kind' => 'normal',
+            'answer_1' => 'Yes',
+            'is_correct_1' => true,
+            'answer_2' => 'No',
+            'is_correct_2' => false,
+            'answer_3' => 'Maybe',
+            'is_correct_3' => false,
+            'answer_4' => 'Skip',
+            'is_correct_4' => false,
+            'status' => true,
+        ]);
+
+        $room = Room::create([
+            'code' => '666666',
+            'is_custom' => true,
+            'custom_category_id' => $customCategory->id,
+            'type_id' => $type->id,
+            'category_id' => $category->id,
+            'subcategory_id' => $subcategory->id,
+            'title' => 'Stale',
+            'rounds' => 1,
+            'questions_count' => 2,
+            'life_points' => 5,
+            'teams' => 2,
+            'players' => 2,
+            'status' => 'playing',
+            'expires_at' => now()->addHour(),
+            'created_by' => $user1->id,
+        ]);
+
+        $leader1 = RoomPlayer::create([
+            'room_id' => $room->id,
+            'user_id' => $user1->id,
+            'team_id' => 1,
+            'is_leader' => true,
+        ]);
+        $leader2 = RoomPlayer::create([
+            'room_id' => $room->id,
+            'user_id' => $user2->id,
+            'team_id' => 2,
+            'is_leader' => true,
+        ]);
+
+        $anotherNew = CustomQuestion::create([
+            'owner_user_id' => $user1->id,
+            'custom_category_id' => $customCategory->id,
+            'name' => 'Another new',
+            'question_kind' => 'normal',
+            'answer_1' => 'Yes',
+            'is_correct_1' => true,
+            'answer_2' => 'No',
+            'is_correct_2' => false,
+            'answer_3' => 'Maybe',
+            'is_correct_3' => false,
+            'answer_4' => 'Skip',
+            'is_correct_4' => false,
+            'status' => true,
+        ]);
+
+        $session = GameSession::create([
+            'room_id' => $room->id,
+            'current_round' => 1,
+            'status' => 'playing',
+            'started_at' => now(),
+            'question_started_at' => now(),
+            'question_ids' => [$newQuestion->id, $anotherNew->id],
+            'surrendered_team_ids' => [],
+        ]);
+
+        // Stale row: round 2 answered for a question no longer in slot 2 of this schedule.
+        \App\Models\SessionAnswer::create([
+            'game_session_id' => $session->id,
+            'custom_question_id' => $oldQuestion->id,
+            'question_round' => 2,
+            'room_player_id' => $leader1->id,
+            'answer_index' => 1,
+            'correct' => true,
+            'score_delta' => 10,
+        ]);
+
+        $gameService = app(GameService::class);
+        $this->assertFalse($gameService->allQuestionsHaveBeenPlayed($session->fresh()));
+
+        $gameService->submitAnswer($session->fresh(), $leader1->id, 1);
+        $gameService->submitAnswer($session->fresh(), $leader2->id, 1);
+
+        $this->assertSame('paused', $session->fresh()->status);
+        $this->assertNotSame('finished', $session->fresh()->status);
+    }
+
     public function test_custom_game_advances_to_next_question_slot_after_pause(): void
     {
         $user1 = User::factory()->create();
