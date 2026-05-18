@@ -21,8 +21,8 @@ class GameService
     /** Must stay in sync with clients / TV question timer. */
     public const QUESTION_TIME_LIMIT_SECONDS = 30;
 
-    /** Life-points stage: +1 on correct, −10 on wrong (score never below 0). */
-    public const LIFE_POINTS_CORRECT_SCORE_DELTA = 1;
+    /** Life-points stage: +10 on correct, −10 on wrong (score never below 0). */
+    public const LIFE_POINTS_CORRECT_SCORE_DELTA = 10;
 
     public const LIFE_POINTS_WRONG_SCORE_DELTA = -10;
 
@@ -1255,9 +1255,26 @@ class GameService
         $totalQuestions = count($questionIds);
         $nextQuestionAvailable = $nextRound <= $totalQuestions;
 
-        if ($timedOut) {
-            // Apply synthetic wrongs (−10 / life cost) before pause; pausing first would block applyPlayingQuestionTimeout.
-            $session = $session->fresh(['room']);
+        if ($allTeamsAnswered) {
+            $session->update(['status' => 'paused']);
+            $afterPause = $session->fresh(['sessionAnswers']);
+            // If this was the last question, finish without requiring a separate nextQuestion call (TV often skips it).
+            $this->advanceFinishedSessionIfLastQuestion($afterPause);
+            if ($afterPause->fresh()->status !== 'finished') {
+                $this->finishSessionAfterAllQuestionsPlayed($afterPause->fresh());
+            }
+            $final = $session->fresh(['sessionAnswers']);
+            if ($final->status !== 'finished') {
+                $everyAnswerCorrectThisQuestion = !SessionAnswer::query()
+                    ->where('game_session_id', $final->id)
+                    ->where('question_round', (int) $final->current_round)
+                    ->where('correct', false)
+                    ->exists();
+                $this->syncFirebaseForSession($final, $everyAnswerCorrectThisQuestion);
+            }
+        } elseif ($timedOut) {
+            // Only apply timeout penalties when someone has not answered yet (never after all leaders answered).
+            $session = $session->fresh(['room', 'sessionAnswers']);
             if ($session->status === 'playing') {
                 $timeoutResult = $this->applyPlayingQuestionTimeout($session);
                 if (!empty($timeoutResult['session_finished'])) {
@@ -1269,26 +1286,9 @@ class GameService
                     ];
                 }
             }
-        } elseif ($allTeamsAnswered) {
-            $session->update(['status' => 'paused']);
-            $afterPause = $session->fresh();
-            // If this was the last question, finish without requiring a separate nextQuestion call (TV often skips it).
-            $this->advanceFinishedSessionIfLastQuestion($afterPause);
-            if ($afterPause->fresh()->status !== 'finished') {
-                $this->finishSessionAfterAllQuestionsPlayed($afterPause->fresh());
-            }
-            $final = $session->fresh();
-            if ($final->status !== 'finished') {
-                $everyAnswerCorrectThisQuestion = !SessionAnswer::query()
-                    ->where('game_session_id', $final->id)
-                    ->where('question_round', (int) $final->current_round)
-                    ->where('correct', false)
-                    ->exists();
-                $this->syncFirebaseForSession($final, $everyAnswerCorrectThisQuestion);
-            }
         } else {
-            // Keep playing this question, just sync updated scores
-            $this->firebaseSync->syncScores($session->fresh());
+            // Keep playing this question, just sync updated scores and lives
+            $this->firebaseSync->syncScores($session->fresh(['sessionAnswers']));
         }
 
         return [

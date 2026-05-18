@@ -38,7 +38,7 @@ class GameServiceAnswerNormalizationTest extends TestCase
             $this->createMock(\App\Services\CustomContentUsageService::class),
         );
 
-        $this->assertSame(1, $service->resolveScoreDeltaForAnswer(\App\Models\Stage::TYPE_LIFE_POINTS, true));
+        $this->assertSame(10, $service->resolveScoreDeltaForAnswer(\App\Models\Stage::TYPE_LIFE_POINTS, true));
         $this->assertSame(-10, $service->resolveScoreDeltaForAnswer(\App\Models\Stage::TYPE_LIFE_POINTS, false));
         $this->assertSame(0, $service->resolveScoreDeltaForAnswer(\App\Models\Stage::TYPE_QUESTIONS_GROUP, false));
         $this->assertSame(1.0, $service->getLifeCostForGameRound(

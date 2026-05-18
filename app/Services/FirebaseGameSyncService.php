@@ -137,7 +137,12 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user.avatarRelation', 'room.roomPlayers.adventurer.avatarRelation', 'room.subcategory.stage.questionGroups');
+            $session->load(
+                'room.roomPlayers.user.avatarRelation',
+                'room.roomPlayers.adventurer.avatarRelation',
+                'room.subcategory.stage.questionGroups',
+                'sessionAnswers'
+            );
             $teams = $this->buildTeamsData($session);
             $stage = $this->buildStageData($session->room, $session);
             $round = $this->buildRoundMeta($session);
@@ -247,7 +252,12 @@ class FirebaseGameSyncService
             if ($session->relationLoaded('room')) {
                 $session->room->unsetRelation('roomPlayers');
             }
-            $session->load('room.roomPlayers.user.avatarRelation', 'room.roomPlayers.adventurer.avatarRelation', 'room.subcategory.stage.questionGroups');
+            $session->load(
+                'room.roomPlayers.user.avatarRelation',
+                'room.roomPlayers.adventurer.avatarRelation',
+                'room.subcategory.stage.questionGroups',
+                'sessionAnswers'
+            );
             $teams = $this->buildTeamsData($session);
             $stage = $this->buildStageData($session->room, $session);
             $db->getReference('sessions/' . $session->id)->update(['teams' => $teams, 'stage' => $stage]);
@@ -263,7 +273,12 @@ class FirebaseGameSyncService
             return;
         }
         try {
-            $session->load('room.roomPlayers.user.avatarRelation', 'room.roomPlayers.adventurer.avatarRelation', 'room.subcategory.stage.questionGroups');
+            $session->load(
+                'room.roomPlayers.user.avatarRelation',
+                'room.roomPlayers.adventurer.avatarRelation',
+                'room.subcategory.stage.questionGroups',
+                'sessionAnswers'
+            );
             $teams = $this->buildTeamsData($session);
             $stage = $this->buildStageData($session->room, $session);
 
@@ -491,12 +506,22 @@ class FirebaseGameSyncService
         $byTeam = $room->roomPlayers->groupBy('team_id');
 
         $gameService = app(GameService::class);
-        $stageType = $gameService->getEffectiveStageType($room, $session, $gameService->getCurrentRoundNumber($session));
+        $questionIndex = max(0, (int) $session->current_round - 1);
+        $gameRoundNumber = $gameService->getGameRoundNumberForQuestionIndex($session, $questionIndex);
+        $stageType = $gameService->getEffectiveStageType($room, $session, $gameRoundNumber);
         $isLifePointsStage = $stageType === Stage::TYPE_LIFE_POINTS;
 
         $correctWrongByRoomPlayer = [];
         if ($includeAnswerStats || $isLifePointsStage) {
+            $session->loadMissing('sessionAnswers');
             $answers = $session->sessionAnswers;
+            if ($isLifePointsStage) {
+                [$roundFrom, $roundTo] = $gameService->getQuestionRoundSpanForGameRound($session, $gameRoundNumber);
+                $roundTo = min($roundTo, (int) $session->current_round);
+                $answers = $answers->filter(
+                    fn ($a) => (int) $a->question_round >= $roundFrom && (int) $a->question_round <= $roundTo
+                );
+            }
             foreach ($answers as $a) {
                 $id = $a->room_player_id;
                 if (!isset($correctWrongByRoomPlayer[$id])) {
@@ -542,17 +567,24 @@ class FirebaseGameSyncService
                 'players' => $playerList,
                 'surrendered' => $isSurrendered,
             ];
-            if ($includeAnswerStats) {
-                $teamData['correctCount'] = $correctCount;
-                $teamData['wrongCount'] = $wrongCount;
-            }
             if ($isLifePointsStage) {
-                $gameRoundNumber = $gameService->getCurrentRoundNumber($session);
                 $lifePoints = $gameService->getRemainingLivesForTeamInGameRound($session, $room, (int) $teamId, $gameRoundNumber);
                 $teamData['lifePoints'] = $lifePoints;
+                $teamData['wrongCount'] = $gameService->countWrongAnswersForTeamInGameRound(
+                    $session,
+                    $room,
+                    (int) $teamId,
+                    $gameRoundNumber
+                );
                 $teamData['isEliminated'] = $lifePoints <= 0 || $isSurrendered;
             } else {
                 $teamData['isEliminated'] = $isSurrendered;
+            }
+            if ($includeAnswerStats) {
+                $teamData['correctCount'] = $correctCount;
+                if (! $isLifePointsStage) {
+                    $teamData['wrongCount'] = $wrongCount;
+                }
             }
             $teams[(string) $teamId] = $teamData;
         }
