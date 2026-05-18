@@ -368,6 +368,7 @@ class GameService
 
     /**
      * Wrong answers in this game round only (team = all players on that team_id).
+     * Only counts slots up to the current question — future slots must not reduce lives early.
      */
     public function countWrongAnswersForTeamInGameRound(GameSession $session, Room $room, int $teamId, int $gameRoundNumber): int
     {
@@ -378,13 +379,37 @@ class GameService
 
         $teamPlayerIds = $room->roomPlayers->where('team_id', $teamId)->pluck('id')->all();
         [$roundFrom, $roundTo] = $this->getQuestionRoundSpanForGameRound($session, $gameRoundNumber);
+        $roundTo = min($roundTo, (int) $session->current_round);
 
-        return (int) SessionAnswer::query()
-            ->where('game_session_id', $session->id)
-            ->whereIn('room_player_id', $teamPlayerIds)
-            ->where('correct', false)
-            ->whereBetween('question_round', [$roundFrom, $roundTo])
-            ->count();
+        $isCustom = (bool) $room->is_custom;
+        $questionKey = $isCustom ? 'custom_question_id' : 'question_id';
+
+        $count = 0;
+        for ($r = $roundFrom; $r <= $roundTo; $r++) {
+            $questionId = $questionIds[$r - 1] ?? null;
+            if ($questionId === null) {
+                continue;
+            }
+            $count += (int) SessionAnswer::query()
+                ->where('game_session_id', $session->id)
+                ->whereIn('room_player_id', $teamPlayerIds)
+                ->where('correct', false)
+                ->where('question_round', $r)
+                ->where($questionKey, $questionId)
+                ->count();
+        }
+
+        return $count;
+    }
+
+    public function sessionQuestionCountMatchesRoom(GameSession $session, Room $room): bool
+    {
+        $expected = (int) ($room->questions_count ?? 0);
+        if ($expected <= 0) {
+            return true;
+        }
+
+        return count($session->question_ids ?? []) === $expected;
     }
 
     /**
@@ -474,6 +499,13 @@ class GameService
             return false;
         }
 
+        $questionIds = $session->question_ids ?? [];
+        $total = count($questionIds);
+        // One team may hit 0 lives mid-quiz; keep playing until all scheduled questions are done.
+        if ($total > 0 && (int) $session->current_round < $total) {
+            return false;
+        }
+
         $maxLife = $aliveTeams->count() > 0 ? $aliveTeams->max() : 0;
         $winnerTeamIds = collect($lifeByTeam)
             ->filter(fn ($life) => $life === $maxLife)
@@ -481,8 +513,6 @@ class GameService
             ->values()
             ->all();
 
-        $questionIds = $session->question_ids ?? [];
-        $total = count($questionIds);
         $nextRound = (int) $session->current_round + 1;
 
         $session->update([
@@ -769,17 +799,21 @@ class GameService
             ->latest()
             ->first();
 
+        $room->refresh();
+        $expectedQuestionCount = (int) ($room->questions_count ?? $room->rounds ?? 0);
+
         if ($session) {
             $existingQuestionIds = $session->question_ids ?? [];
-            if (is_array($existingQuestionIds) && !empty($existingQuestionIds)) {
+            if (is_array($existingQuestionIds) && ! empty($existingQuestionIds)
+                && $this->sessionQuestionCountMatchesRoom($session, $room)) {
                 $this->refreshStaleQuestionTimer($session);
 
                 return $session->fresh();
             }
-            // If a stale session row exists but has no questions, re-initialize it below.
+            // Mismatch (e.g. room now has 11 questions but session still has 1) — rebuild below.
         }
 
-        $totalQuestions = (int) ($room->questions_count ?? $room->rounds ?? 0);
+        $totalQuestions = $expectedQuestionCount;
         if ($totalQuestions <= 0) {
             // Safety fallback: avoid generating an invalid session.
             $totalQuestions = (int) ($room->rounds ?? 0);
@@ -1639,10 +1673,9 @@ class GameService
                 return $life > 0 && !in_array((string) $teamId, $surrenderedTeamIds, true);
             });
 
-            // If only one team left alive, or no team alive, finish the session now
-            if ($aliveTeams->count() <= 1 || $nextRound > $total) {
+            // Finish only when the question schedule is exhausted (not when one team hits 0 lives mid-quiz).
+            if ($nextRound > $total) {
                 $maxLife = $aliveTeams->count() > 0 ? $aliveTeams->max() : 0;
-                // Winners are teams with the highest life (allowing ties), even if 0
                 $winnerTeamIds = collect($lifeByTeam)
                     ->reject(fn ($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
                     ->filter(fn ($life) => $life === $maxLife)
@@ -1660,6 +1693,7 @@ class GameService
                 $this->updatePointsForFinishedSession($finished);
                 $this->recordLastRoundStageTail($finished);
                 $this->firebaseSync->syncSessionEnd($finished, $winnerTeamIds);
+
                 return ['finished' => true, 'round' => null];
             }
         } else {
