@@ -191,7 +191,9 @@ class FirebaseGameSyncService
                 'status' => $session->status,
                 'currentRound' => (int) $session->current_round,
                 'remainingQuestionsCount' => $remainingCount,
-                'questionStartedAt' => (int) round(microtime(true) * 1000),
+                'questionStartedAt' => $session->question_started_at
+                    ? (int) ($session->question_started_at->timestamp * 1000)
+                    : null,
                 'question' => $question,
                 'round' => $round,
                 'teams' => $teams,
@@ -222,7 +224,9 @@ class FirebaseGameSyncService
             $db->getReference('sessions/' . $session->id)->update([
                 'currentRound' => (int) $session->current_round,
                 'remainingQuestionsCount' => $remainingCount,
-                'questionStartedAt' => (int) round(microtime(true) * 1000),
+                'questionStartedAt' => $session->question_started_at
+                    ? (int) ($session->question_started_at->timestamp * 1000)
+                    : null,
                 'question' => $question,
                 'round' => $round,
                 'teams' => $teams,
@@ -539,7 +543,7 @@ class FirebaseGameSyncService
             $teamData = [
                 'id' => (string) $teamId,
                 'name' => ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId,
-                'score' => (int) max(0, $players->sum('score')),
+                'score' => $isSurrendered ? 0 : (int) max(0, $players->sum('score')),
                 'teamCode' => 'K' . $teamId,
                 'players' => $playerList,
                 'surrendered' => $isSurrendered,
@@ -565,6 +569,11 @@ class FirebaseGameSyncService
     {
         $db = $this->getDatabase();
         if (!$db) {
+            return;
+        }
+        if ($session->status === 'finished') {
+            $this->syncSessionEnd($session, $session->winner_team_ids ?? []);
+
             return;
         }
         try {

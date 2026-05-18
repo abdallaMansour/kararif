@@ -355,6 +355,18 @@ class GameService
     }
 
     /**
+     * 1-based question_round values (session current_round slots) for a game round chunk.
+     *
+     * @return array{0: int, 1: int}
+     */
+    public function getQuestionRoundSpanForGameRound(GameSession $session, int $gameRoundNumber): array
+    {
+        [$startIndex, $endIndex] = $this->getRoundQuestionRange($session, $gameRoundNumber);
+
+        return [$startIndex + 1, $endIndex + 1];
+    }
+
+    /**
      * Wrong answers in this game round only (team = all players on that team_id).
      */
     public function countWrongAnswersForTeamInGameRound(GameSession $session, Room $room, int $teamId, int $gameRoundNumber): int
@@ -364,27 +376,40 @@ class GameService
             return 0;
         }
 
-        $isCustom = (bool) $room->is_custom;
         $teamPlayerIds = $room->roomPlayers->where('team_id', $teamId)->pluck('id')->all();
+        [$roundFrom, $roundTo] = $this->getQuestionRoundSpanForGameRound($session, $gameRoundNumber);
 
         return (int) SessionAnswer::query()
             ->where('game_session_id', $session->id)
             ->whereIn('room_player_id', $teamPlayerIds)
             ->where('correct', false)
-            ->get()
-            ->filter(function ($a) use ($session, $questionIds, $isCustom, $gameRoundNumber) {
-                $qid = $isCustom ? $a->custom_question_id : $a->question_id;
-                if ($qid === null) {
-                    return false;
-                }
-                $idx = array_search($qid, $questionIds, false);
-                if ($idx === false) {
-                    return false;
-                }
-
-                return $this->getGameRoundNumberForQuestionIndex($session, (int) $idx) === $gameRoundNumber;
-            })
+            ->whereBetween('question_round', [$roundFrom, $roundTo])
             ->count();
+    }
+
+    /**
+     * Sync Firebase to match the current DB session status (avoids paused overwriting finished).
+     */
+    public function syncFirebaseForSession(GameSession $session, ?bool $lastAnswerCorrect = null): void
+    {
+        $session = $session->fresh(['room']);
+        if ($session->status === 'finished') {
+            $winnerTeamIds = array_map('strval', $session->winner_team_ids ?? []);
+            if ($winnerTeamIds === []) {
+                $winnerTeamIds = $this->resolveWinnerTeamIds($session);
+            }
+            $this->firebaseSync->syncSessionEnd($session, $winnerTeamIds);
+
+            return;
+        }
+        if ($session->status === 'paused') {
+            $this->firebaseSync->syncSessionPaused($session, $lastAnswerCorrect ?? false);
+
+            return;
+        }
+        if ($session->status === 'playing') {
+            $this->firebaseSync->syncSessionStart($session);
+        }
     }
 
     /**
@@ -889,6 +914,8 @@ class GameService
 
         return [
             'id' => (string) $question->id,
+            'questionRound' => (int) $session->current_round,
+            'questionIndex' => (int) $index,
             'title' => $question->name,
             'text' => $question->name,
             'question_kind' => $question->question_kind ?? 'normal',
@@ -942,10 +969,10 @@ class GameService
         $stageType = $this->getEffectiveStageType($room, $session, $gameRoundNumber);
         $isLifePointsStage = $stageType === Stage::TYPE_LIFE_POINTS;
 
-        // Prevent duplicate answers from the same leader for the same question
+        // Prevent duplicate answers from the same leader for this question slot (current_round).
         $existingAnswer = SessionAnswer::where('game_session_id', $session->id)
-            ->where($questionKey, $questionId)
             ->where('room_player_id', $roomPlayerId)
+            ->where('question_round', (int) $session->current_round)
             ->first();
         if ($existingAnswer) {
             return [
@@ -1009,6 +1036,7 @@ class GameService
             'game_session_id' => $session->id,
             'question_id' => $isCustomRoom ? null : $questionId,
             'custom_question_id' => $isCustomRoom ? $questionId : null,
+            'question_round' => (int) $session->current_round,
             'room_player_id' => $roomPlayerId,
             'answer_index' => $answerIndex,
             'correct' => $correct,
@@ -1047,7 +1075,7 @@ class GameService
                         continue;
                     }
                     $has = SessionAnswer::where('game_session_id', $session->id)
-                        ->where($questionKey, $questionId)
+                        ->where('question_round', (int) $session->current_round)
                         ->where('room_player_id', $leader->id)
                         ->exists();
                     if (!$has) {
@@ -1059,7 +1087,7 @@ class GameService
         } else {
             // Pause when every team has submitted an answer (team-based, not leader-based)
             $answeredRoomPlayerIds = SessionAnswer::where('game_session_id', $session->id)
-                ->where($questionKey, $questionId)
+                ->where('question_round', (int) $session->current_round)
                 ->pluck('room_player_id');
 
             $answeredTeamIds = $answeredRoomPlayerIds->isEmpty()
@@ -1105,20 +1133,21 @@ class GameService
                 }
             }
         } elseif ($allTeamsAnswered) {
-            // Pause the game and show stats / animations
             $session->update(['status' => 'paused']);
-            // Firebase: do not use only the submitter's row — clients may treat this as "everyone was correct".
-            $everyAnswerCorrectThisQuestion = !SessionAnswer::query()
-                ->where('game_session_id', $session->id)
-                ->where($questionKey, $questionId)
-                ->where('correct', false)
-                ->exists();
-            $this->firebaseSync->syncSessionPaused($session->fresh(), $everyAnswerCorrectThisQuestion);
             $afterPause = $session->fresh();
             // If this was the last question, finish without requiring a separate nextQuestion call (TV often skips it).
             $this->advanceFinishedSessionIfLastQuestion($afterPause);
             if ($afterPause->fresh()->status !== 'finished') {
                 $this->finishSessionAfterAllQuestionsPlayed($afterPause->fresh());
+            }
+            $final = $session->fresh();
+            if ($final->status !== 'finished') {
+                $everyAnswerCorrectThisQuestion = ! SessionAnswer::query()
+                    ->where('game_session_id', $final->id)
+                    ->where('question_round', (int) $final->current_round)
+                    ->where('correct', false)
+                    ->exists();
+                $this->syncFirebaseForSession($final, $everyAnswerCorrectThisQuestion);
             }
         } else {
             // Keep playing this question, just sync updated scores
@@ -1225,7 +1254,7 @@ class GameService
         $allLeadersAnswered = false;
         if ($questionId && $targetIds->isNotEmpty()) {
             $answeredCount = SessionAnswer::where('game_session_id', $session->id)
-                ->where($questionKey, $questionId)
+                ->where('question_round', (int) $session->current_round)
                 ->whereIn('room_player_id', $targetIds)
                 ->pluck('room_player_id')
                 ->unique()
@@ -1262,13 +1291,16 @@ class GameService
                 ];
             }
             $paused = $session->fresh();
-            $everyAnswerCorrectThisQuestion = !SessionAnswer::query()
-                ->where('game_session_id', $session->id)
-                ->where($questionKey, $questionId)
-                ->where('correct', false)
-                ->exists();
-            $this->firebaseSync->syncSessionPaused($paused, $everyAnswerCorrectThisQuestion);
             $this->advanceFinishedSessionIfLastQuestion($paused->fresh());
+            $paused = $session->fresh();
+            if ($paused->status !== 'finished') {
+                $everyAnswerCorrectThisQuestion = ! SessionAnswer::query()
+                    ->where('game_session_id', $session->id)
+                    ->where('question_round', (int) $session->current_round)
+                    ->where('correct', false)
+                    ->exists();
+                $this->syncFirebaseForSession($paused, $everyAnswerCorrectThisQuestion);
+            }
 
             return [
                 'applied' => true,
@@ -1292,8 +1324,11 @@ class GameService
 
         $session->update(['status' => 'paused']);
         $paused = $session->fresh();
-        $this->firebaseSync->syncSessionPaused($paused, false);
         $this->advanceFinishedSessionIfLastQuestion($paused->fresh());
+        $paused = $session->fresh();
+        if ($paused->status !== 'finished') {
+            $this->syncFirebaseForSession($paused, false);
+        }
 
         return [
             'applied' => true,
@@ -1325,7 +1360,7 @@ class GameService
         $snapshot = $session->fresh(['sessionAnswers']);
         foreach ($targets as $teamId => $player) {
             $alreadyAnswered = SessionAnswer::where('game_session_id', $session->id)
-                ->where($questionKey, $questionId)
+                ->where('question_round', (int) $session->current_round)
                 ->where('room_player_id', $player->id)
                 ->exists();
             if ($alreadyAnswered) {
@@ -1341,6 +1376,7 @@ class GameService
                     'game_session_id' => $session->id,
                     'question_id' => $isCustomRoom ? null : $questionId,
                     'custom_question_id' => $isCustomRoom ? $questionId : null,
+                    'question_round' => (int) $session->current_round,
                     'room_player_id' => $player->id,
                     'answer_index' => 0,
                     'correct' => false,
@@ -1351,6 +1387,7 @@ class GameService
                     'game_session_id' => $session->id,
                     'question_id' => $isCustomRoom ? null : $questionId,
                     'custom_question_id' => $isCustomRoom ? $questionId : null,
+                    'question_round' => (int) $session->current_round,
                     'room_player_id' => $player->id,
                     'answer_index' => 0,
                     'correct' => false,
@@ -1387,13 +1424,10 @@ class GameService
         }
 
         $session->loadMissing('room');
-        $isCustom = (bool) $session->room?->is_custom;
-        $questionKey = $isCustom ? 'custom_question_id' : 'question_id';
-
-        foreach ($questionIds as $questionId) {
+        foreach ($questionIds as $index => $_questionId) {
             $answered = SessionAnswer::query()
                 ->where('game_session_id', $session->id)
-                ->where($questionKey, $questionId)
+                ->where('question_round', $index + 1)
                 ->exists();
             if (! $answered) {
                 return false;
@@ -1633,11 +1667,11 @@ class GameService
         $session->update([
             'status' => 'playing',
             'current_round' => $nextRound,
-            'question_started_at' => now(),
+            'question_started_at' => null,
         ]);
         $advanced = $session->fresh();
-        $this->customContentUsage->recordCustomQuestionShown($advanced);
         $this->firebaseSync->syncSessionStart($advanced);
+
         return ['finished' => false, 'round' => $nextRound];
     }
 

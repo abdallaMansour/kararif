@@ -11,6 +11,7 @@ class SessionAnswer extends Model
         'game_session_id',
         'question_id',
         'custom_question_id',
+        'question_round',
         'room_player_id',
         'answer_index',
         'correct',

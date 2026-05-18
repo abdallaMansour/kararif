@@ -784,6 +784,8 @@ class GameController extends Controller
         }
 
         if ($session->status === 'finished') {
+            $this->gameService->syncFirebaseForSession($session->fresh(['room']));
+
             return ApiResponse::success([
                 'finished' => true,
                 'sessionId' => (string) $session->id,
@@ -952,13 +954,17 @@ class GameController extends Controller
         $surrenderingTeamId = $roomPlayer->team_id;
         $distinctTeamCount = $session->room->roomPlayers->pluck('team_id')->unique()->filter()->count();
 
+        RoomPlayer::where('room_id', $session->room_id)
+            ->where('team_id', $surrenderingTeamId)
+            ->update(['score' => 0]);
+
         if ($distinctTeamCount > 2) {
             // Multi-team: mark this team as surrendered; others continue
             $surrenderedIds = $session->surrendered_team_ids ?? [];
             $surrenderedIds[] = (string) $surrenderingTeamId;
             $surrenderedIds = array_values(array_unique($surrenderedIds));
             $session->update(['surrendered_team_ids' => $surrenderedIds]);
-            $this->firebaseSync->syncScores($session->fresh());
+            $this->firebaseSync->syncScores($session->fresh(['room.roomPlayers']));
 
             return ApiResponse::success([
                 'sessionId' => (string) $session->id,
@@ -991,10 +997,12 @@ class GameController extends Controller
         $this->gameService->recordLastRoundStageTail($finished);
 
         $finished->load('room.roomPlayers.user', 'room.roomPlayers.adventurer');
-        $byTeam = $finished->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) {
+        $surrenderedTeamIds = array_map('strval', $finished->surrendered_team_ids ?? []);
+        $byTeam = $finished->room->roomPlayers->groupBy('team_id')->map(function ($players, $teamId) use ($surrenderedTeamIds) {
             $first = $players->first();
             $name = ($first->adventurer ?? $first->user)?->name ?? 'الفريق ' . $teamId;
-            $score = $players->sum('score');
+            $isSurrendered = in_array((string) $teamId, $surrenderedTeamIds, true);
+            $score = $isSurrendered ? 0 : (int) $players->sum('score');
 
             return [
                 'teamId' => (string) $teamId,
