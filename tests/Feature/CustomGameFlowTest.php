@@ -534,11 +534,11 @@ class CustomGameFlowTest extends TestCase
 
         $result = $gameService->submitAnswer($session->fresh(), $leader1->id, 1);
         $this->assertTrue($result['correct']);
-        $this->assertSame(10, $result['scoreDelta']);
+        $this->assertSame(1, $result['scoreDelta']);
 
         $lives = $gameService->getRemainingLivesForTeamInGameRound($session->fresh(), $room, 1, 1);
         $this->assertSame(5, $lives);
-        $this->assertSame(10, (int) $leader1->fresh()->score);
+        $this->assertSame(1, (int) $leader1->fresh()->score);
     }
 
     public function test_stale_answers_for_other_question_ids_do_not_auto_finish_session(): void
@@ -663,6 +663,99 @@ class CustomGameFlowTest extends TestCase
 
         $this->assertSame('paused', $session->fresh()->status);
         $this->assertNotSame('finished', $session->fresh()->status);
+    }
+
+    public function test_life_points_correct_answer_keeps_lives_and_adds_score_wrong_loses_one_life(): void
+    {
+        $user1 = User::factory()->create();
+        $user2 = User::factory()->create();
+
+        $type = Type::create(['name' => 'Fallback Type', 'status' => true]);
+        $category = Category::create(['type_id' => $type->id, 'name' => 'Fallback Category', 'status' => true]);
+        $subcategory = Subcategory::create(['category_id' => $category->id, 'name' => 'Fallback Subcategory', 'status' => true, 'use_stage' => false]);
+
+        $customCategory = CustomCategory::create([
+            'owner_user_id' => $user1->id,
+            'name' => 'LP Score Cat',
+            'status' => true,
+        ]);
+
+        $question = CustomQuestion::create([
+            'owner_user_id' => $user1->id,
+            'custom_category_id' => $customCategory->id,
+            'name' => 'Pick triangle',
+            'question_kind' => 'normal',
+            'answer_1' => 'Yes',
+            'is_correct_1' => true,
+            'answer_2' => 'No',
+            'is_correct_2' => false,
+            'answer_3' => 'Maybe',
+            'is_correct_3' => false,
+            'answer_4' => 'Skip',
+            'is_correct_4' => false,
+            'status' => true,
+        ]);
+
+        $room = Room::create([
+            'code' => '101010',
+            'is_custom' => true,
+            'custom_category_id' => $customCategory->id,
+            'type_id' => $type->id,
+            'category_id' => $category->id,
+            'subcategory_id' => $subcategory->id,
+            'title' => 'LP Score',
+            'rounds' => 1,
+            'questions_count' => 1,
+            'life_points' => 5,
+            'teams' => 2,
+            'players' => 2,
+            'status' => 'playing',
+            'expires_at' => now()->addHour(),
+            'created_by' => $user1->id,
+        ]);
+
+        $leader1 = RoomPlayer::create([
+            'room_id' => $room->id,
+            'user_id' => $user1->id,
+            'team_id' => 1,
+            'is_leader' => true,
+            'score' => 0,
+        ]);
+        RoomPlayer::create([
+            'room_id' => $room->id,
+            'user_id' => $user2->id,
+            'team_id' => 2,
+            'is_leader' => true,
+            'score' => 0,
+        ]);
+
+        $session = GameSession::create([
+            'room_id' => $room->id,
+            'current_round' => 1,
+            'status' => 'playing',
+            'started_at' => now(),
+            'question_started_at' => now(),
+            'question_ids' => [$question->id],
+            'surrendered_team_ids' => [],
+        ]);
+
+        $gameService = app(GameService::class);
+
+        $correctResult = $gameService->submitAnswer($session->fresh(), $leader1->id, 1);
+        $this->assertTrue($correctResult['correct']);
+        $this->assertSame(1, $correctResult['scoreDelta']);
+        $this->assertSame(5, $gameService->getRemainingLivesForTeamInGameRound($session->fresh(), $room, 1, 1));
+        $this->assertSame(1, (int) $leader1->fresh()->score);
+
+        $session->update(['current_round' => 1, 'status' => 'playing', 'question_started_at' => now()]);
+        SessionAnswer::where('game_session_id', $session->id)->delete();
+        $leader1->update(['score' => 0]);
+
+        $wrongResult = $gameService->submitAnswer($session->fresh(), $leader1->id, 2);
+        $this->assertFalse($wrongResult['correct']);
+        $this->assertSame(-10, $wrongResult['scoreDelta']);
+        $this->assertSame(4, $gameService->getRemainingLivesForTeamInGameRound($session->fresh(), $room, 1, 1));
+        $this->assertSame(0, (int) $leader1->fresh()->score);
     }
 
     public function test_life_points_does_not_finish_entire_session_when_one_team_loses_all_lives_on_first_question(): void

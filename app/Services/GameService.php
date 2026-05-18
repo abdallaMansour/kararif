@@ -21,6 +21,14 @@ class GameService
     /** Must stay in sync with clients / TV question timer. */
     public const QUESTION_TIME_LIMIT_SECONDS = 30;
 
+    /** Life-points stage: +1 on correct, −10 on wrong (score never below 0). */
+    public const LIFE_POINTS_CORRECT_SCORE_DELTA = 1;
+
+    public const LIFE_POINTS_WRONG_SCORE_DELTA = -10;
+
+    /** Lives lost per wrong answer in life-points mode (always 1). */
+    public const LIFE_POINTS_WRONG_LIFE_COST = 1;
+
     public function __construct(
         protected FirebaseGameSyncService $firebaseSync,
         protected CustomContentUsageService $customContentUsage
@@ -315,7 +323,19 @@ class GameService
      */
     public function getLifeCostForGameRound(Room $room, GameSession $session, int $gameRoundNumber): float
     {
-        return 1.0;
+        return (float) self::LIFE_POINTS_WRONG_LIFE_COST;
+    }
+
+    /**
+     * Score change for one answer (questions group vs life points).
+     */
+    public function resolveScoreDeltaForAnswer(string $stageType, bool $correct): int
+    {
+        if ($stageType === Stage::TYPE_QUESTIONS_GROUP) {
+            return $correct ? 10 : 0;
+        }
+
+        return $correct ? self::LIFE_POINTS_CORRECT_SCORE_DELTA : self::LIFE_POINTS_WRONG_SCORE_DELTA;
     }
 
     /**
@@ -449,9 +469,13 @@ class GameService
             return 0;
         }
 
-        $teamPlayerIds = $room->roomPlayers->where('team_id', $teamId)->pluck('id')->all();
         [$roundFrom, $roundTo] = $this->getQuestionRoundSpanForGameRound($session, $gameRoundNumber);
         $roundTo = min($roundTo, (int) $session->current_round);
+
+        $leader = $this->getAnsweringRoomPlayerForTeam($room, $teamId);
+        if (! $leader) {
+            return 0;
+        }
 
         $isCustom = (bool) $room->is_custom;
         $questionKey = $isCustom ? 'custom_question_id' : 'question_id';
@@ -462,13 +486,16 @@ class GameService
             if ($questionId === null) {
                 continue;
             }
-            $count += (int) SessionAnswer::query()
+            $wrong = SessionAnswer::query()
                 ->where('game_session_id', $session->id)
-                ->whereIn('room_player_id', $teamPlayerIds)
-                ->where('correct', false)
+                ->where('room_player_id', $leader->id)
                 ->where('question_round', $r)
                 ->where($questionKey, $questionId)
-                ->count();
+                ->where('correct', false)
+                ->exists();
+            if ($wrong) {
+                $count++;
+            }
         }
 
         return $count;
@@ -1087,13 +1114,19 @@ class GameService
             ->where('question_round', (int) $session->current_round)
             ->first();
         if ($existingAnswer && ! $this->isTimeoutPlaceholderAnswer($existingAnswer)) {
-            return [
-                'correct' => $existingAnswer->correct,
-                'scoreDelta' => (int) $existingAnswer->score_delta,
-                'nextQuestionAvailable' => true,
-            ];
-        }
-        if ($existingAnswer && $this->isTimeoutPlaceholderAnswer($existingAnswer)) {
+            if ($existingAnswer->correct) {
+                return [
+                    'correct' => true,
+                    'scoreDelta' => (int) $existingAnswer->score_delta,
+                    'nextQuestionAvailable' => true,
+                ];
+            }
+            $priorPlayer = RoomPlayer::find($roomPlayerId);
+            if ($priorPlayer && (int) $existingAnswer->score_delta !== 0) {
+                $this->applyTeamScoreDelta($priorPlayer, - (int) $existingAnswer->score_delta);
+            }
+            $existingAnswer->delete();
+        } elseif ($existingAnswer && $this->isTimeoutPlaceholderAnswer($existingAnswer)) {
             $placeholderPlayer = RoomPlayer::find($roomPlayerId);
             if ($placeholderPlayer && (int) $existingAnswer->score_delta !== 0) {
                 $this->applyTeamScoreDelta($placeholderPlayer, - (int) $existingAnswer->score_delta);
@@ -1129,13 +1162,7 @@ class GameService
         }
 
         $correct = $this->isAnswerOptionCorrect($question, $answerIndex);
-
-        // Team score on leaders only: QG wrong = 0; LP correct +10 / wrong -10
-        if ($stageType === Stage::TYPE_QUESTIONS_GROUP) {
-            $scoreDelta = $correct ? 10 : 0;
-        } else {
-            $scoreDelta = $correct ? 10 : -10;
-        }
+        $scoreDelta = $this->resolveScoreDeltaForAnswer($stageType, $correct);
 
         $roomPlayer = RoomPlayer::find($roomPlayerId);
         $appliedScoreDelta = $roomPlayer
@@ -1481,7 +1508,7 @@ class GameService
                 if ($remaining <= 0) {
                     continue;
                 }
-                $appliedDelta = $this->applyTeamScoreDelta($player, -10);
+                $appliedDelta = $this->applyTeamScoreDelta($player, self::LIFE_POINTS_WRONG_SCORE_DELTA);
                 SessionAnswer::create([
                     'game_session_id' => $session->id,
                     'question_id' => $isCustomRoom ? null : $questionId,

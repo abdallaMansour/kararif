@@ -31,6 +31,23 @@ class GameServiceAnswerNormalizationTest extends TestCase
         $this->assertNull($service->normalizeAnswerOptionIndex(null));
     }
 
+    public function test_life_points_score_deltas(): void
+    {
+        $service = new GameService(
+            $this->createMock(\App\Services\FirebaseGameSyncService::class),
+            $this->createMock(\App\Services\CustomContentUsageService::class),
+        );
+
+        $this->assertSame(1, $service->resolveScoreDeltaForAnswer(\App\Models\Stage::TYPE_LIFE_POINTS, true));
+        $this->assertSame(-10, $service->resolveScoreDeltaForAnswer(\App\Models\Stage::TYPE_LIFE_POINTS, false));
+        $this->assertSame(0, $service->resolveScoreDeltaForAnswer(\App\Models\Stage::TYPE_QUESTIONS_GROUP, false));
+        $this->assertSame(1.0, $service->getLifeCostForGameRound(
+            new \App\Models\Room(['life_points' => 5]),
+            new \App\Models\GameSession(),
+            1
+        ));
+    }
+
     public function test_read_correct_flag_handles_int_and_string(): void
     {
         $service = new GameService(
