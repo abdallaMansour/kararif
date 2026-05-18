@@ -735,10 +735,14 @@ class GameController extends Controller
 
         $optionIndex = $this->gameService->normalizeAnswerOptionIndex(
             $request->input('optionIndex'),
-            $request->input('answerId'),
             $request->input('shape'),
-            $request->input('selectedOption'),
         );
+        if ($optionIndex === null) {
+            return ApiResponse::error(
+                'optionIndex يجب أن يكون بين 1 و 4 (مثلث=1، دائرة=2، x=3، مربع=4)',
+                422
+            );
+        }
         $user = auth()->user();
         $roomPlayer = $user instanceof Adventurer
             ? RoomPlayer::where('room_id', $session->room_id)->where('adventurer_id', $user->id)->first()

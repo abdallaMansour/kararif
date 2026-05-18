@@ -348,43 +348,32 @@ class GameService
     ];
 
     /**
-     * Normalize client payloads to 1–4 (zero-based, o1–o4, shape names, selectedOption).
+     * Resolve answer to option index 1–4 only: triangle=1, circle=2, x=3, square=4.
      *
-     * @param mixed ...$candidates optionIndex, answerId, shape, selectedOption, etc.
+     * @param mixed ...$candidates Typically optionIndex (1–4) and/or shape name.
+     * @return int|null Null when input is missing or not a valid option (1–4 / shape).
      */
-    public function normalizeAnswerOptionIndex(mixed ...$candidates): int
+    public function normalizeAnswerOptionIndex(mixed ...$candidates): ?int
     {
         foreach ($candidates as $value) {
             if ($value === null || $value === '') {
                 continue;
             }
             if (is_string($value)) {
-                $trimmed = trim($value);
-                if (preg_match('/^o([1-4])$/i', $trimmed, $matches)) {
-                    return (int) $matches[1];
-                }
-                $shapeKey = strtolower($trimmed);
+                $shapeKey = strtolower(trim($value));
                 if (isset(self::ANSWER_SHAPE_TO_INDEX[$shapeKey])) {
                     return self::ANSWER_SHAPE_TO_INDEX[$shapeKey];
                 }
             }
             if (is_numeric($value)) {
                 $n = (int) $value;
-                // Ignore large numbers (often question.id sent in answerId by mistake).
-                if ($n > 4) {
-                    continue;
-                }
-                // 1–4 = one-based option index (triangle=1). Only 0 means “first option” zero-based.
                 if ($n >= 1 && $n <= 4) {
                     return $n;
-                }
-                if ($n === 0) {
-                    return 1;
                 }
             }
         }
 
-        return 1;
+        return null;
     }
 
     public function readQuestionCorrectFlag(Question|CustomQuestion $question, int $answerIndex): bool

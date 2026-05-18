@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 
 class GameServiceAnswerNormalizationTest extends TestCase
 {
-    public function test_normalize_maps_triangle_and_option_index_one(): void
+    public function test_normalize_accepts_only_one_to_four_and_shapes(): void
     {
         $service = new GameService(
             $this->createMock(\App\Services\FirebaseGameSyncService::class),
@@ -16,10 +16,19 @@ class GameServiceAnswerNormalizationTest extends TestCase
         );
 
         $this->assertSame(1, $service->normalizeAnswerOptionIndex(1));
+        $this->assertSame(2, $service->normalizeAnswerOptionIndex(2));
+        $this->assertSame(3, $service->normalizeAnswerOptionIndex(3));
+        $this->assertSame(4, $service->normalizeAnswerOptionIndex(4));
+
         $this->assertSame(1, $service->normalizeAnswerOptionIndex('triangle'));
-        $this->assertSame(1, $service->normalizeAnswerOptionIndex(0));
-        $this->assertSame(1, $service->normalizeAnswerOptionIndex('o1'));
-        $this->assertSame(1, $service->normalizeAnswerOptionIndex(null, 25, null, 1));
+        $this->assertSame(2, $service->normalizeAnswerOptionIndex('circle'));
+        $this->assertSame(3, $service->normalizeAnswerOptionIndex('x'));
+        $this->assertSame(4, $service->normalizeAnswerOptionIndex('square'));
+
+        $this->assertNull($service->normalizeAnswerOptionIndex(0));
+        $this->assertNull($service->normalizeAnswerOptionIndex('o1'));
+        $this->assertNull($service->normalizeAnswerOptionIndex(25));
+        $this->assertNull($service->normalizeAnswerOptionIndex(null));
     }
 
     public function test_read_correct_flag_handles_int_and_string(): void
