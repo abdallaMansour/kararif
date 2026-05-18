@@ -297,10 +297,6 @@ class FirebaseGameSyncService
             $cs = $room->customStage;
 
             if ($cs) {
-                $lifePointsPerQuestion = $cs->life_points_per_question !== null
-                    ? (float) $cs->life_points_per_question
-                    : (float) ($room->life_points ?? 5);
-
                 return [
                     'id' => (int) $cs->id,
                     'name' => $cs->name,
@@ -308,7 +304,7 @@ class FirebaseGameSyncService
                     'stage_type' => Stage::TYPE_LIFE_POINTS,
                     'question_groups_count' => 0,
                     'number_of_questions' => (int) ($room->questions_count ?? 0),
-                    'life_points_per_question' => $lifePointsPerQuestion,
+                    'life_points_per_question' => 1.0,
                     'start_video' => $cs->getFirstMediaUrl('start_video') ?: null,
                     'end_video' => $cs->getFirstMediaUrl('end_video') ?: null,
                     'lunch_video' => $cs->getFirstMediaUrl('lunch_video') ?: null,
@@ -325,7 +321,7 @@ class FirebaseGameSyncService
                 'stage_type' => Stage::TYPE_LIFE_POINTS,
                 'question_groups_count' => 0,
                 'number_of_questions' => (int) ($room->questions_count ?? 0),
-                'life_points_per_question' => (float) ($room->life_points ?? 5),
+                'life_points_per_question' => 1.0,
                 'start_video' => null,
                 'end_video' => null,
                 'lunch_video' => null,
@@ -399,9 +395,7 @@ class FirebaseGameSyncService
             'stage_type' => $stage->stage_type,
             'question_groups_count' => (int) ($stage->question_groups_count ?? 0),
             'number_of_questions' => (int) ($stage->number_of_questions ?? 0),
-            'life_points_per_question' => $stage->life_points_per_question !== null
-                ? (float) $stage->life_points_per_question
-                : null,
+            'life_points_per_question' => $stage->stage_type === Stage::TYPE_LIFE_POINTS ? 1.0 : null,
             'start_video' => $videos['start_video'],
             'end_video' => $videos['end_video'],
             'lunch_video' => $videos['lunch_video'],

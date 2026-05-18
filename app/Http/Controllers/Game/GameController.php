@@ -733,7 +733,10 @@ class GameController extends Controller
             return ApiResponse::error('اللعبة لم تبدأ بعد', 400);
         }
 
-        $optionIndex = (int) $request->input('optionIndex', $request->input('answerId', 1));
+        $optionIndex = $this->gameService->normalizeAnswerOptionIndex(
+            $request->input('optionIndex'),
+            $request->input('answerId')
+        );
         $user = auth()->user();
         $roomPlayer = $user instanceof Adventurer
             ? RoomPlayer::where('room_id', $session->room_id)->where('adventurer_id', $user->id)->first()

@@ -11,9 +11,6 @@ class DashboardCustomStageResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'life_points_per_question' => $this->life_points_per_question !== null
-                ? (float) $this->life_points_per_question
-                : null,
             'status' => (bool) $this->status,
             'cover_image_url' => $this->getFirstMediaUrl('cover_image'),
             'start_video' => $this->getFirstMediaUrl('start_video'),

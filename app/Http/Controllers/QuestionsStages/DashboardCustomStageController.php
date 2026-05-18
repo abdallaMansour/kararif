@@ -46,6 +46,7 @@ class DashboardCustomStageController extends Controller
                 $data['correct_answer_video'],
                 $data['wrong_answer_video'],
                 $data['number_of_questions'],
+                $data['life_points_per_question'],
             );
 
             $customStage = CustomStage::create($data);
@@ -82,6 +83,7 @@ class DashboardCustomStageController extends Controller
                 $data['correct_answer_video'],
                 $data['wrong_answer_video'],
                 $data['number_of_questions'],
+                $data['life_points_per_question'],
             );
 
             $custom_stage->update($data);

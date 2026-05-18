@@ -17,7 +17,6 @@ class CustomStageRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'life_points_per_question' => ['required', 'numeric', 'min:1'],
             'status' => ['nullable', 'boolean'],
             'cover_image' => ['nullable', 'file', 'image', 'max:5120'],
             'start_video' => ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/ogg,video/quicktime', 'max:71680'],

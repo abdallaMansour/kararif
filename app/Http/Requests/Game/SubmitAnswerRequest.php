@@ -14,8 +14,8 @@ class SubmitAnswerRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'answerId' => 'sometimes|integer',
-            'optionIndex' => 'sometimes|integer|min:1|max:4',
+            'answerId' => 'sometimes',
+            'optionIndex' => 'sometimes',
             'teamId' => 'nullable|integer',
         ];
     }

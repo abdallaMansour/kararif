@@ -14,7 +14,6 @@ class DashboardStageResource extends JsonResource
             'stage_type' => $this->stage_type,
             'question_groups_count' => $this->question_groups_count,
             'number_of_questions' => $this->number_of_questions,
-            'life_points_per_question' => $this->life_points_per_question,
             'start_video' => $this->getFirstMediaUrl('start_video'),
             'end_video' => $this->getFirstMediaUrl('end_video'),
             'lunch_video' => $this->getFirstMediaUrl('lunch_video'),

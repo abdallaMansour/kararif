@@ -34,6 +34,7 @@ class DashboardStageController extends Controller
             foreach ($files as $f) {
                 unset($data[$f]);
             }
+            unset($data['life_points_per_question']);
             $stage = Stage::create($data);
 
             if ($stage->stage_type === Stage::TYPE_LIFE_POINTS) {
@@ -71,6 +72,7 @@ class DashboardStageController extends Controller
             foreach ($files as $f) {
                 unset($data[$f]);
             }
+            unset($data['life_points_per_question']);
             $stage->update($data);
 
             if ($stage->stage_type === Stage::TYPE_LIFE_POINTS) {
