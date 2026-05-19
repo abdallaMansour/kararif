@@ -31,6 +31,35 @@ class GameServiceAnswerNormalizationTest extends TestCase
         $this->assertNull($service->normalizeAnswerOptionIndex(null));
     }
 
+    public function test_initial_life_points_is_half_of_life_points_questions_in_round(): void
+    {
+        $service = new GameService(
+            $this->createMock(\App\Services\FirebaseGameSyncService::class),
+            $this->createMock(\App\Services\CustomContentUsageService::class),
+        );
+
+        $room = new \App\Models\Room([
+            'is_custom' => true,
+            'rounds' => 1,
+            'questions_count' => 30,
+        ]);
+        $session = new \App\Models\GameSession([
+            'current_round' => 1,
+            'question_ids' => array_fill(0, 30, 1),
+        ]);
+        $session->setRelation('room', $room);
+
+        $this->assertSame(15, $service->getInitialLifePointsForGameRound($session, $room, 1));
+        $this->assertSame(7, $service->getInitialLifePointsForGameRound(
+            new \App\Models\GameSession([
+                'current_round' => 1,
+                'question_ids' => array_fill(0, 15, 1),
+            ]),
+            $room,
+            1
+        ));
+    }
+
     public function test_life_points_score_deltas(): void
     {
         $service = new GameService(

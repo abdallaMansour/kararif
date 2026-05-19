@@ -15,11 +15,15 @@ use App\Models\CustomStage;
 use App\Models\Stage;
 use App\Models\StageQuestionGroup;
 use App\Models\TvDisplay;
+use Illuminate\Support\Facades\Cache;
 
 class GameService
 {
     /** Must stay in sync with clients / TV question timer. */
     public const QUESTION_TIME_LIMIT_SECONDS = 30;
+
+    /** Shared cooldown for POST timeout, next-question, and answer (seconds). */
+    public const QUESTION_FLOW_COOLDOWN_SECONDS = 10;
 
     /** Life-points stage: +10 on correct, −10 on wrong (score never below 0). */
     public const LIFE_POINTS_CORRECT_SCORE_DELTA = 10;
@@ -537,6 +541,154 @@ class GameService
     }
 
     /**
+     * Questions in a game round that use the life_points stage type.
+     */
+    public function countLifePointsQuestionsInGameRound(GameSession $session, Room $room, int $gameRoundNumber): int
+    {
+        if ($this->getEffectiveStageType($room, $session, $gameRoundNumber) !== Stage::TYPE_LIFE_POINTS) {
+            return 0;
+        }
+
+        [$startIndex, $endIndex] = $this->getRoundQuestionRange($session, $gameRoundNumber);
+        if ($endIndex < $startIndex) {
+            return 0;
+        }
+
+        return $endIndex - $startIndex + 1;
+    }
+
+    /**
+     * Starting lives per team for a life-points game round: 50% of LP question count (integer half; 15 → 7).
+     */
+    public function getInitialLifePointsForGameRound(GameSession $session, Room $room, int $gameRoundNumber): int
+    {
+        $lpQuestionCount = $this->countLifePointsQuestionsInGameRound($session, $room, $gameRoundNumber);
+        if ($lpQuestionCount <= 0) {
+            return 1;
+        }
+
+        return max(1, intdiv($lpQuestionCount, 2));
+    }
+
+    /**
+     * Session-level initial lives for Firebase / API: current game round when in LP, else 0.
+     */
+    public function resolveSessionLifePointsPoolForDisplay(GameSession $session, Room $room): int
+    {
+        $session->loadMissing('room');
+        $questionIds = $session->question_ids ?? [];
+        if ($questionIds === []) {
+            return 0;
+        }
+
+        $roundIndex = max(0, min((int) $session->current_round - 1, count($questionIds) - 1));
+        $gameRoundNumber = $this->getGameRoundNumberForQuestionIndex($session, $roundIndex);
+        if ($this->getEffectiveStageType($room, $session, $gameRoundNumber) !== Stage::TYPE_LIFE_POINTS) {
+            return 0;
+        }
+
+        return $this->getInitialLifePointsForGameRound($session, $room, $gameRoundNumber);
+    }
+
+    /**
+     * Initial life pool for lobby / room payloads (uses session schedule when available).
+     */
+    public function resolveLifePointsPoolForRoom(Room $room, ?GameSession $session = null): int
+    {
+        if ($session && !empty($session->question_ids)) {
+            return $this->resolveSessionLifePointsPoolForDisplay($session, $room);
+        }
+
+        if ((bool) $room->is_custom) {
+            $count = (int) ($room->questions_count ?? 0);
+
+            return $count > 0 ? max(1, intdiv($count, 2)) : 0;
+        }
+
+        $room->loadMissing('subcategory.stage');
+        $subcategory = $room->subcategory;
+        if ($subcategory && $subcategory->use_stage && $subcategory->stage) {
+            if ($subcategory->stage->stage_type !== Stage::TYPE_LIFE_POINTS) {
+                return 0;
+            }
+            $count = (int) ($room->questions_count ?? 0);
+
+            return $count > 0 ? max(1, intdiv($count, 2)) : 0;
+        }
+
+        $roundsCount = max(1, (int) ($room->rounds ?? 1));
+        $totalQuestions = (int) ($room->questions_count ?? 0);
+        if ($totalQuestions <= 0) {
+            return 0;
+        }
+
+        $perRound = intdiv($totalQuestions, $roundsCount);
+        $remainder = $totalQuestions % $roundsCount;
+        $creatorCount = $this->getCreatorFinishedSessionsCountForSubcategory($room, null);
+        $tail = $this->getTailForRoom($room);
+        $startWithQuestionsGroup = ($creatorCount % 2) === 0;
+        if ($tail !== null) {
+            $startWithQuestionsGroup = $tail->last_round_stage_type === Stage::TYPE_LIFE_POINTS;
+        }
+
+        for ($r = 1; $r <= $roundsCount; $r++) {
+            $roundSize = $perRound + ($r <= $remainder ? 1 : 0);
+            $typeIndex = ($startWithQuestionsGroup ? 0 : 1) + ($r - 1);
+            if (($typeIndex % 2) === 1) {
+                return max(1, intdiv($roundSize, 2));
+            }
+        }
+
+        return 0;
+    }
+
+    public function questionFlowCooldownRemainingSeconds(GameSession $session): int
+    {
+        if (!$session->last_question_flow_at) {
+            return 0;
+        }
+
+        $elapsed = $session->last_question_flow_at->diffInSeconds(now());
+
+        return max(0, self::QUESTION_FLOW_COOLDOWN_SECONDS - $elapsed);
+    }
+
+    public function isQuestionFlowCooldownActive(GameSession $session): bool
+    {
+        return $this->questionFlowCooldownRemainingSeconds($session) > 0;
+    }
+
+    public function recordQuestionFlowAction(GameSession $session): void
+    {
+        $session->update(['last_question_flow_at' => now()]);
+    }
+
+    private function submitAnswerCooldownCacheKey(GameSession $session, int $roomPlayerId): string
+    {
+        return 'game_session_' . $session->id . '_answer_' . $roomPlayerId . '_round_' . (int) $session->current_round;
+    }
+
+    public function submitAnswerCooldownRemainingSeconds(GameSession $session, int $roomPlayerId): int
+    {
+        $expiresAt = Cache::get($this->submitAnswerCooldownCacheKey($session, $roomPlayerId));
+        if ($expiresAt === null) {
+            return 0;
+        }
+
+        return max(0, (int) $expiresAt - time());
+    }
+
+    public function recordSubmitAnswerAction(GameSession $session, int $roomPlayerId): void
+    {
+        $ttl = self::QUESTION_FLOW_COOLDOWN_SECONDS;
+        Cache::put(
+            $this->submitAnswerCooldownCacheKey($session, $roomPlayerId),
+            time() + $ttl,
+            $ttl
+        );
+    }
+
+    /**
      * Remaining lives for a team within one game round (resets each life-points round; wrongs from other rounds ignored).
      */
     public function getRemainingLivesForTeamInGameRound(GameSession $session, Room $room, int $teamId, int $gameRoundNumber): int
@@ -546,7 +698,7 @@ class GameService
             return max(1, (int) ($room->life_points ?? 5));
         }
 
-        $initial = max(1, (int) ($room->life_points ?? 5));
+        $initial = $this->getInitialLifePointsForGameRound($session, $room, $gameRoundNumber);
         $cost = $this->getLifeCostForGameRound($room, $session, $gameRoundNumber);
         $wrongs = $this->countWrongAnswersForTeamInGameRound($session, $room, $teamId, $gameRoundNumber);
 

@@ -14,6 +14,11 @@ class FirebaseGameSyncService
 {
     private ?Database $database = null;
 
+    private function resolveLifePointsPool(?GameSession $session, Room $room): int
+    {
+        return app(GameService::class)->resolveLifePointsPoolForRoom($room, $session);
+    }
+
     private function getDatabase(): ?Database
     {
         if ($this->database !== null) {
@@ -70,7 +75,7 @@ class FirebaseGameSyncService
                 'rounds' => (int) $room->rounds,
                 'questionsCount' => (int) ($room->questions_count ?? $room->rounds ?? 0),
                 'selectedQuestionsCount' => (int) ($room->questions_count ?? 0),
-                'lifePoints' => (int) ($room->life_points ?? 5),
+                'lifePoints' => $this->resolveLifePointsPool(null, $room),
                 'teams' => $teams,
                 'maxPlayers' => (int) $room->players,
                 'joinedCount' => $room->roomPlayers->count(),
@@ -152,7 +157,7 @@ class FirebaseGameSyncService
                 'sessionId' => (string) $session->id,
                 'isCustom' => (bool) $session->room->is_custom,
                 'selectedQuestionsCount' => (int) ($session->room->questions_count ?? 0),
-                'lifePoints' => (int) ($session->room->life_points ?? 5),
+                'lifePoints' => $this->resolveLifePointsPool($session, $session->room),
                 'status' => 'starting',
                 'currentRound' => 0,
                 'startTimerEndsAt' => $session->start_timer_ends_at
@@ -192,7 +197,7 @@ class FirebaseGameSyncService
                 'sessionId' => (string) $session->id,
                 'isCustom' => (bool) $session->room->is_custom,
                 'selectedQuestionsCount' => (int) ($session->room->questions_count ?? 0),
-                'lifePoints' => (int) ($session->room->life_points ?? 5),
+                'lifePoints' => $this->resolveLifePointsPool($session, $session->room),
                 'status' => $session->status,
                 'currentRound' => (int) $session->current_round,
                 'remainingQuestionsCount' => $remainingCount,
@@ -286,7 +291,7 @@ class FirebaseGameSyncService
                 'status' => 'finished',
                 'isCustom' => (bool) $session->room->is_custom,
                 'selectedQuestionsCount' => (int) ($session->room->questions_count ?? 0),
-                'lifePoints' => (int) ($session->room->life_points ?? 5),
+                'lifePoints' => $this->resolveLifePointsPool($session, $session->room),
                 'remainingQuestionsCount' => 0,
                 'teams' => $teams,
                 'stage' => $stage,
@@ -624,7 +629,7 @@ class FirebaseGameSyncService
                 'sessionId' => (string) $session->id,
                 'isCustom' => (bool) $session->room->is_custom,
                 'selectedQuestionsCount' => (int) ($session->room->questions_count ?? 0),
-                'lifePoints' => (int) ($session->room->life_points ?? 5),
+                'lifePoints' => $this->resolveLifePointsPool($session, $session->room),
                 'status' => 'paused',
                 'currentRound' => (int) $session->current_round,
                 'remainingQuestionsCount' => $remainingCount,

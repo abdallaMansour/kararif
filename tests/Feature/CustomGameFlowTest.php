@@ -665,7 +665,7 @@ class CustomGameFlowTest extends TestCase
         $this->assertNotSame('finished', $session->fresh()->status);
     }
 
-    public function test_life_points_two_teams_two_questions_scores_and_lives_match_spec(): void
+    public function test_life_points_two_teams_ten_questions_scores_and_lives_match_spec(): void
     {
         $user1 = User::factory()->create();
         $user2 = User::factory()->create();

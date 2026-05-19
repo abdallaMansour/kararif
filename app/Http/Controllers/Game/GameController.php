@@ -232,8 +232,6 @@ class GameController extends Controller
         $teams = (int) $request->input('teams', 2);
         $playersPerTeam = (int) $request->input('players', 2);
         $totalPlayers = $playersPerTeam * $teams;
-        $lifePoints = (int) $request->input('life_points', 5);
-
         $fallbackTypeId = Type::where('status', true)->value('id');
         $fallbackCategoryId = Category::where('status', true)->value('id');
         $fallbackSubcategoryId = Subcategory::where('status', true)->value('id');
@@ -252,7 +250,7 @@ class GameController extends Controller
             'title' => $request->input('title', $category->name),
             'rounds' => $rounds,
             'questions_count' => $questionsCount,
-            'life_points' => $lifePoints,
+            'life_points' => max(1, intdiv($questionsCount, 2)),
             'teams' => $teams,
             'players' => $totalPlayers,
             'expires_at' => now()->addHours(24),
@@ -285,7 +283,7 @@ class GameController extends Controller
             'customCategoryId' => (string) $category->id,
             'customStageId' => (string) $customStage->id,
             'customStageName' => $customStage->name,
-            'lifePoints' => (int) $room->life_points,
+            'lifePoints' => $this->gameService->resolveLifePointsPoolForRoom($room),
             'selectedQuestionsCount' => (int) $room->questions_count,
             'expiresAt' => $room->expires_at?->toIso8601String(),
             'teams' => $teamsData,
@@ -398,7 +396,7 @@ class GameController extends Controller
                 'teams' => $teams,
                 'players' => (int) $room->players,
                 'playersPerTeam' => $teams > 0 ? (int) ($room->players / $teams) : 0,
-                'lifePoints' => (int) ($room->life_points ?? 5),
+                'lifePoints' => $this->gameService->resolveLifePointsPoolForRoom($room, $activeSession),
             ],
             'teams' => $teamCodes,
             'stage' => $this->firebaseSync->getStageDataForRoom($room, $activeSession),
@@ -728,6 +726,14 @@ class GameController extends Controller
             return ApiResponse::error('اللعبة متوقفة؛ انتظر السؤال التالي', 400);
         }
 
+        $flowCooldown = $this->gameService->questionFlowCooldownRemainingSeconds($session);
+        if ($flowCooldown > 0) {
+            return ApiResponse::error(
+                'يرجى الانتظار ' . $flowCooldown . ' ثانية قبل إرسال إجابة أو طلب إنهاء الوقت / السؤال التالي',
+                429
+            );
+        }
+
         $session = $this->gameService->ensureSessionPlaying($session);
         if ($session->status === 'starting') {
             return ApiResponse::error('اللعبة لم تبدأ بعد', 400);
@@ -754,6 +760,16 @@ class GameController extends Controller
             return ApiResponse::error('فقط قائد الفريق يمكنه الإجابة على الأسئلة', 403);
         }
 
+        $answerCooldown = $this->gameService->submitAnswerCooldownRemainingSeconds($session, $roomPlayer->id);
+        if ($answerCooldown > 0) {
+            return ApiResponse::error(
+                'يرجى الانتظار ' . $answerCooldown . ' ثانية قبل إرسال إجابة أخرى',
+                429
+            );
+        }
+
+        $this->gameService->recordSubmitAnswerAction($session, $roomPlayer->id);
+
         $result = $this->gameService->submitAnswer($session, $roomPlayer->id, $optionIndex);
         $data = [
             'correct' => $result['correct'],
@@ -779,10 +795,19 @@ class GameController extends Controller
             return ApiResponse::error('غير مصرح: أرسل displayId أو deviceId لشاشة التلفزيون المربوطة بهذه الغرفة، أو سجّل الدخول كمشارك في الغرفة.', 403);
         }
 
-        // If nobody submitted after the timer, the session can stay "playing" forever because timedOut is only
-        // evaluated inside submitAnswer. Auto-finalize the question when the deadline has passed, same as POST .../timeout.
+        $cooldown = $this->gameService->questionFlowCooldownRemainingSeconds($session);
+        if ($cooldown > 0) {
+            return ApiResponse::error(
+                'يرجى الانتظار ' . $cooldown . ' ثانية قبل طلب السؤال التالي أو إنهاء الوقت أو إرسال إجابة مرة أخرى',
+                429
+            );
+        }
+
+        $this->gameService->recordQuestionFlowAction($session);
+
+        // Close an expired question only when the server timer was actually started (do not infer on a fresh question).
         if ($session->status === 'playing') {
-            $this->gameService->applyPlayingQuestionTimeout($session->fresh(), true);
+            $this->gameService->applyPlayingQuestionTimeout($session->fresh(), false);
             $session = GameSession::with('room')->find($sessionId);
         }
 
@@ -893,6 +918,16 @@ class GameController extends Controller
         if (!in_array($session->status, ['playing', 'paused'], true)) {
             return ApiResponse::error('لا يمكن إنهاء الوقت في هذه الحالة', 400);
         }
+
+        $cooldown = $this->gameService->questionFlowCooldownRemainingSeconds($session);
+        if ($cooldown > 0) {
+            return ApiResponse::error(
+                'يرجى الانتظار ' . $cooldown . ' ثانية قبل طلب إنهاء الوقت أو السؤال التالي أو إرسال إجابة مرة أخرى',
+                429
+            );
+        }
+
+        $this->gameService->recordQuestionFlowAction($session);
 
         $result = $this->gameService->applyPlayingQuestionTimeout($session, true);
         if (!$result['applied']) {
