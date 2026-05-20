@@ -20,7 +20,7 @@ class AppLoginController extends Controller
     {
         $user = $this->authService->loginAdventurer($request->only('identifier', 'email', 'password', 'device_name'));
 
-        $expiresIn = 3600;
+        $expiresIn = 86400; // 1 day
         $token = $user->createToken('Access Token', expiresAt: now()->addSeconds($expiresIn))->plainTextToken;
 
         $userData = [

@@ -28,7 +28,7 @@ class AuthController extends Controller
         $user = $this->authService->registerAdventurer($request->validated());
         $user->load('avatarRelation');
 
-        $expiresIn = 3600;
+        $expiresIn = 86400; // 1 day
         $token = $user->createToken('Access Token', expiresAt: now()->addSeconds($expiresIn))->plainTextToken;
 
         $avatarRelation = $user->avatarRelation;
