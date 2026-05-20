@@ -876,7 +876,7 @@ class CustomGameFlowTest extends TestCase
         $this->assertSame(0, (int) $leader1->fresh()->score);
     }
 
-    public function test_life_points_does_not_finish_entire_session_when_one_team_loses_all_lives_on_first_question(): void
+    public function test_life_points_finishes_when_one_team_eliminated_mid_quiz(): void
     {
         $user1 = User::factory()->create();
         $user2 = User::factory()->create();
@@ -955,17 +955,14 @@ class CustomGameFlowTest extends TestCase
 
         $gameService = app(GameService::class);
         $gameService->submitAnswer($session->fresh(), $leader1->id, 2);
-        $gameService->submitAnswer($session->fresh(), $leader2->id, 1);
+        $result = $gameService->submitAnswer($session->fresh(), $leader2->id, 1);
 
         $session = $session->fresh();
-        $this->assertSame('paused', $session->status);
-        $this->assertNotSame('finished', $session->status);
+        $this->assertTrue($result['sessionFinished'] ?? false);
+        $this->assertSame('finished', $session->status);
         $this->assertSame(0, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 1, 1));
-
-        $advance = $gameService->advanceToNextQuestion($session);
-        $this->assertFalse($advance['finished']);
-        $this->assertSame(2, $advance['round']);
-        $this->assertSame('playing', $session->fresh()->status);
+        $this->assertGreaterThan(0, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 2, 1));
+        $this->assertSame(['2'], array_map('strval', $session->winner_team_ids ?? []));
     }
 
     public function test_life_points_finishes_when_both_teams_reach_zero_lives_mid_quiz(): void

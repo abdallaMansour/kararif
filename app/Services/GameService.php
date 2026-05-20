@@ -22,8 +22,11 @@ class GameService
     /** Must stay in sync with clients / TV question timer. */
     public const QUESTION_TIME_LIMIT_SECONDS = 30;
 
-    /** Shared cooldown for POST timeout, next-question, and answer (seconds). */
+    /** Shared cooldown for POST timeout and next-question (seconds). */
     public const QUESTION_FLOW_COOLDOWN_SECONDS = 10;
+
+    /** Per-leader cooldown for POST answer on the same question (seconds). */
+    public const SUBMIT_ANSWER_COOLDOWN_SECONDS = 5;
 
     /** Life-points stage: +10 on correct, −10 on wrong (score never below 0). */
     public const LIFE_POINTS_CORRECT_SCORE_DELTA = 10;
@@ -680,7 +683,7 @@ class GameService
 
     public function recordSubmitAnswerAction(GameSession $session, int $roomPlayerId): void
     {
-        $ttl = self::QUESTION_FLOW_COOLDOWN_SECONDS;
+        $ttl = self::SUBMIT_ANSWER_COOLDOWN_SECONDS;
         Cache::put(
             $this->submitAnswerCooldownCacheKey($session, $roomPlayerId),
             time() + $ttl,
@@ -706,8 +709,8 @@ class GameService
     }
 
     /**
-     * Life-points: finish when no team has lives left, or at most one team still has lives and the question schedule is done.
-     * Does nothing for single-team / solo rooms. One team at 0 lives mid-quiz does not end the session until questions are exhausted.
+     * Life-points (2+ teams): finish when at most one team still has lives (including all eliminated → winner by score).
+     * Does nothing for single-team / solo rooms.
      */
     public function attemptFinishLifePointsSession(GameSession $session, ?int $gameRoundNumber = null): bool
     {
@@ -752,12 +755,6 @@ class GameService
 
         $questionIds = $session->question_ids ?? [];
         $total = count($questionIds);
-        $allTeamsEliminated = $aliveTeams->count() === 0;
-
-        // One team may hit 0 lives mid-quiz; keep playing until all scheduled questions are done — unless everyone is out.
-        if (! $allTeamsEliminated && $total > 0 && (int) $session->current_round < $total) {
-            return false;
-        }
 
         $winnerTeamIds = $this->resolveWinnerTeamIds($session);
         if ($winnerTeamIds === []) {
@@ -1915,28 +1912,16 @@ class GameService
         $winnerTeamIds = null;
 
         if ($isLifePointsStage) {
-            // Lives per team for this game round only (wrong answers from other rounds do not apply)
-            $byTeam = $room->roomPlayers->groupBy('team_id');
-            $lifeByTeam = [];
-            foreach ($byTeam as $teamId => $_players) {
-                $lifePoints = $this->getRemainingLivesForTeamInGameRound($session, $room, (int) $teamId, $completedGameRound);
-                $lifeByTeam[(string) $teamId] = $lifePoints;
+            $activeTeamIds = $room->roomPlayers->pluck('team_id')->unique()->filter()->reject(
+                fn($tid) => in_array((string) $tid, $surrenderedTeamIds, true)
+            )->values();
+
+            if ($activeTeamIds->count() >= 2 && $this->attemptFinishLifePointsSession($session, $completedGameRound)) {
+                return ['finished' => true, 'round' => null];
             }
 
-            $aliveTeams = collect($lifeByTeam)->filter(function ($life, $teamId) use ($surrenderedTeamIds) {
-                return $life > 0 && !in_array((string) $teamId, $surrenderedTeamIds, true);
-            });
-
-            // Finish only when the question schedule is exhausted (not when one team hits 0 lives mid-quiz).
             if ($nextRound > $total) {
-                $maxLife = $aliveTeams->count() > 0 ? $aliveTeams->max() : 0;
-                $winnerTeamIds = collect($lifeByTeam)
-                    ->reject(fn($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
-                    ->filter(fn($life) => $life === $maxLife)
-                    ->keys()
-                    ->values()
-                    ->all();
-
+                $winnerTeamIds = $this->resolveWinnerTeamIds($session);
                 $session->update([
                     'status' => 'finished',
                     'current_round' => min($nextRound, $total + 1),
