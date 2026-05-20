@@ -22,8 +22,11 @@ class GameService
     /** Must stay in sync with clients / TV question timer. */
     public const QUESTION_TIME_LIMIT_SECONDS = 30;
 
-    /** Shared cooldown for POST timeout and next-question (seconds). */
-    public const QUESTION_FLOW_COOLDOWN_SECONDS = 10;
+    /**
+     * Cooldown after POST next-question: blocks another next-question and blocks POST timeout (seconds).
+     * Timeout does not refresh this timestamp (directional cooldown).
+     */
+    public const NEXT_QUESTION_COOLDOWN_SECONDS = 10;
 
     /** Per-leader cooldown for POST answer on the same question (seconds). */
     public const SUBMIT_ANSWER_COOLDOWN_SECONDS = 4;
@@ -648,25 +651,25 @@ class GameService
         return 0;
     }
 
-    public function questionFlowCooldownRemainingSeconds(GameSession $session): int
+    public function cooldownAfterNextQuestionRemainingSeconds(GameSession $session): int
     {
-        if (!$session->last_question_flow_at) {
+        if (!$session->last_next_question_at) {
             return 0;
         }
 
-        $elapsed = $session->last_question_flow_at->diffInSeconds(now());
+        $elapsed = $session->last_next_question_at->diffInSeconds(now());
 
-        return max(0, self::QUESTION_FLOW_COOLDOWN_SECONDS - $elapsed);
+        return max(0, self::NEXT_QUESTION_COOLDOWN_SECONDS - $elapsed);
     }
 
-    public function isQuestionFlowCooldownActive(GameSession $session): bool
+    public function isCooldownAfterNextQuestionActive(GameSession $session): bool
     {
-        return $this->questionFlowCooldownRemainingSeconds($session) > 0;
+        return $this->cooldownAfterNextQuestionRemainingSeconds($session) > 0;
     }
 
-    public function recordQuestionFlowAction(GameSession $session): void
+    public function recordNextQuestionAction(GameSession $session): void
     {
-        $session->update(['last_question_flow_at' => now()]);
+        $session->update(['last_next_question_at' => now()]);
     }
 
     private function submitAnswerCooldownCacheKey(GameSession $session, int $roomPlayerId): string

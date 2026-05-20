@@ -726,10 +726,10 @@ class GameController extends Controller
             return ApiResponse::error('اللعبة متوقفة؛ انتظر السؤال التالي', 400);
         }
 
-        $flowCooldown = $this->gameService->questionFlowCooldownRemainingSeconds($session);
-        if ($flowCooldown > 0) {
+        $afterNextCooldown = $this->gameService->cooldownAfterNextQuestionRemainingSeconds($session);
+        if ($afterNextCooldown > 0) {
             return ApiResponse::error(
-                'يرجى الانتظار ' . $flowCooldown . ' ثانية قبل إرسال إجابة أو طلب إنهاء الوقت / السؤال التالي',
+                'يرجى الانتظار ' . $afterNextCooldown . ' ثانية بعد السؤال التالي قبل إرسال إجابة',
                 429
             );
         }
@@ -795,15 +795,15 @@ class GameController extends Controller
             return ApiResponse::error('غير مصرح: أرسل displayId أو deviceId لشاشة التلفزيون المربوطة بهذه الغرفة، أو سجّل الدخول كمشارك في الغرفة.', 403);
         }
 
-        $cooldown = $this->gameService->questionFlowCooldownRemainingSeconds($session);
+        $cooldown = $this->gameService->cooldownAfterNextQuestionRemainingSeconds($session);
         if ($cooldown > 0) {
             return ApiResponse::error(
-                'يرجى الانتظار ' . $cooldown . ' ثانية قبل طلب السؤال التالي أو إنهاء الوقت أو إرسال إجابة مرة أخرى',
+                'يرجى الانتظار ' . $cooldown . ' ثانية قبل طلب السؤال التالي مرة أخرى',
                 429
             );
         }
 
-        $this->gameService->recordQuestionFlowAction($session);
+        $this->gameService->recordNextQuestionAction($session);
 
         // Close an expired question only when the server timer was actually started (do not infer on a fresh question).
         if ($session->status === 'playing') {
@@ -923,15 +923,13 @@ class GameController extends Controller
             return ApiResponse::error('لا يمكن إنهاء الوقت في هذه الحالة', 400);
         }
 
-        $cooldown = $this->gameService->questionFlowCooldownRemainingSeconds($session);
+        $cooldown = $this->gameService->cooldownAfterNextQuestionRemainingSeconds($session);
         if ($cooldown > 0) {
             return ApiResponse::error(
-                'يرجى الانتظار ' . $cooldown . ' ثانية قبل طلب إنهاء الوقت أو السؤال التالي أو إرسال إجابة مرة أخرى',
+                'يرجى الانتظار ' . $cooldown . ' ثانية بعد السؤال التالي قبل إنهاء الوقت',
                 429
             );
         }
-
-        $this->gameService->recordQuestionFlowAction($session);
 
         $result = $this->gameService->applyPlayingQuestionTimeout($session, true);
         if (!$result['applied']) {
