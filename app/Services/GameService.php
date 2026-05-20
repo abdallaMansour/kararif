@@ -706,8 +706,8 @@ class GameService
     }
 
     /**
-     * When at least two teams are competing in life-points and at most one team still has lives in this game round,
-     * finish the session immediately (DB + Firebase). Does nothing for single-team / solo rooms.
+     * Life-points: finish when no team has lives left, or at most one team still has lives and the question schedule is done.
+     * Does nothing for single-team / solo rooms. One team at 0 lives mid-quiz does not end the session until questions are exhausted.
      */
     public function attemptFinishLifePointsSession(GameSession $session, ?int $gameRoundNumber = null): bool
     {
@@ -752,23 +752,30 @@ class GameService
 
         $questionIds = $session->question_ids ?? [];
         $total = count($questionIds);
-        // One team may hit 0 lives mid-quiz; keep playing until all scheduled questions are done.
-        if ($total > 0 && (int) $session->current_round < $total) {
+        $allTeamsEliminated = $aliveTeams->count() === 0;
+
+        // One team may hit 0 lives mid-quiz; keep playing until all scheduled questions are done — unless everyone is out.
+        if (! $allTeamsEliminated && $total > 0 && (int) $session->current_round < $total) {
             return false;
         }
 
-        $maxLife = $aliveTeams->count() > 0 ? $aliveTeams->max() : 0;
-        $winnerTeamIds = collect($lifeByTeam)
-            ->filter(fn($life) => $life === $maxLife)
-            ->keys()
-            ->values()
-            ->all();
+        $winnerTeamIds = $this->resolveWinnerTeamIds($session);
+        if ($winnerTeamIds === []) {
+            $maxLife = $aliveTeams->count() > 0 ? $aliveTeams->max() : 0;
+            $winnerTeamIds = collect($lifeByTeam)
+                ->reject(fn($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
+                ->filter(fn($life) => $life === $maxLife)
+                ->keys()
+                ->map(fn($id) => (string) $id)
+                ->values()
+                ->all();
+        }
 
         $nextRound = (int) $session->current_round + 1;
 
         $session->update([
             'status' => 'finished',
-            'current_round' => min($nextRound, $total + 1),
+            'current_round' => $total > 0 ? min($nextRound, $total + 1) : $nextRound,
             'winner_team_ids' => array_values(array_map('strval', $winnerTeamIds)),
         ]);
         $room->update(['status' => 'finished']);

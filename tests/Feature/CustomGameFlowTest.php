@@ -968,6 +968,97 @@ class CustomGameFlowTest extends TestCase
         $this->assertSame('playing', $session->fresh()->status);
     }
 
+    public function test_life_points_finishes_when_both_teams_reach_zero_lives_mid_quiz(): void
+    {
+        $user1 = User::factory()->create();
+        $user2 = User::factory()->create();
+
+        $type = Type::create(['name' => 'Fallback Type', 'status' => true]);
+        $category = Category::create(['type_id' => $type->id, 'name' => 'Fallback Category', 'status' => true]);
+        $subcategory = Subcategory::create(['category_id' => $category->id, 'name' => 'Fallback Subcategory', 'status' => true, 'use_stage' => false]);
+
+        $customCategory = CustomCategory::create([
+            'owner_user_id' => $user1->id,
+            'name' => 'LP Both Out',
+            'status' => true,
+        ]);
+
+        $questions = [];
+        foreach (range(1, 3) as $i) {
+            $questions[] = CustomQuestion::create([
+                'owner_user_id' => $user1->id,
+                'custom_category_id' => $customCategory->id,
+                'name' => 'Q' . $i,
+                'question_kind' => 'normal',
+                'answer_1' => 'Yes',
+                'is_correct_1' => true,
+                'answer_2' => 'No',
+                'is_correct_2' => false,
+                'answer_3' => 'Maybe',
+                'is_correct_3' => false,
+                'answer_4' => 'Skip',
+                'is_correct_4' => false,
+                'status' => true,
+            ]);
+        }
+
+        $room = Room::create([
+            'code' => '888888',
+            'is_custom' => true,
+            'custom_category_id' => $customCategory->id,
+            'type_id' => $type->id,
+            'category_id' => $category->id,
+            'subcategory_id' => $subcategory->id,
+            'title' => 'LP Both Out',
+            'rounds' => 1,
+            'questions_count' => 3,
+            'life_points' => 5,
+            'teams' => 2,
+            'players' => 2,
+            'status' => 'playing',
+            'expires_at' => now()->addHour(),
+            'created_by' => $user1->id,
+        ]);
+
+        $leader1 = RoomPlayer::create([
+            'room_id' => $room->id,
+            'user_id' => $user1->id,
+            'team_id' => 1,
+            'is_leader' => true,
+            'score' => 0,
+        ]);
+        $leader2 = RoomPlayer::create([
+            'room_id' => $room->id,
+            'user_id' => $user2->id,
+            'team_id' => 2,
+            'is_leader' => true,
+            'score' => 0,
+        ]);
+
+        $session = GameSession::create([
+            'room_id' => $room->id,
+            'current_round' => 1,
+            'status' => 'playing',
+            'started_at' => now(),
+            'question_started_at' => now(),
+            'question_ids' => collect($questions)->pluck('id')->all(),
+            'surrendered_team_ids' => [],
+        ]);
+
+        $gameService = app(GameService::class);
+        $this->assertSame(1, $gameService->getInitialLifePointsForGameRound($session, $room, 1));
+
+        $gameService->submitAnswer($session->fresh(), $leader1->id, 2);
+        $result = $gameService->submitAnswer($session->fresh(), $leader2->id, 2);
+
+        $session = $session->fresh();
+        $this->assertTrue($result['sessionFinished'] ?? false);
+        $this->assertSame('finished', $session->status);
+        $this->assertSame(0, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 1, 1));
+        $this->assertSame(0, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 2, 1));
+        $this->assertSame(1, (int) $session->current_round);
+    }
+
     public function test_custom_game_advances_to_next_question_slot_after_pause(): void
     {
         $user1 = User::factory()->create();
