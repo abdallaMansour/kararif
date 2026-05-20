@@ -761,8 +761,8 @@ class CustomGameFlowTest extends TestCase
 
         $session = $session->fresh();
         $this->assertSame('paused', $session->status);
-        $this->assertSame(5, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 1, 1));
-        $this->assertSame(5, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 2, 1));
+        $this->assertSame(3, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 1, 1));
+        $this->assertSame(3, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 2, 1));
         $this->assertSame(10, (int) $leader1->fresh()->score);
         $this->assertSame(10, (int) $leader2->fresh()->score);
 
@@ -777,8 +777,8 @@ class CustomGameFlowTest extends TestCase
 
         $session = $session->fresh();
         $this->assertSame('paused', $session->status);
-        $this->assertSame(5, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 1, 1));
-        $this->assertSame(4, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 2, 1));
+        $this->assertSame(3, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 1, 1));
+        $this->assertSame(2, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 2, 1));
         $this->assertSame(20, (int) $leader1->fresh()->score);
         $this->assertSame(0, (int) $leader2->fresh()->score);
     }
@@ -862,7 +862,7 @@ class CustomGameFlowTest extends TestCase
         $correctResult = $gameService->submitAnswer($session->fresh(), $leader1->id, 1);
         $this->assertTrue($correctResult['correct']);
         $this->assertSame(10, $correctResult['scoreDelta']);
-        $this->assertSame(5, $gameService->getRemainingLivesForTeamInGameRound($session->fresh(), $room, 1, 1));
+        $this->assertSame(3, $gameService->getRemainingLivesForTeamInGameRound($session->fresh(), $room, 1, 1));
         $this->assertSame(10, (int) $leader1->fresh()->score);
 
         $session->update(['current_round' => 1, 'status' => 'playing', 'question_started_at' => now()]);
@@ -872,7 +872,7 @@ class CustomGameFlowTest extends TestCase
         $wrongResult = $gameService->submitAnswer($session->fresh(), $leader1->id, 2);
         $this->assertFalse($wrongResult['correct']);
         $this->assertSame(-10, $wrongResult['scoreDelta']);
-        $this->assertSame(4, $gameService->getRemainingLivesForTeamInGameRound($session->fresh(), $room, 1, 1));
+        $this->assertSame(2, $gameService->getRemainingLivesForTeamInGameRound($session->fresh(), $room, 1, 1));
         $this->assertSame(0, (int) $leader1->fresh()->score);
     }
 
@@ -954,10 +954,18 @@ class CustomGameFlowTest extends TestCase
         ]);
 
         $gameService = app(GameService::class);
-        $gameService->submitAnswer($session->fresh(), $leader1->id, 2);
-        $result = $gameService->submitAnswer($session->fresh(), $leader2->id, 1);
+        for ($round = 1; $round <= 3; $round++) {
+            if ($round > 1) {
+                $session = $session->fresh();
+                $gameService->advanceToNextQuestion($session);
+                $session = $session->fresh();
+                $session->update(['question_started_at' => now()]);
+            }
+            $gameService->submitAnswer($session->fresh(), $leader1->id, 2);
+            $result = $gameService->submitAnswer($session->fresh(), $leader2->id, 1);
+            $session = $session->fresh();
+        }
 
-        $session = $session->fresh();
         $this->assertTrue($result['sessionFinished'] ?? false);
         $this->assertSame('finished', $session->status);
         $this->assertSame(0, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 1, 1));
@@ -1043,17 +1051,31 @@ class CustomGameFlowTest extends TestCase
         ]);
 
         $gameService = app(GameService::class);
-        $this->assertSame(1, $gameService->getInitialLifePointsForGameRound($session, $room, 1));
+        $this->assertSame(3, $gameService->getInitialLifePointsForGameRound($session, $room, 1));
 
-        $gameService->submitAnswer($session->fresh(), $leader1->id, 2);
-        $result = $gameService->submitAnswer($session->fresh(), $leader2->id, 2);
+        for ($round = 1; $round <= 3; $round++) {
+            if ($round > 1) {
+                $session = $session->fresh();
+                $gameService->advanceToNextQuestion($session);
+                $session = $session->fresh();
+                $session->update(['question_started_at' => now()]);
+            }
+            if ($round === 2) {
+                $gameService->submitAnswer($session->fresh(), $leader1->id, 1);
+                $result = $gameService->submitAnswer($session->fresh(), $leader2->id, 2);
+            } else {
+                $gameService->submitAnswer($session->fresh(), $leader1->id, 2);
+                $result = $gameService->submitAnswer($session->fresh(), $leader2->id, 2);
+            }
+            $session = $session->fresh();
+        }
 
-        $session = $session->fresh();
         $this->assertTrue($result['sessionFinished'] ?? false);
         $this->assertSame('finished', $session->status);
         $this->assertSame(0, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 1, 1));
         $this->assertSame(0, $gameService->getRemainingLivesForTeamInGameRound($session, $room, 2, 1));
-        $this->assertSame(1, (int) $session->current_round);
+        $this->assertSame(['1'], array_map('strval', $session->winner_team_ids ?? []));
+        $this->assertSame(3, (int) $session->current_round);
     }
 
     public function test_custom_game_advances_to_next_question_slot_after_pause(): void

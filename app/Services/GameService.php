@@ -26,7 +26,10 @@ class GameService
     public const QUESTION_FLOW_COOLDOWN_SECONDS = 10;
 
     /** Per-leader cooldown for POST answer on the same question (seconds). */
-    public const SUBMIT_ANSWER_COOLDOWN_SECONDS = 5;
+    public const SUBMIT_ANSWER_COOLDOWN_SECONDS = 4;
+
+    /** Minimum starting lives per team in a life-points game round (after 50% of LP question count). */
+    public const MIN_INITIAL_LIFE_POINTS = 3;
 
     /** Life-points stage: +10 on correct, −10 on wrong (score never below 0). */
     public const LIFE_POINTS_CORRECT_SCORE_DELTA = 10;
@@ -561,16 +564,16 @@ class GameService
     }
 
     /**
-     * Starting lives per team for a life-points game round: 50% of LP question count (integer half; 15 → 7).
+     * Starting lives per team for a life-points game round: 50% of LP question count (integer half; 15 → 7), minimum 3.
      */
     public function getInitialLifePointsForGameRound(GameSession $session, Room $room, int $gameRoundNumber): int
     {
         $lpQuestionCount = $this->countLifePointsQuestionsInGameRound($session, $room, $gameRoundNumber);
         if ($lpQuestionCount <= 0) {
-            return 1;
+            return self::MIN_INITIAL_LIFE_POINTS;
         }
 
-        return max(1, intdiv($lpQuestionCount, 2));
+        return max(self::MIN_INITIAL_LIFE_POINTS, intdiv($lpQuestionCount, 2));
     }
 
     /**
@@ -605,7 +608,7 @@ class GameService
         if ((bool) $room->is_custom) {
             $count = (int) ($room->questions_count ?? 0);
 
-            return $count > 0 ? max(1, intdiv($count, 2)) : 0;
+            return $count > 0 ? max(self::MIN_INITIAL_LIFE_POINTS, intdiv($count, 2)) : 0;
         }
 
         $room->loadMissing('subcategory.stage');
@@ -616,7 +619,7 @@ class GameService
             }
             $count = (int) ($room->questions_count ?? 0);
 
-            return $count > 0 ? max(1, intdiv($count, 2)) : 0;
+            return $count > 0 ? max(self::MIN_INITIAL_LIFE_POINTS, intdiv($count, 2)) : 0;
         }
 
         $roundsCount = max(1, (int) ($room->rounds ?? 1));
@@ -638,7 +641,7 @@ class GameService
             $roundSize = $perRound + ($r <= $remainder ? 1 : 0);
             $typeIndex = ($startWithQuestionsGroup ? 0 : 1) + ($r - 1);
             if (($typeIndex % 2) === 1) {
-                return max(1, intdiv($roundSize, 2));
+                return max(self::MIN_INITIAL_LIFE_POINTS, intdiv($roundSize, 2));
             }
         }
 
@@ -756,16 +759,20 @@ class GameService
         $questionIds = $session->question_ids ?? [];
         $total = count($questionIds);
 
-        $winnerTeamIds = $this->resolveWinnerTeamIds($session);
-        if ($winnerTeamIds === []) {
-            $maxLife = $aliveTeams->count() > 0 ? $aliveTeams->max() : 0;
-            $winnerTeamIds = collect($lifeByTeam)
-                ->reject(fn($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
-                ->filter(fn($life) => $life === $maxLife)
-                ->keys()
-                ->map(fn($id) => (string) $id)
-                ->values()
-                ->all();
+        if ($aliveTeams->count() === 0) {
+            $winnerTeamIds = $this->resolveLifePointsWinnersByHighestScore($session, $room, $activeTeamIds, $surrenderedTeamIds);
+        } else {
+            $winnerTeamIds = $this->resolveWinnerTeamIds($session);
+            if ($winnerTeamIds === []) {
+                $maxLife = $aliveTeams->max();
+                $winnerTeamIds = collect($lifeByTeam)
+                    ->reject(fn($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true))
+                    ->filter(fn($life) => $life === $maxLife)
+                    ->keys()
+                    ->map(fn($id) => (string) $id)
+                    ->values()
+                    ->all();
+            }
         }
 
         $nextRound = (int) $session->current_round + 1;
@@ -827,6 +834,11 @@ class GameService
                     return $aliveTeams->keys()->map(fn($id) => (string) $id)->values()->all();
                 }
 
+                // All teams eliminated in this LP round: winner is the team with the highest score.
+                if ($aliveTeams->count() === 0) {
+                    return $this->resolveLifePointsWinnersByHighestScore($session, $room, $activeTeamIds, $surrenderedTeamIds);
+                }
+
                 $maxLife = max($lifeByTeam);
                 $byLife = collect($lifeByTeam)
                     ->filter(fn($life) => $life === $maxLife)
@@ -849,6 +861,36 @@ class GameService
 
         $maxScore = $teamScores->max();
         return $teamScores
+            ->filter(fn($score) => $score === $maxScore)
+            ->keys()
+            ->map(fn($id) => (string) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param \Illuminate\Support\Collection<int, string>|array<int, string> $activeTeamIds
+     * @return list<string>
+     */
+    public function resolveLifePointsWinnersByHighestScore(
+        GameSession $session,
+        Room $room,
+        $activeTeamIds,
+        array $surrenderedTeamIds
+    ): array {
+        $teamScores = $this->resolveTeamScoresForSession($session, $room);
+        if ($teamScores->isEmpty()) {
+            return [];
+        }
+
+        $eligible = $teamScores->reject(fn($_, $teamId) => in_array((string) $teamId, $surrenderedTeamIds, true));
+        if ($eligible->isEmpty()) {
+            return [];
+        }
+
+        $maxScore = $eligible->max();
+
+        return $eligible
             ->filter(fn($score) => $score === $maxScore)
             ->keys()
             ->map(fn($id) => (string) $id)

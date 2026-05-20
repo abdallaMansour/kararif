@@ -58,6 +58,15 @@ class GameServiceAnswerNormalizationTest extends TestCase
             $room,
             1
         ));
+
+        $this->assertSame(3, $service->getInitialLifePointsForGameRound(
+            new \App\Models\GameSession([
+                'current_round' => 1,
+                'question_ids' => array_fill(0, 4, 1),
+            ]),
+            $room,
+            1
+        ));
     }
 
     public function test_life_points_score_deltas(): void
