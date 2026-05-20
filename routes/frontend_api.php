@@ -74,8 +74,9 @@ Route::prefix('game')->group(function () {
     Route::get('tv/display/by-code/{code}', [TvDisplayController::class, 'getDisplayStatusByCode']);
     Route::get('tv/display/{displayId}', [TvDisplayController::class, 'getDisplayStatus']);
 
-    // TV can advance questions without Bearer token when linked display is proven (displayId or deviceId).
+    // TV can advance questions or end the question timer without Bearer token when linked display is proven (displayId or deviceId).
     Route::post('session/{sessionId}/next-question', [GameController::class, 'nextQuestion']);
+    Route::post('session/{sessionId}/timeout', [GameController::class, 'timeout']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('my-custom-categories', [CustomCategoryController::class, 'getMine']);
@@ -104,7 +105,6 @@ Route::prefix('game')->group(function () {
         Route::post('session/{sessionId}/answer', [GameController::class, 'submitAnswer']);
         Route::post('session/{sessionId}/pause', [GameController::class, 'pause']);
         Route::post('session/{sessionId}/resume', [GameController::class, 'resume']);
-        Route::post('session/{sessionId}/timeout', [GameController::class, 'timeout']);
         Route::post('session/{sessionId}/end', [GameController::class, 'endSession']);
         Route::post('session/{sessionId}/surrender', [GameController::class, 'surrender']);
         Route::post('session/{sessionId}/start-question', [GameController::class, 'startQuestion']);

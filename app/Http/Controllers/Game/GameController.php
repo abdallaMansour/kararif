@@ -908,11 +908,15 @@ class GameController extends Controller
         ]);
     }
 
-    public function timeout(int $sessionId): JsonResponse
+    public function timeout(Request $request, int $sessionId): JsonResponse
     {
         $session = GameSession::with('room')->find($sessionId);
         if (!$session) {
             return ApiResponse::error('الجلسة غير موجودة', 404);
+        }
+
+        if (! $this->canControlNextQuestionFromTvOrAuth($request, $session)) {
+            return ApiResponse::error('غير مصرح: أرسل displayId أو deviceId لشاشة التلفزيون المربوطة بهذه الغرفة، أو سجّل الدخول كمشارك في الغرفة.', 403);
         }
 
         if (!in_array($session->status, ['playing', 'paused'], true)) {
@@ -1130,7 +1134,7 @@ class GameController extends Controller
 
     /**
      * TV (no Bearer): displayId or deviceId must match a display linked to this session's room.
-     * With Bearer: any authenticated user who is a room player may call next-question.
+     * With Bearer: any authenticated user who is a room player may call next-question or timeout.
      */
     private function canControlNextQuestionFromTvOrAuth(Request $request, GameSession $session): bool
     {
