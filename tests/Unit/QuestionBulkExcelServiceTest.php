@@ -25,4 +25,35 @@ class QuestionBulkExcelServiceTest extends TestCase
         @unlink($path);
     }
 
+    public function test_lookups_workbook_has_combined_sheet_with_all_sections(): void
+    {
+        $service = new QuestionBulkExcelService();
+        $path = $service->saveSpreadsheetToTempFile(
+            $service->buildLookupsReferenceSpreadsheet(),
+            'test_lookups_all'
+        );
+
+        $loaded = IOFactory::load($path);
+        $sheet = $loaded->getSheetByName(QuestionBulkExcelService::LOOKUPS_ALL_SHEET_NAME);
+        $this->assertNotNull($sheet);
+        $this->assertSame('section', strtolower((string) $sheet->getCell('A1')->getValue()));
+
+        $sections = [];
+        $highestRow = (int) $sheet->getHighestRow();
+        for ($row = 2; $row <= $highestRow; $row++) {
+            $section = trim((string) $sheet->getCell('A' . $row)->getValue());
+            if ($section !== '') {
+                $sections[$section] = true;
+            }
+        }
+
+        $this->assertArrayHasKey('Types', $sections);
+        $this->assertArrayHasKey('Categories', $sections);
+        $this->assertArrayHasKey('Subcategories', $sections);
+        $this->assertArrayHasKey('Question kinds', $sections);
+        $this->assertNotNull($loaded->getSheetByName('Lookups_Types'));
+
+        @unlink($path);
+    }
+
 }

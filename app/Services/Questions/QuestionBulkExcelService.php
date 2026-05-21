@@ -17,6 +17,8 @@ class QuestionBulkExcelService
 {
     public const QUESTIONS_SHEET_NAME = 'Questions';
 
+    public const LOOKUPS_ALL_SHEET_NAME = 'Lookups_All';
+
     /** @var list<string> */
     public const IMPORT_HEADERS = [
         'type_display',
@@ -104,7 +106,81 @@ class QuestionBulkExcelService
             ->setTitle('Khararif Questions Import Lookups')
             ->setSubject('Types, categories, subcategories, question kinds');
 
-        $types = $spreadsheet->getActiveSheet();
+        $all = $spreadsheet->getActiveSheet();
+        $all->setTitle(self::LOOKUPS_ALL_SHEET_NAME);
+        $this->populateCombinedLookupsSheet($all);
+
+        $this->addTypesLookupSheet($spreadsheet);
+        $this->addCategoriesLookupSheet($spreadsheet);
+        $this->addSubcategoriesLookupSheet($spreadsheet);
+        $this->addQuestionKindsLookupSheet($spreadsheet);
+
+        $spreadsheet->setActiveSheetIndexByName(self::LOOKUPS_ALL_SHEET_NAME);
+
+        return $spreadsheet;
+    }
+
+    private function populateCombinedLookupsSheet(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet): void
+    {
+        $headers = ['section', 'id', 'name', 'type_id', 'category_id', 'value', 'label_ar', 'display'];
+        $this->writeHeaderRow($sheet, $headers, 1);
+
+        $row = 2;
+        foreach (Type::orderBy('id')->get(['id', 'name']) as $type) {
+            $display = $type->name . ' [' . $type->id . ']';
+            $this->writeDataRow($sheet, ['Types', $type->id, $type->name, '', '', '', '', $display], $row++);
+        }
+
+        foreach (Category::orderBy('id')->get(['id', 'name', 'type_id']) as $category) {
+            $display = $category->name . ' [' . $category->id . ']';
+            $this->writeDataRow($sheet, [
+                'Categories',
+                $category->id,
+                $category->name,
+                $category->type_id,
+                '',
+                '',
+                '',
+                $display,
+            ], $row++);
+        }
+
+        foreach (Subcategory::orderBy('id')->get(['id', 'name', 'category_id']) as $subcategory) {
+            $display = $subcategory->name . ' [' . $subcategory->id . ']';
+            $this->writeDataRow($sheet, [
+                'Subcategories',
+                $subcategory->id,
+                $subcategory->name,
+                '',
+                $subcategory->category_id,
+                '',
+                '',
+                $display,
+            ], $row++);
+        }
+
+        foreach (self::QUESTION_KINDS as $kind) {
+            $display = $kind['label_en'] . ' (' . $kind['label_ar'] . ') [' . $kind['value'] . ']';
+            $this->writeDataRow($sheet, [
+                'Question kinds',
+                '',
+                $kind['label_en'],
+                '',
+                '',
+                $kind['value'],
+                $kind['label_ar'],
+                $display,
+            ], $row++);
+        }
+
+        $sheet->freezePane('A2');
+        $sheet->getColumnDimension('A')->setWidth(18);
+        $sheet->getColumnDimension('H')->setWidth(40);
+    }
+
+    private function addTypesLookupSheet(Spreadsheet $spreadsheet): void
+    {
+        $types = $spreadsheet->createSheet();
         $types->setTitle('Lookups_Types');
         $this->writeHeaderRow($types, ['id', 'name', 'display'], 1);
         $row = 2;
@@ -112,16 +188,22 @@ class QuestionBulkExcelService
             $display = $type->name . ' [' . $type->id . ']';
             $this->writeDataRow($types, [$type->id, $type->name, $display], $row++);
         }
+    }
 
+    private function addCategoriesLookupSheet(Spreadsheet $spreadsheet): void
+    {
         $categories = $spreadsheet->createSheet();
         $categories->setTitle('Lookups_Categories');
         $this->writeHeaderRow($categories, ['id', 'name', 'type_id', 'display'], 1);
         $row = 2;
-        foreach (Category::with('type')->orderBy('id')->get(['id', 'name', 'type_id']) as $category) {
+        foreach (Category::orderBy('id')->get(['id', 'name', 'type_id']) as $category) {
             $display = $category->name . ' [' . $category->id . ']';
             $this->writeDataRow($categories, [$category->id, $category->name, $category->type_id, $display], $row++);
         }
+    }
 
+    private function addSubcategoriesLookupSheet(Spreadsheet $spreadsheet): void
+    {
         $subcategories = $spreadsheet->createSheet();
         $subcategories->setTitle('Lookups_Subcategories');
         $this->writeHeaderRow($subcategories, ['id', 'name', 'category_id', 'display'], 1);
@@ -130,7 +212,10 @@ class QuestionBulkExcelService
             $display = $subcategory->name . ' [' . $subcategory->id . ']';
             $this->writeDataRow($subcategories, [$subcategory->id, $subcategory->name, $subcategory->category_id, $display], $row++);
         }
+    }
 
+    private function addQuestionKindsLookupSheet(Spreadsheet $spreadsheet): void
+    {
         $kinds = $spreadsheet->createSheet();
         $kinds->setTitle('Lookups_QuestionKinds');
         $this->writeHeaderRow($kinds, ['value', 'label_en', 'label_ar', 'display'], 1);
@@ -139,10 +224,6 @@ class QuestionBulkExcelService
             $display = $kind['label_en'] . ' (' . $kind['label_ar'] . ') [' . $kind['value'] . ']';
             $this->writeDataRow($kinds, [$kind['value'], $kind['label_en'], $kind['label_ar'], $display], $row++);
         }
-
-        $spreadsheet->setActiveSheetIndexByName('Lookups_Types');
-
-        return $spreadsheet;
     }
 
     /**

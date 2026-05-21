@@ -23,13 +23,15 @@ Permission: `questions` (same as existing questions CRUD)
 - **GET** `/questions/bulk-import/lookups`
 - **Response:** binary `.xlsx` file (`questions_import_lookups.xlsx`)
 - **Sheets:**
-  - `Lookups_Types` — `id`, `name`, `display` (e.g. `History [5]`)
+  - **`Lookups_All`** (default tab) — **all** lookup data in one table:
+    - `section`: `Types` | `Categories` | `Subcategories` | `Question kinds`
+    - `id`, `name`, `type_id` (categories), `category_id` (subcategories), `value` + `label_ar` (question kinds), `display`
+  - `Lookups_Types` — `id`, `name`, `display`
   - `Lookups_Categories` — `id`, `name`, `type_id`, `display`
   - `Lookups_Subcategories` — `id`, `name`, `category_id`, `display`
-  - `Lookups_QuestionKinds` — `value`, `label_en`, `label_ar`, `display`  
-    Values: `normal`, `words`, `voice`, `video`, `image`
+  - `Lookups_QuestionKinds` — `value`, `label_en`, `label_ar`, `display` (`normal`, `words`, `voice`, `video`, `image`)
 
-Admins use this file to copy the correct numeric IDs into the import template.
+Admins use this file to copy the correct IDs into the import template. Open **`Lookups_All`** first for everything in one view.
 
 ### 3. Bulk upload
 
