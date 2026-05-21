@@ -527,8 +527,10 @@ class GameController extends Controller
             }
         }
 
-        $isLeader = (bool) $request->boolean('isLeader');
-        if ($isLeader) {
+        $isLeader = $playersPerTeam === 1
+            ? true
+            : (bool) $request->boolean('isLeader');
+        if ($isLeader && $playersPerTeam !== 1) {
             $hasLeader = $room->roomPlayers()
                 ->where('team_id', $teamId)
                 ->where('is_leader', true)
@@ -726,7 +728,7 @@ class GameController extends Controller
             return ApiResponse::error('اللعبة متوقفة؛ انتظر السؤال التالي', 400);
         }
 
-        $afterNextCooldown = $this->gameService->cooldownAfterNextQuestionRemainingSeconds($session);
+        $afterNextCooldown = $this->gameService->cooldownAfterNextQuestionForSubmitAnswerRemainingSeconds($session);
         if ($afterNextCooldown > 0) {
             return ApiResponse::error(
                 'يرجى الانتظار ' . $afterNextCooldown . ' ثانية بعد السؤال التالي قبل إرسال إجابة',
@@ -992,17 +994,23 @@ class GameController extends Controller
         }
 
         $surrenderingTeamId = $roomPlayer->team_id;
-        $distinctTeamCount = $session->room->roomPlayers->pluck('team_id')->unique()->filter()->count();
+        $allTeamIds = $session->room->roomPlayers->pluck('team_id')->unique()->filter()
+            ->map(fn ($id) => (string) $id)
+            ->values();
+        $distinctTeamCount = $allTeamIds->count();
 
         RoomPlayer::where('room_id', $session->room_id)
             ->where('team_id', $surrenderingTeamId)
             ->update(['score' => 0]);
 
-        if ($distinctTeamCount > 2) {
-            // Multi-team: mark this team as surrendered; others continue
-            $surrenderedIds = $session->surrendered_team_ids ?? [];
-            $surrenderedIds[] = (string) $surrenderingTeamId;
-            $surrenderedIds = array_values(array_unique($surrenderedIds));
+        $surrenderedIds = array_values(array_unique([
+            ...(is_array($session->surrendered_team_ids) ? $session->surrendered_team_ids : []),
+            (string) $surrenderingTeamId,
+        ]));
+        $activeTeamIds = $allTeamIds->reject(fn ($id) => in_array($id, $surrenderedIds, true))->values();
+
+        // Multi-team (3+): eliminated team is out; game continues until one team remains or all surrender.
+        if ($distinctTeamCount > 2 && $activeTeamIds->isNotEmpty()) {
             $session->update(['surrendered_team_ids' => $surrenderedIds]);
             $this->firebaseSync->syncScores($session->fresh(['room.roomPlayers']));
 
@@ -1014,20 +1022,30 @@ class GameController extends Controller
             ], null, 200);
         }
 
-        // Two teams or fewer: session ends, non-surrendering team wins
-        // Persist surrendered team id as well, so Firebase `teams[*].surrendered` / `isEliminated` can be shown.
-        $winnerIds = collect($session->room->roomPlayers->pluck('team_id')->unique()->filter())
-            ->reject(fn ($id) => (int) $id === (int) $surrenderingTeamId)
-            ->map(fn ($id) => (string) $id)
-            ->values()
-            ->all();
+        return $this->endSessionAfterSurrender($session, (string) $surrenderingTeamId, $surrenderedIds, $activeTeamIds->all());
+    }
+
+    /**
+     * Finish session after surrender (2 teams, or multi-team when no active teams remain).
+     *
+     * @param list<string> $surrenderedIds
+     * @param list<string> $activeTeamIds Non-surrendered team ids (empty when all teams surrendered).
+     */
+    private function endSessionAfterSurrender(
+        GameSession $session,
+        string $surrenderingTeamId,
+        array $surrenderedIds,
+        array $activeTeamIds
+    ): JsonResponse {
+        $sessionForResolve = $session->fresh(['room.roomPlayers']);
+        $sessionForResolve->surrendered_team_ids = $surrenderedIds;
+        $winnerIds = $activeTeamIds !== []
+            ? $activeTeamIds
+            : $this->gameService->resolveWinnerTeamIds($sessionForResolve);
 
         $session->update([
             'status' => 'finished',
-            'surrendered_team_ids' => array_values(array_unique([
-                ...(is_array($session->surrendered_team_ids) ? $session->surrendered_team_ids : []),
-                (string) $surrenderingTeamId,
-            ])),
+            'surrendered_team_ids' => $surrenderedIds,
             'winner_team_ids' => $winnerIds,
         ]);
         $session->room?->update(['status' => 'finished']);
@@ -1052,24 +1070,16 @@ class GameController extends Controller
             ];
         })->values()->all();
 
-        $winnerIds = collect($byTeam)
-            ->pluck('teamId')
-            ->reject(fn($id) => (int) $id === (int) $surrenderingTeamId)
-            ->values()
-            ->all();
-
         $this->firebaseSync->syncSessionEnd($finished, $winnerIds);
 
-        $data = [
+        return ApiResponse::success([
             'sessionId' => (string) $session->id,
             'endedBySurrender' => true,
-            'surrenderingTeamId' => (string) $surrenderingTeamId,
+            'surrenderingTeamId' => $surrenderingTeamId,
             'scores' => $byTeam,
             'winnerIds' => $winnerIds,
             'message' => 'تم إنهاء المغامرة بسبب استسلام أحد الفرق',
-        ];
-
-        return ApiResponse::success($data, null, 200);
+        ], null, 200);
     }
 
     public function endSession(int $sessionId): JsonResponse

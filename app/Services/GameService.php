@@ -28,6 +28,9 @@ class GameService
      */
     public const NEXT_QUESTION_COOLDOWN_SECONDS = 10;
 
+    /** Cooldown after POST next-question before POST answer is allowed (seconds). */
+    public const SUBMIT_ANSWER_AFTER_NEXT_QUESTION_COOLDOWN_SECONDS = 2;
+
     /** Per-leader cooldown for POST answer on the same question (seconds). */
     public const SUBMIT_ANSWER_COOLDOWN_SECONDS = 4;
 
@@ -653,13 +656,26 @@ class GameService
 
     public function cooldownAfterNextQuestionRemainingSeconds(GameSession $session): int
     {
+        return $this->cooldownAfterNextQuestionRemainingSecondsFor($session, self::NEXT_QUESTION_COOLDOWN_SECONDS);
+    }
+
+    public function cooldownAfterNextQuestionForSubmitAnswerRemainingSeconds(GameSession $session): int
+    {
+        return $this->cooldownAfterNextQuestionRemainingSecondsFor(
+            $session,
+            self::SUBMIT_ANSWER_AFTER_NEXT_QUESTION_COOLDOWN_SECONDS
+        );
+    }
+
+    private function cooldownAfterNextQuestionRemainingSecondsFor(GameSession $session, int $cooldownSeconds): int
+    {
         if (!$session->last_next_question_at) {
             return 0;
         }
 
         $elapsed = $session->last_next_question_at->diffInSeconds(now());
 
-        return max(0, self::NEXT_QUESTION_COOLDOWN_SECONDS - $elapsed);
+        return max(0, $cooldownSeconds - $elapsed);
     }
 
     public function isCooldownAfterNextQuestionActive(GameSession $session): bool

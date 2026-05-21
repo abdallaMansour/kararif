@@ -37,7 +37,7 @@ and check first if anything of this is already implemented
 
 - **POST** `/api/game/session/{sessionId}/surrender` (auth required)
 - **Two teams:** Session ends immediately; non-surrendering team wins. Response: `endedBySurrender: true`, `scores`, `winnerIds`.
-- **More than two teams:** The surrendering team is marked eliminated; the session **continues** for the remaining teams. Response: `endedBySurrender: false`, `surrenderingTeamId`, message that the team surrendered and others continue.
+- **More than two teams:** The surrendering team is marked eliminated; the session **continues** for the remaining teams unless **all** teams have surrendered (then the session ends like a normal finish). Response: `endedBySurrender: false` while others remain, `true` when the session ends; `surrenderingTeamId`, message that the team surrendered and others continue (or game ended when all are out).
 - **Firebase:** In `sessions/{sessionId}`, each team in `teams` now has:
     - `surrendered`: boolean — `true` if that team has surrendered
     - `isEliminated`: `true` if the team is out (life points 0 or surrendered)
