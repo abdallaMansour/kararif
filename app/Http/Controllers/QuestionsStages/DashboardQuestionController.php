@@ -5,13 +5,21 @@ namespace App\Http\Controllers\QuestionsStages;
 use App\Models\Question;
 use App\Traits\ApiTrait;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\QuestionsStages\BulkImportQuestionsRequest;
 use App\Http\Requests\QuestionsStages\QuestionRequest;
 use App\Http\Requests\QuestionsStages\QuestionVideosRequest;
 use App\Http\Resources\QuestionsStages\DashboardQuestionResource;
+use App\Services\Questions\QuestionBulkExcelService;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class DashboardQuestionController extends Controller
 {
     use ApiTrait;
+
+    public function __construct(
+        private readonly QuestionBulkExcelService $bulkExcel
+    ) {
+    }
 
     public function index()
     {
@@ -152,6 +160,39 @@ class DashboardQuestionController extends Controller
                 }
             }
             return $this->sendSuccess(__('response.updated'));
+        } catch (\Throwable $th) {
+            return $this->sendError($th->getMessage(), [], 500);
+        }
+    }
+
+    public function downloadBulkImportTemplate(): BinaryFileResponse
+    {
+        $spreadsheet = $this->bulkExcel->buildImportTemplateSpreadsheet();
+        $path = $this->bulkExcel->saveSpreadsheetToTempFile($spreadsheet, 'questions_import_template');
+
+        return response()
+            ->download($path, 'questions_import_template.xlsx')
+            ->deleteFileAfterSend(true);
+    }
+
+    public function downloadBulkImportLookups(): BinaryFileResponse
+    {
+        $spreadsheet = $this->bulkExcel->buildLookupsReferenceSpreadsheet();
+        $path = $this->bulkExcel->saveSpreadsheetToTempFile($spreadsheet, 'questions_import_lookups');
+
+        return response()
+            ->download($path, 'questions_import_lookups.xlsx')
+            ->deleteFileAfterSend(true);
+    }
+
+    public function bulkImport(BulkImportQuestionsRequest $request)
+    {
+        try {
+            $result = $this->bulkExcel->importFromFile($request->file('file'));
+
+            return $this->sendResponse($result, __('response.created'));
+        } catch (\InvalidArgumentException $e) {
+            return $this->sendError($e->getMessage(), [], 422);
         } catch (\Throwable $th) {
             return $this->sendError($th->getMessage(), [], 500);
         }

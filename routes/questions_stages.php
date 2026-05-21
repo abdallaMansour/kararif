@@ -57,6 +57,9 @@ Route::prefix('dashboard')->middleware('hasPermission:questions_and_stages')->gr
 
 // Dashboard routes: questions only (questions permission)
 Route::prefix('dashboard')->middleware('hasPermission:questions')->group(function () {
+    Route::get('questions/bulk-import/template', [DashboardQuestionController::class, 'downloadBulkImportTemplate']);
+    Route::get('questions/bulk-import/lookups', [DashboardQuestionController::class, 'downloadBulkImportLookups']);
+    Route::post('questions/bulk-import', [DashboardQuestionController::class, 'bulkImport']);
     Route::get('questions', [DashboardQuestionController::class, 'index']);
     Route::post('questions', [DashboardQuestionController::class, 'create']);
     Route::get('questions/{question}', [DashboardQuestionController::class, 'show']);
